@@ -9,6 +9,7 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <cjson/cJSON.h>
+#include <stdlib.h>
 
 typedef struct {
     registry_t *reg;
@@ -47,6 +48,8 @@ static void handle_message(registry_t *reg, const char *buf, int len) {
         cJSON *uptime_obj = cJSON_GetObjectItemCaseSensitive(root, "uptime");
         if (cJSON_IsNumber(uptime_obj)) {
             client->uptime = uptime_obj->valuedouble;
+        } else if (cJSON_IsString(uptime_obj)) {
+            client->uptime = strtod(uptime_obj->valuestring, NULL);
         }
     } else if (strcmp(type, MSG_TYPE_TASK) == 0) {
         cJSON *task_obj = cJSON_GetObjectItemCaseSensitive(root, "task");
@@ -58,6 +61,8 @@ static void handle_message(registry_t *reg, const char *buf, int len) {
         }
         if (cJSON_IsNumber(started_obj)) {
             client->task_start = (time_t)started_obj->valuedouble;
+        } else if (cJSON_IsString(started_obj)) {
+            client->task_start = (time_t)strtol(started_obj->valuestring, NULL, 10);
         }
     }
 

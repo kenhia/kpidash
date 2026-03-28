@@ -133,12 +133,19 @@ while True:
 
 ### 3.2 Minimal Client (curl / netcat for testing)
 
+**bash/zsh:**
 ```bash
 # Health ping
 echo '{"type":"health","host":"testbox","uptime":1234}' | nc -u -w0 PI_IP 5555
 
 # Task update
 echo '{"type":"task","host":"testbox","task":"debugging","started":'"$(date +%s)"'}' | nc -u -w0 PI_IP 5555
+```
+
+**fish:**
+```fish
+echo '{"type":"health","host":"testbox","uptime":1234}' | nc -u -w0 PI_IP 5555
+echo '{"type":"task","host":"testbox","task":"debugging","started":'(date +%s)'}' | nc -u -w0 PI_IP 5555
 ```
 
 ### 3.3 Recommended Client Architecture

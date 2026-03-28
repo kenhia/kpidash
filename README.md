@@ -42,6 +42,14 @@ echo '{"type":"task","host":"testbox","task":"coding","started":'"$(date +%s)"'}
 echo '{"type":"task","host":"testbox","task":"","started":0}' | nc -u -w0 $PI_IP 5555
 ```
 
+### fish shell
+
+```fish
+set PI_IP 192.168.1.100
+echo '{"type":"health","host":"testbox","uptime":1234}' | nc -u -w0 $PI_IP 5555
+echo '{"type":"task","host":"testbox","task":"coding","started":'(date +%s)'}' | nc -u -w0 $PI_IP 5555
+```
+
 ## Client Protocol
 
 See [docs/CLIENT-PROTOCOL.md](docs/CLIENT-PROTOCOL.md) for the full protocol specification.
