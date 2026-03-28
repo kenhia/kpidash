@@ -172,7 +172,7 @@ void ui_update(registry_t *reg) {
             if (c->last_task[0] != '\0' && c->last_task_completed > 0 &&
                 (now - c->last_task_completed) < 60) {
                 char done_buf[TASK_LEN + 16];
-                snprintf(done_buf, sizeof(done_buf), "\u2713 %s", c->last_task);
+                snprintf(done_buf, sizeof(done_buf), "[done] %s", c->last_task);
                 lv_label_set_text(c->task_label, done_buf);
                 lv_obj_set_style_text_color(c->task_label,
                     lv_palette_main(LV_PALETTE_GREEN), 0);
