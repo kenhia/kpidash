@@ -50,9 +50,11 @@ int main(void) {
     /* Initialize LVGL */
     lv_init();
 
-    /* Create DRM display */
+    /* Create DRM display — card1 is the vc4/v3d GPU with HDMI on Pi 5 */
     lv_display_t *disp = lv_linux_drm_create();
-    lv_linux_drm_set_file(disp, "/dev/dri/card0", -1);
+    const char *drm_dev = getenv("KPIDASH_DRM_DEV");
+    if (!drm_dev) drm_dev = "/dev/dri/card1";
+    lv_linux_drm_set_file(disp, drm_dev, -1);
 
     /* Initialize client registry */
     registry_init(&registry);
