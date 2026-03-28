@@ -1,0 +1,16 @@
+# Build
+build/
+*.o
+*.d
+*.a
+
+# IDE
+.vscode/
+.idea/
+
+# Scratch/working notes
+.scratch/
+
+# OS
+.DS_Store
+Thumbs.db
