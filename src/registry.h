@@ -13,6 +13,8 @@ typedef struct {
     double uptime;
     char task[TASK_LEN];
     time_t task_start;
+    char last_task[TASK_LEN];       /* most recently completed task */
+    time_t last_task_completed;     /* epoch when it was marked done */
     bool active;
 
     /* LVGL widget handles (only touched from main/LVGL thread) */

@@ -95,8 +95,28 @@ To **clear** a task, send:
 
 **Dashboard behavior**:
 - Updates the task label and elapsed-time display for the client.
+- Sending a new task replaces the previous one (elapsed time resets).
 - Elapsed time is computed as `now - started` and displayed as `HH:MM:SS`.
 - A cleared task displays `(no task)` with `--:--:--` for elapsed.
+
+### 2.3 Task Done
+
+Sent when the user completes their current task.
+
+```json
+{
+    "type": "task_done",
+    "host": "kubs0"
+}
+```
+
+No additional fields are required.
+
+**Dashboard behavior**:
+- Archives the current task and clears it.
+- Displays a checkmark with the completed task name for ~60 seconds, then
+  reverts to `(no task)`.
+- If there is no active task, the message is a no-op.
 
 ## 3. Client Implementation Guide
 

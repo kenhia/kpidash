@@ -168,10 +168,25 @@ void ui_update(registry_t *reg) {
 
         /* Update task */
         if (c->task[0] == '\0') {
-            lv_label_set_text(c->task_label, "(no task)");
-            lv_label_set_text(c->elapsed_label, "--:--:--");
+            /* No active task — show last completed if recent (< 60s) */
+            if (c->last_task[0] != '\0' && c->last_task_completed > 0 &&
+                (now - c->last_task_completed) < 60) {
+                char done_buf[TASK_LEN + 16];
+                snprintf(done_buf, sizeof(done_buf), "\u2713 %s", c->last_task);
+                lv_label_set_text(c->task_label, done_buf);
+                lv_obj_set_style_text_color(c->task_label,
+                    lv_palette_main(LV_PALETTE_GREEN), 0);
+                lv_label_set_text(c->elapsed_label, "done");
+            } else {
+                lv_label_set_text(c->task_label, "(no task)");
+                lv_obj_set_style_text_color(c->task_label,
+                    lv_palette_lighten(LV_PALETTE_GREY, 2), 0);
+                lv_label_set_text(c->elapsed_label, "--:--:--");
+            }
         } else {
             lv_label_set_text(c->task_label, c->task);
+            lv_obj_set_style_text_color(c->task_label,
+                lv_palette_lighten(LV_PALETTE_GREY, 2), 0);
             char elapsed_buf[16];
             format_elapsed(c->task_start, elapsed_buf, sizeof(elapsed_buf));
             lv_label_set_text(c->elapsed_label, elapsed_buf);

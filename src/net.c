@@ -64,6 +64,15 @@ static void handle_message(registry_t *reg, const char *buf, int len) {
         } else if (cJSON_IsString(started_obj)) {
             client->task_start = (time_t)strtol(started_obj->valuestring, NULL, 10);
         }
+    } else if (strcmp(type, MSG_TYPE_TASK_DONE) == 0) {
+        /* Complete current task — archive it and clear */
+        if (client->task[0] != '\0') {
+            strncpy(client->last_task, client->task, TASK_LEN - 1);
+            client->last_task[TASK_LEN - 1] = '\0';
+            client->last_task_completed = time(NULL);
+        }
+        client->task[0] = '\0';
+        client->task_start = 0;
     }
 
     registry_unlock(reg);

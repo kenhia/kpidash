@@ -40,6 +40,9 @@ echo '{"type":"task","host":"testbox","task":"coding","started":'"$(date +%s)"'}
 
 # Clear a task
 echo '{"type":"task","host":"testbox","task":"","started":0}' | nc -u -w0 $PI_IP 5555
+
+# Complete current task
+echo '{"type":"task_done","host":"testbox"}' | nc -u -w0 $PI_IP 5555
 ```
 
 ### fish shell
@@ -48,6 +51,7 @@ echo '{"type":"task","host":"testbox","task":"","started":0}' | nc -u -w0 $PI_IP
 set PI_IP 192.168.1.100
 echo '{"type":"health","host":"testbox","uptime":1234}' | nc -u -w0 $PI_IP 5555
 echo '{"type":"task","host":"testbox","task":"coding","started":'(date +%s)'}' | nc -u -w0 $PI_IP 5555
+echo '{"type":"task_done","host":"testbox"}' | nc -u -w0 $PI_IP 5555
 ```
 
 ## Client Protocol

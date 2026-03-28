@@ -9,7 +9,8 @@
 #define HEALTH_TIMEOUT_SEC   10
 
 /* Message type strings (match JSON "type" field) */
-#define MSG_TYPE_HEALTH "health"
-#define MSG_TYPE_TASK   "task"
+#define MSG_TYPE_HEALTH    "health"
+#define MSG_TYPE_TASK      "task"
+#define MSG_TYPE_TASK_DONE "task_done"
 
 #endif /* PROTOCOL_H */
