@@ -14,6 +14,11 @@ static lv_obj_t *title_label;
 static lv_obj_t *clock_label;
 static lv_obj_t *client_list;   /* scrollable container for cards */
 
+/* ── Resource image paths (POSIX FS drive 'A') ────────────────────── */
+#define IMG_NVME "A:/home/ken/src/kpidash/resources/nvme.png"
+#define IMG_HDD  "A:/home/ken/src/kpidash/resources/hdd.png"
+#define IMG_SSD  "A:/home/ken/src/kpidash/resources/ssd.png"
+
 /* ── Helpers ──────────────────────────────────────────────────────── */
 
 static void format_elapsed(time_t start, char *buf, size_t len) {
@@ -38,7 +43,32 @@ static void update_clock(void) {
     lv_label_set_text(clock_label, buf);
 }
 
-/* ── Card creation ────────────────────────────────────────────────── */
+/* ── Image card creation ──────────────────────────────────────────── */
+
+static lv_obj_t *create_image_card(lv_obj_t *parent, const char *img_path, const char *label_text) {
+    lv_obj_t *card = lv_obj_create(parent);
+    lv_obj_add_style(card, &style_card, 0);
+    lv_obj_set_size(card, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
+    lv_obj_set_style_pad_all(card, 12, 0);
+    lv_obj_set_flex_flow(card, LV_FLEX_FLOW_COLUMN);
+    lv_obj_set_flex_align(card, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    lv_obj_set_style_pad_row(card, 8, 0);
+    lv_obj_clear_flag(card, LV_OBJ_FLAG_SCROLLABLE);
+
+    lv_obj_t *img = lv_image_create(card);
+    lv_image_set_src(img, img_path);
+    lv_obj_set_size(img, 64, 64);
+    lv_image_set_inner_align(img, LV_IMAGE_ALIGN_CENTER);
+
+    lv_obj_t *lbl = lv_label_create(card);
+    lv_label_set_text(lbl, label_text);
+    lv_obj_set_style_text_font(lbl, &lv_font_montserrat_20, 0);
+    lv_obj_set_style_text_color(lbl, lv_color_white(), 0);
+
+    return card;
+}
+
+/* ── Client card creation ─────────────────────────────────────────── */
 
 static void create_client_card(client_info_t *c) {
     /* Card container */
@@ -132,11 +162,26 @@ void ui_init(void) {
     lv_obj_set_style_text_font(clock_label, &lv_font_montserrat_36, 0);
     lv_obj_set_style_text_color(clock_label, lv_palette_lighten(LV_PALETTE_GREY, 2), 0);
 
-    /* ── Client list (scrollable area below title) ── */
+    /* ── Image widget row ── */
+    lv_obj_t *img_row = lv_obj_create(scr);
+    lv_obj_remove_style_all(img_row);
+    lv_obj_set_width(img_row, LV_PCT(100));
+    lv_obj_set_height(img_row, LV_SIZE_CONTENT);
+    lv_obj_align_to(img_row, title_bar, LV_ALIGN_OUT_BOTTOM_MID, 0, 0);
+    lv_obj_set_flex_flow(img_row, LV_FLEX_FLOW_ROW);
+    lv_obj_set_flex_align(img_row, LV_FLEX_ALIGN_SPACE_EVENLY, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    lv_obj_set_style_pad_all(img_row, 12, 0);
+    lv_obj_clear_flag(img_row, LV_OBJ_FLAG_SCROLLABLE);
+
+    create_image_card(img_row, IMG_NVME, "NVMe");
+    create_image_card(img_row, IMG_HDD,  "HDD");
+    create_image_card(img_row, IMG_SSD,  "SSD");
+
+    /* ── Client list (scrollable area below images) ── */
     client_list = lv_obj_create(scr);
     lv_obj_remove_style_all(client_list);
     lv_obj_set_size(client_list, LV_PCT(100), LV_PCT(100));
-    lv_obj_align_to(client_list, title_bar, LV_ALIGN_OUT_BOTTOM_MID, 0, 0);
+    lv_obj_align_to(client_list, img_row, LV_ALIGN_OUT_BOTTOM_MID, 0, 0);
     lv_obj_set_flex_flow(client_list, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_style_pad_all(client_list, 20, 0);
     lv_obj_set_style_pad_row(client_list, 12, 0);

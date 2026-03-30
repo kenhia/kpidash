@@ -11,9 +11,10 @@ add_compile_definitions(LV_CONF_PATH=${LV_CONF_PATH})
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(DRM REQUIRED libdrm)
 pkg_check_modules(CJSON REQUIRED libcjson)
+pkg_check_modules(PNG REQUIRED libpng)
 
 # LVGL's DRM driver includes <drm.h> — make libdrm headers available
-include_directories(${DRM_INCLUDE_DIRS})
+include_directories(${DRM_INCLUDE_DIRS} ${PNG_INCLUDE_DIRS})
 
 add_subdirectory(lib/lvgl)
 
@@ -35,5 +36,6 @@ target_link_libraries(kpidash
     lvgl
     ${DRM_LIBRARIES}
     ${CJSON_LIBRARIES}
+    ${PNG_LIBRARIES}
     pthread
 )

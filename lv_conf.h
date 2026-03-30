@@ -44,5 +44,16 @@
 /* Drivers — Linux DRM for direct KMS rendering */
 #define LV_USE_LINUX_DRM 1
 
+/* Filesystem — POSIX for loading images from disk */
+#define LV_USE_FS_POSIX 1
+#if LV_USE_FS_POSIX
+    #define LV_FS_POSIX_LETTER 'A'
+    #define LV_FS_POSIX_PATH ""
+    #define LV_FS_POSIX_CACHE_SIZE 0
+#endif
+
+/* Image decoders */
+#define LV_USE_LIBPNG 1
+
 #endif /* LV_CONF_H */
 #endif /* Enable */
