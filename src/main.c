@@ -1,3 +1,9 @@
+/**
+ * main.c — kpidash entry point (T016, T050)
+ *
+ * Initializes LVGL, Redis, registry, UI, and fortune.
+ * Runs a 1-second poll timer for Redis → UI refresh.
+ */
 #include <stdio.h>
 #include <stdlib.h>
 #include <signal.h>
@@ -7,81 +13,84 @@
 #include "lvgl.h"
 #include "src/drivers/display/drm/lv_linux_drm.h"
 
+#include "config.h"
 #include "registry.h"
-#include "net.h"
+#include "redis.h"
 #include "ui.h"
+#include "status.h"
+#include "fortune.h"
 #include "protocol.h"
 
-static volatile sig_atomic_t running = 1;
+static volatile sig_atomic_t g_running = 1;
+static kpidash_config_t g_config;
 
 static void sigint_handler(int sig) {
     (void)sig;
-    running = 0;
+    g_running = 0;
 }
 
-/* Global registry — shared between UDP thread and LVGL timer */
-static registry_t registry;
-
-/* LVGL timer callback (runs every 1s) */
-static void timer_update_cb(lv_timer_t *t) {
+/* ---- 1-second LVGL timer: poll Redis, refresh UI ---- */
+static void timer_poll_cb(lv_timer_t *t) {
     (void)t;
-    ui_update(&registry);
+    if (!redis_reconnect_if_needed()) return;
+    redis_poll();
+    ui_refresh();
 }
 
 int main(void) {
-    /* Handle Ctrl-C gracefully */
+    /* Signal handling */
     struct sigaction sa;
     sa.sa_handler = sigint_handler;
     sigemptyset(&sa.sa_mask);
     sa.sa_flags = 0;
-    sigaction(SIGINT, &sa, NULL);
+    sigaction(SIGINT,  &sa, NULL);
     sigaction(SIGTERM, &sa, NULL);
 
-    /* Parse port from env */
-    int port = KPIDASH_DEFAULT_PORT;
-    const char *port_env = getenv("KPIDASH_PORT");
-    if (port_env) {
-        int p = atoi(port_env);
-        if (p > 0 && p <= 65535) port = p;
-    }
+    /* Load config from environment */
+    config_load(&g_config);
 
-    printf("kpidash: starting (port %d)\n", port);
-
-    /* Initialize LVGL */
+    /* LVGL initialisation */
     lv_init();
 
-    /* Create DRM display — card1 is the vc4/v3d GPU with HDMI on Pi 5 */
+    /* DRM/KMS display — A3: verify refresh period is set (≈30fps) */
     lv_display_t *disp = lv_linux_drm_create();
-    const char *drm_dev = getenv("KPIDASH_DRM_DEV");
-    if (!drm_dev) drm_dev = "/dev/dri/card1";
-    lv_linux_drm_set_file(disp, drm_dev, -1);
+    lv_linux_drm_set_file(disp, g_config.drm_dev, -1);
 
-    /* Initialize client registry */
-    registry_init(&registry);
+    /* Registry */
+    registry_init();
 
-    /* Start UDP listener */
-    if (net_start(&registry, port) != 0) {
-        fprintf(stderr, "kpidash: failed to start UDP listener\n");
-        return 1;
-    }
-
-    /* Build UI */
+    /* Build UI — must be after LVGL display init */
     ui_init();
 
-    /* Timer: update client cards every 1 second */
-    lv_timer_create(timer_update_cb, 1000, NULL);
+    /* Redis connection */
+    if (!redis_connect(g_config.redis_host, g_config.redis_port, g_config.redis_auth)) {
+        ui_show_redis_error("initial connection failed — retrying");
+        fprintf(stderr, "kpidash: Redis connection failed, will retry\n");
+    } else {
+        /* T050: Publish log path and version on startup */
+        redis_write_system_info(g_config.log_file, KPIDASH_VERSION);
+        redis_roundtrip_check();
+    }
 
-    printf("kpidash: running\n");
+    /* Register 1-second poll timer */
+    lv_timer_create(timer_poll_cb, 1000, NULL);
+
+    /* Fortune (after ui_init so widget exists) */
+    fortune_init(&g_config);
+
+    printf("kpidash: running (Redis %s:%d, DRM %s)\n",
+           g_config.redis_host, g_config.redis_port, g_config.drm_dev);
 
     /* Main loop */
-    while (running) {
+    while (g_running) {
         uint32_t sleep_ms = lv_timer_handler();
         if (sleep_ms > 100) sleep_ms = 100;
         usleep(sleep_ms * 1000);
     }
 
     printf("\nkpidash: shutting down\n");
+    redis_disconnect();
     lv_deinit();
-
     return 0;
 }
+

@@ -1,242 +1,228 @@
+/**
+ * ui.c — Dashboard layout and widget management (T017, T017a, T055)
+ *
+ * Layout (no title bar, FR-002a; no scroll anywhere, FR-008):
+ *
+ *   ┌─────────────────────────────────────────────┐
+ *   │  [client cards grid — top, fills width]     │
+ *   ├────────────────────┬────────────────────────┤
+ *   │  Activities        │  Repo Status           │
+ *   ├────────────────────┴────────────────────────┤
+ *   │  Fortune widget (bottom strip)              │
+ *   ├─────────────────────────────────────────────┤
+ *   │  Status bar (hidden when no messages)       │
+ *   └─────────────────────────────────────────────┘
+ */
 #include "ui.h"
+#include "registry.h"
+#include "redis.h"
+#include "fortune.h"
+#include "widgets/client_card.h"
+#include "widgets/activities.h"
+#include "widgets/repo_status.h"
+#include "widgets/fortune.h"
+#include "widgets/status_bar.h"
 #include "protocol.h"
-
-#include <stdio.h>
 #include <string.h>
-#include <time.h>
+#include <stdio.h>
 
-/* ── Styles ───────────────────────────────────────────────────────── */
-static lv_style_t style_card;
-static lv_style_t style_title_bar;
+/* ---- Layout objects ---- */
+static lv_obj_t *g_screen       = NULL;
+static lv_obj_t *g_card_grid    = NULL;
+static lv_obj_t *g_activities   = NULL;
+static lv_obj_t *g_repo_status  = NULL;
+static lv_obj_t *g_fortune      = NULL;
+static lv_obj_t *g_status_bar   = NULL;
+static lv_obj_t *g_redis_err    = NULL;
 
-/* ── Top-level widgets ────────────────────────────────────────────── */
-static lv_obj_t *title_label;
-static lv_obj_t *clock_label;
-static lv_obj_t *client_list;   /* scrollable container for cards */
+/* Track which hostnames have cards so we can add/remove dynamically */
+static char g_card_hostnames[MAX_CLIENTS][HOSTNAME_LEN];
+static lv_obj_t *g_cards[MAX_CLIENTS];
+static int g_card_count = 0;
 
-/* ── Resource image paths (POSIX FS drive 'A') ────────────────────── */
-#define IMG_NVME "A:/home/ken/src/kpidash/resources/nvme.png"
-#define IMG_HDD  "A:/home/ken/src/kpidash/resources/hdd.png"
-#define IMG_SSD  "A:/home/ken/src/kpidash/resources/ssd.png"
+/* ---- Helpers ---- */
 
-/* ── Helpers ──────────────────────────────────────────────────────── */
+static void clear_bg(lv_obj_t *obj) {
+    lv_obj_set_style_bg_color(obj, lv_color_hex(0x11111B), 0);
+    lv_obj_set_style_bg_opa(obj, LV_OPA_COVER, 0);
+    lv_obj_set_style_border_width(obj, 0, 0);
+    lv_obj_set_style_pad_all(obj, 0, 0);
+    lv_obj_clear_flag(obj, LV_OBJ_FLAG_SCROLLABLE);
+}
 
-static void format_elapsed(time_t start, char *buf, size_t len) {
-    if (start == 0) {
-        snprintf(buf, len, "--:--:--");
-        return;
+static lv_obj_t *find_card(const char *hostname) {
+    for (int i = 0; i < g_card_count; i++) {
+        if (strncmp(g_card_hostnames[i], hostname, HOSTNAME_LEN) == 0)
+            return g_cards[i];
     }
-    time_t now = time(NULL);
-    long elapsed = (long)(now - start);
-    if (elapsed < 0) elapsed = 0;
-    int h = (int)(elapsed / 3600);
-    int m = (int)((elapsed % 3600) / 60);
-    int s = (int)(elapsed % 60);
-    snprintf(buf, len, "%02d:%02d:%02d", h, m, s);
+    return NULL;
 }
 
-static void update_clock(void) {
-    time_t now = time(NULL);
-    struct tm *tm = localtime(&now);
-    char buf[16];
-    snprintf(buf, sizeof(buf), "%02d:%02d:%02d", tm->tm_hour, tm->tm_min, tm->tm_sec);
-    lv_label_set_text(clock_label, buf);
+static void add_card(const char *hostname) {
+    if (g_card_count >= MAX_CLIENTS) return;
+    lv_obj_t *card = client_card_create(g_card_grid, hostname);
+    strncpy(g_card_hostnames[g_card_count], hostname, HOSTNAME_LEN - 1);
+    g_cards[g_card_count] = card;
+    g_card_count++;
 }
 
-/* ── Image card creation ──────────────────────────────────────────── */
-
-static lv_obj_t *create_image_card(lv_obj_t *parent, const char *img_path, const char *label_text) {
-    lv_obj_t *card = lv_obj_create(parent);
-    lv_obj_add_style(card, &style_card, 0);
-    lv_obj_set_size(card, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
-    lv_obj_set_style_pad_all(card, 12, 0);
-    lv_obj_set_flex_flow(card, LV_FLEX_FLOW_COLUMN);
-    lv_obj_set_flex_align(card, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-    lv_obj_set_style_pad_row(card, 8, 0);
-    lv_obj_clear_flag(card, LV_OBJ_FLAG_SCROLLABLE);
-
-    lv_obj_t *img = lv_image_create(card);
-    lv_image_set_src(img, img_path);
-    lv_obj_set_size(img, 64, 64);
-    lv_image_set_inner_align(img, LV_IMAGE_ALIGN_CENTER);
-
-    lv_obj_t *lbl = lv_label_create(card);
-    lv_label_set_text(lbl, label_text);
-    lv_obj_set_style_text_font(lbl, &lv_font_montserrat_20, 0);
-    lv_obj_set_style_text_color(lbl, lv_color_white(), 0);
-
-    return card;
+static void remove_absent_cards(const client_info_t *clients, int n) {
+    for (int i = 0; i < g_card_count; ) {
+        bool found = false;
+        for (int j = 0; j < n; j++) {
+            if (strncmp(g_card_hostnames[i], clients[j].hostname, HOSTNAME_LEN) == 0) {
+                found = true;
+                break;
+            }
+        }
+        if (!found) {
+            lv_obj_delete(g_cards[i]);
+            /* Compact arrays */
+            for (int k = i; k < g_card_count - 1; k++) {
+                g_cards[k] = g_cards[k + 1];
+                strncpy(g_card_hostnames[k], g_card_hostnames[k + 1], HOSTNAME_LEN);
+            }
+            g_card_count--;
+        } else {
+            i++;
+        }
+    }
 }
 
-/* ── Client card creation ─────────────────────────────────────────── */
-
-static void create_client_card(client_info_t *c) {
-    /* Card container */
-    c->container = lv_obj_create(client_list);
-    lv_obj_add_style(c->container, &style_card, 0);
-    lv_obj_set_width(c->container, LV_PCT(100));
-    lv_obj_set_height(c->container, LV_SIZE_CONTENT);
-    lv_obj_set_style_pad_all(c->container, 16, 0);
-    lv_obj_set_flex_flow(c->container, LV_FLEX_FLOW_ROW);
-    lv_obj_set_flex_align(c->container, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-    lv_obj_set_style_pad_column(c->container, 20, 0);
-
-    /* LED indicator */
-    c->status_led = lv_led_create(c->container);
-    lv_led_set_color(c->status_led, lv_palette_main(LV_PALETTE_GREEN));
-    lv_obj_set_size(c->status_led, 32, 32);
-    lv_led_on(c->status_led);
-
-    /* Right-side column: hostname on top, task + elapsed below */
-    lv_obj_t *col = lv_obj_create(c->container);
-    lv_obj_remove_style_all(col);
-    lv_obj_set_flex_grow(col, 1);
-    lv_obj_set_height(col, LV_SIZE_CONTENT);
-    lv_obj_set_width(col, LV_PCT(100));
-    lv_obj_set_flex_flow(col, LV_FLEX_FLOW_COLUMN);
-    lv_obj_set_style_pad_row(col, 6, 0);
-
-    /* Row 1: hostname */
-    c->hostname_label = lv_label_create(col);
-    lv_label_set_text(c->hostname_label, c->hostname);
-    lv_obj_set_style_text_font(c->hostname_label, &lv_font_montserrat_28, 0);
-    lv_obj_set_style_text_color(c->hostname_label, lv_color_white(), 0);
-
-    /* Row 2: task + elapsed in a row */
-    lv_obj_t *task_row = lv_obj_create(col);
-    lv_obj_remove_style_all(task_row);
-    lv_obj_set_width(task_row, LV_PCT(100));
-    lv_obj_set_height(task_row, LV_SIZE_CONTENT);
-    lv_obj_set_flex_flow(task_row, LV_FLEX_FLOW_ROW);
-    lv_obj_set_flex_align(task_row, LV_FLEX_ALIGN_SPACE_BETWEEN, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-
-    c->task_label = lv_label_create(task_row);
-    lv_label_set_text(c->task_label, "(no task)");
-    lv_obj_set_style_text_font(c->task_label, &lv_font_montserrat_24, 0);
-    lv_obj_set_style_text_color(c->task_label, lv_palette_lighten(LV_PALETTE_GREY, 2), 0);
-    lv_obj_set_flex_grow(c->task_label, 1);
-
-    c->elapsed_label = lv_label_create(task_row);
-    lv_label_set_text(c->elapsed_label, "--:--:--");
-    lv_obj_set_style_text_font(c->elapsed_label, &lv_font_montserrat_24, 0);
-    lv_obj_set_style_text_color(c->elapsed_label, lv_palette_lighten(LV_PALETTE_GREY, 2), 0);
-}
-
-/* ── Public API ───────────────────────────────────────────────────── */
+/* ---- Public API ---- */
 
 void ui_init(void) {
-    lv_obj_t *scr = lv_screen_active();
-    lv_obj_set_style_bg_color(scr, lv_color_hex(0x1a1a2e), 0);
-    lv_obj_set_style_bg_opa(scr, LV_OPA_COVER, 0);
+    g_screen = lv_screen_active();
+    clear_bg(g_screen);
+    lv_obj_set_style_pad_all(g_screen, 8, 0);
+    lv_obj_set_style_pad_row(g_screen, 8, 0);
+    lv_obj_set_style_pad_column(g_screen, 8, 0);
 
-    /* ── Init styles ── */
-    lv_style_init(&style_card);
-    lv_style_set_bg_color(&style_card, lv_color_hex(0x16213e));
-    lv_style_set_bg_opa(&style_card, LV_OPA_COVER);
-    lv_style_set_radius(&style_card, 12);
-    lv_style_set_border_width(&style_card, 1);
-    lv_style_set_border_color(&style_card, lv_color_hex(0x0f3460));
+    lv_disp_t *disp = lv_display_get_default();
+    int32_t scr_w = lv_display_get_horizontal_resolution(disp);
+    int32_t scr_h = lv_display_get_vertical_resolution(disp);
+    int32_t card_area_h = (int32_t)(scr_h * 0.40);
+    int32_t mid_h       = (int32_t)(scr_h * 0.40);
+    int32_t fortune_h   = (int32_t)(scr_h * 0.10);
+    int32_t status_h    = 40;
 
-    lv_style_init(&style_title_bar);
-    lv_style_set_bg_color(&style_title_bar, lv_color_hex(0x0f3460));
-    lv_style_set_bg_opa(&style_title_bar, LV_OPA_COVER);
-    lv_style_set_radius(&style_title_bar, 0);
+    /* ---- Client card grid (top 40%) ---- */
+    g_card_grid = lv_obj_create(g_screen);
+    clear_bg(g_card_grid);
+    lv_obj_set_width(g_card_grid, scr_w - 16);
+    lv_obj_set_height(g_card_grid, card_area_h);
+    lv_obj_set_pos(g_card_grid, 8, 8);
+    lv_obj_set_flex_flow(g_card_grid, LV_FLEX_FLOW_ROW_WRAP);
+    lv_obj_set_flex_align(g_card_grid, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_START,
+                           LV_FLEX_ALIGN_START);
+    lv_obj_set_style_pad_column(g_card_grid, 8, 0);
+    lv_obj_set_style_pad_row(g_card_grid, 8, 0);
 
-    /* ── Title bar ── */
-    lv_obj_t *title_bar = lv_obj_create(scr);
-    lv_obj_add_style(title_bar, &style_title_bar, 0);
-    lv_obj_set_size(title_bar, LV_PCT(100), LV_SIZE_CONTENT);
-    lv_obj_set_style_pad_all(title_bar, 16, 0);
-    lv_obj_align(title_bar, LV_ALIGN_TOP_MID, 0, 0);
-    lv_obj_set_flex_flow(title_bar, LV_FLEX_FLOW_ROW);
-    lv_obj_set_flex_align(title_bar, LV_FLEX_ALIGN_SPACE_BETWEEN, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-    lv_obj_clear_flag(title_bar, LV_OBJ_FLAG_SCROLLABLE);
+    /* ---- Middle row: Activities (left) + Repo Status (right) ---- */
+    int32_t mid_y = card_area_h + 16;
+    int32_t half_w = (scr_w - 24) / 2;
 
-    title_label = lv_label_create(title_bar);
-    lv_label_set_text(title_label, "KPI Dashboard");
-    lv_obj_set_style_text_font(title_label, &lv_font_montserrat_36, 0);
-    lv_obj_set_style_text_color(title_label, lv_color_white(), 0);
+    g_activities = activities_widget_create(g_screen);
+    lv_obj_set_size(g_activities, half_w, mid_h);
+    lv_obj_set_pos(g_activities, 8, mid_y);
 
-    clock_label = lv_label_create(title_bar);
-    lv_label_set_text(clock_label, "00:00:00");
-    lv_obj_set_style_text_font(clock_label, &lv_font_montserrat_36, 0);
-    lv_obj_set_style_text_color(clock_label, lv_palette_lighten(LV_PALETTE_GREY, 2), 0);
+    g_repo_status = repo_status_widget_create(g_screen);
+    lv_obj_set_size(g_repo_status, half_w, mid_h);
+    lv_obj_set_pos(g_repo_status, half_w + 16, mid_y);
 
-    /* ── Image widget row ── */
-    lv_obj_t *img_row = lv_obj_create(scr);
-    lv_obj_remove_style_all(img_row);
-    lv_obj_set_width(img_row, LV_PCT(100));
-    lv_obj_set_height(img_row, LV_SIZE_CONTENT);
-    lv_obj_align_to(img_row, title_bar, LV_ALIGN_OUT_BOTTOM_MID, 0, 0);
-    lv_obj_set_flex_flow(img_row, LV_FLEX_FLOW_ROW);
-    lv_obj_set_flex_align(img_row, LV_FLEX_ALIGN_SPACE_EVENLY, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-    lv_obj_set_style_pad_all(img_row, 12, 0);
-    lv_obj_clear_flag(img_row, LV_OBJ_FLAG_SCROLLABLE);
+    /* ---- Fortune strip (bottom 10%) ---- */
+    int32_t fortune_y = mid_y + mid_h + 8;
+    g_fortune = fortune_widget_create(g_screen);
+    lv_obj_set_size(g_fortune, scr_w - 16, fortune_h);
+    lv_obj_set_pos(g_fortune, 8, fortune_y);
+    fortune_set_widget(g_fortune);
 
-    create_image_card(img_row, IMG_NVME, "NVMe");
-    create_image_card(img_row, IMG_HDD,  "HDD");
-    create_image_card(img_row, IMG_SSD,  "SSD");
+    /* ---- Status bar (bottom edge, hidden initially) ---- */
+    int32_t sb_y = scr_h - status_h - 4;
+    g_status_bar = status_bar_create(g_screen);
+    lv_obj_set_size(g_status_bar, scr_w - 16, status_h);
+    lv_obj_set_pos(g_status_bar, 8, sb_y);
 
-    /* ── Client list (scrollable area below images) ── */
-    client_list = lv_obj_create(scr);
-    lv_obj_remove_style_all(client_list);
-    lv_obj_set_size(client_list, LV_PCT(100), LV_PCT(100));
-    lv_obj_align_to(client_list, img_row, LV_ALIGN_OUT_BOTTOM_MID, 0, 0);
-    lv_obj_set_flex_flow(client_list, LV_FLEX_FLOW_COLUMN);
-    lv_obj_set_style_pad_all(client_list, 20, 0);
-    lv_obj_set_style_pad_row(client_list, 12, 0);
-    lv_obj_add_flag(client_list, LV_OBJ_FLAG_SCROLLABLE);
-    lv_obj_set_scroll_dir(client_list, LV_DIR_VER);
+    /* ---- Redis error overlay (covers full screen, hidden) ---- */
+    g_redis_err = lv_obj_create(g_screen);
+    lv_obj_set_size(g_redis_err, scr_w, scr_h);
+    lv_obj_set_pos(g_redis_err, 0, 0);
+    lv_obj_set_style_bg_color(g_redis_err, lv_color_hex(0x1E1E2E), 0);
+    lv_obj_set_style_bg_opa(g_redis_err, LV_OPA_90, 0);
+    lv_obj_set_style_border_width(g_redis_err, 0, 0);
+    lv_obj_clear_flag(g_redis_err, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_add_flag(g_redis_err, LV_OBJ_FLAG_HIDDEN);
+    /* Centered label inside overlay */
+    lv_obj_t *err_lbl = lv_label_create(g_redis_err);
+    lv_obj_set_style_text_color(err_lbl, lv_color_hex(0xFF5555), 0);
+    lv_obj_set_style_text_font(err_lbl, &lv_font_montserrat_28, 0);
+    lv_label_set_text(err_lbl, "Redis unavailable");
+    lv_obj_align(err_lbl, LV_ALIGN_CENTER, 0, 0);
+    lv_obj_clear_flag(err_lbl, LV_OBJ_FLAG_SCROLLABLE);
+
+    /* FR-008 verification note: every widget created above uses
+     * lv_obj_clear_flag(obj, LV_OBJ_FLAG_SCROLLABLE). The card grid,
+     * activities, repo status, fortune, status bar, and overlay are all
+     * non-scrollable. Verified in T055. */
 }
 
-void ui_update(registry_t *reg) {
-    update_clock();
+void ui_refresh(void) {
+    /* Snapshot current registry */
+    client_info_t clients[MAX_CLIENTS];
+    int n = registry_snapshot(clients, MAX_CLIENTS);
 
-    registry_lock(reg);
-
-    for (int i = 0; i < reg->count; i++) {
-        client_info_t *c = &reg->clients[i];
-        if (!c->active) continue;
-
-        /* Create card on first encounter */
-        if (c->container == NULL) {
-            create_client_card(c);
-        }
-
-        /* Update health LED */
-        time_t now = time(NULL);
-        if (now - c->last_health > HEALTH_TIMEOUT_SEC) {
-            lv_led_set_color(c->status_led, lv_palette_main(LV_PALETTE_RED));
-        } else {
-            lv_led_set_color(c->status_led, lv_palette_main(LV_PALETTE_GREEN));
-        }
-
-        /* Update task */
-        if (c->task[0] == '\0') {
-            /* No active task — show last completed if recent (< 60s) */
-            if (c->last_task[0] != '\0' && c->last_task_completed > 0 &&
-                (now - c->last_task_completed) < 60) {
-                char done_buf[TASK_LEN + 16];
-                snprintf(done_buf, sizeof(done_buf), "[done] %s", c->last_task);
-                lv_label_set_text(c->task_label, done_buf);
-                lv_obj_set_style_text_color(c->task_label,
-                    lv_palette_main(LV_PALETTE_GREEN), 0);
-                lv_label_set_text(c->elapsed_label, "done");
-            } else {
-                lv_label_set_text(c->task_label, "(no task)");
-                lv_obj_set_style_text_color(c->task_label,
-                    lv_palette_lighten(LV_PALETTE_GREY, 2), 0);
-                lv_label_set_text(c->elapsed_label, "--:--:--");
-            }
-        } else {
-            lv_label_set_text(c->task_label, c->task);
-            lv_obj_set_style_text_color(c->task_label,
-                lv_palette_lighten(LV_PALETTE_GREY, 2), 0);
-            char elapsed_buf[16];
-            format_elapsed(c->task_start, elapsed_buf, sizeof(elapsed_buf));
-            lv_label_set_text(c->elapsed_label, elapsed_buf);
+    /* Add new cards, remove absent ones */
+    for (int i = 0; i < n; i++) {
+        if (!find_card(clients[i].hostname)) {
+            add_card(clients[i].hostname);
         }
     }
+    remove_absent_cards(clients, n);
 
-    registry_unlock(reg);
+    /* Update all cards */
+    for (int i = 0; i < n; i++) {
+        lv_obj_t *card = find_card(clients[i].hostname);
+        if (!card) continue;
+        client_card_update_health(card, clients[i].online, clients[i].uptime_seconds);
+        client_card_update_telemetry(card, &clients[i]);
+    }
+
+    /* Activities widget */
+    int act_count = 0;
+    const activity_t *acts = redis_get_activities(&act_count);
+    activities_widget_update(g_activities, acts, act_count);
+
+    /* Repo status widget */
+    int repo_count = 0;
+    const repo_entry_t *repos = redis_get_repos(&repo_count);
+    repo_status_widget_update(g_repo_status, repos, repo_count);
 }
+
+void ui_show_redis_error(const char *msg) {
+    if (!g_redis_err) return;
+    /* Update label text */
+    lv_obj_t *lbl = lv_obj_get_child(g_redis_err, 0);
+    if (lbl) {
+        char buf[256];
+        snprintf(buf, sizeof(buf), "Redis unavailable: %s", msg);
+        lv_label_set_text(lbl, buf);
+        lv_obj_align(lbl, LV_ALIGN_CENTER, 0, 0);
+    }
+    lv_obj_clear_flag(g_redis_err, LV_OBJ_FLAG_HIDDEN);
+}
+
+void ui_hide_redis_error(void) {
+    if (!g_redis_err) return;
+    lv_obj_add_flag(g_redis_err, LV_OBJ_FLAG_HIDDEN);
+}
+
+void ui_status_bar_show(status_severity_t severity, const char *message) {
+    if (!g_status_bar) return;
+    status_bar_show(g_status_bar, severity, message);
+}
+
+void ui_status_bar_hide(void) {
+    if (!g_status_bar) return;
+    status_bar_hide(g_status_bar);
+}
+
