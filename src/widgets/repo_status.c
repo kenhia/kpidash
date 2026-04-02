@@ -75,10 +75,10 @@ void repo_status_widget_update(lv_obj_t *widget, const repo_entry_t *list, int c
                                LV_FLEX_ALIGN_START);
         lv_obj_set_style_pad_column(row, 6, 0);
 
-        /* Dirty indicator */
+        /* Dirty indicator — use ASCII * to avoid missing-glyph warnings */
         if (r->is_dirty) {
             lv_obj_t *dot = lv_label_create(row);
-            lv_label_set_text(dot, "●");
+            lv_label_set_text(dot, "*");
             lv_obj_set_style_text_color(dot, COLOR_DIRTY, 0);
             lv_obj_set_style_text_font(dot, FONT_BODY, 0);
             lv_obj_clear_flag(dot, LV_OBJ_FLAG_SCROLLABLE);

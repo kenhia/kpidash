@@ -137,9 +137,14 @@ HGETALL kpidash:activity:{id}
   "path": "/home/ken/src/kpidash",
   "branch": "001-mvp-dashboard",
   "is_dirty": true,
+  "explicit": true,
   "ts": 1743292801.0
 }
 ```
+
+`explicit: true` when the repo was listed under `[repos] explicit` in the
+client config; `false` (or absent) for repos found via `scan_roots`.
+The dashboard sorts explicit repos to the top of the Repo Status widget.
 
 Only repos where `branch != default_branch OR is_dirty` are written. Clean
 repos on their default branch are removed with `HDEL`.

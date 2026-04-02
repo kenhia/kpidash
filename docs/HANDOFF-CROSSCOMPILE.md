@@ -120,8 +120,11 @@ Key settings:
 #define LV_LOG_LEVEL LV_LOG_LEVEL_WARN
 #define LV_LOG_PRINTF 1
 #define LV_FONT_MONTSERRAT_14  1
+#define LV_FONT_MONTSERRAT_16  1    // used by fortune + activities widgets
 #define LV_FONT_MONTSERRAT_20  1
 #define LV_FONT_MONTSERRAT_24  1
+#define LV_FONT_MONTSERRAT_28  1
+#define LV_FONT_MONTSERRAT_36  1
 #define LV_FONT_DEFAULT &lv_font_montserrat_20
 #define LV_USE_LINUX_DRM 1
 #define LV_USE_FS_POSIX 1
@@ -274,14 +277,6 @@ lv_obj_clear_flag(obj, LV_OBJ_FLAG_SCROLLABLE);
 lv_timer_create(timer_redis_poll_cb, 1000, NULL);
 ```
 
-
----
-
-## 1. Project Overview
-
-**kpidash** is a fullscreen dashboard for Raspberry Pi 5 built with LVGL 9.2.2.
-It uses DRM/KMS for direct rendering (no X11/Wayland), receives UDP JSON
-messages from client machines, and displays per-client health status and tasks.
 
 ### Current state (as of 30 March 2026)
 

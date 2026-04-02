@@ -80,6 +80,7 @@ typedef struct {
     char path[256];
     char branch[128];
     bool is_dirty;
+    int  sort_order;   /* 0 = explicit, 1 = scanned; lower = higher priority */
     double ts;
 } repo_entry_t;
 

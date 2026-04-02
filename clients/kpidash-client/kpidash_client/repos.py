@@ -82,6 +82,7 @@ def scan_repos(repo_config: RepoConfig) -> list[dict]:
 
     results = []
     seen: set[str] = set()
+    explicit_paths = {str(Path(p).expanduser().resolve()) for p in repo_config.explicit}
 
     for path in paths:
         path_str = str(path)
@@ -110,8 +111,11 @@ def scan_repos(repo_config: RepoConfig) -> list[dict]:
                 "path": path_str,
                 "branch": branch,
                 "is_dirty": is_dirty,
+                "explicit": path_str in explicit_paths,
                 "ts": time.time(),
             }
         )
 
+    # Explicit repos always appear first, then alphabetically by name
+    results.sort(key=lambda r: (0 if r["explicit"] else 1, r["name"]))
     return results

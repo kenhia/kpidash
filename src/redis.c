@@ -272,6 +272,8 @@ static void poll_repos(const char **hostnames, int n_hosts) {
             if (cJSON_IsString(br)) strncpy(re->branch, br->valuestring, sizeof(re->branch) - 1);
             cJSON *di = cJSON_GetObjectItemCaseSensitive(root, "is_dirty");
             if (cJSON_IsBool(di)) re->is_dirty = cJSON_IsTrue(di);
+            cJSON *ex = cJSON_GetObjectItemCaseSensitive(root, "explicit");
+            re->sort_order = (cJSON_IsBool(ex) && cJSON_IsTrue(ex)) ? 0 : 1;
             cJSON *ts = cJSON_GetObjectItemCaseSensitive(root, "ts");
             if (cJSON_IsNumber(ts)) re->ts = ts->valuedouble;
 
@@ -280,6 +282,16 @@ static void poll_repos(const char **hostnames, int n_hosts) {
         }
         freeReplyObject(hr);
     }
+
+    /* Sort: explicit repos (sort_order=0) first, then by name */
+    int repo_cmp(const void *a, const void *b) {
+        const repo_entry_t *ra = (const repo_entry_t *)a;
+        const repo_entry_t *rb = (const repo_entry_t *)b;
+        if (ra->sort_order != rb->sort_order)
+            return ra->sort_order - rb->sort_order;
+        return strncmp(ra->name, rb->name, LABEL_LEN);
+    }
+    qsort(g_repos, (size_t)g_repo_count, sizeof(repo_entry_t), repo_cmp);
 }
 
 /* ---- Main poll cycle ---- */

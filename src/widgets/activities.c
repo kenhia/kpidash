@@ -35,6 +35,18 @@ static void elapsed_timer_cb(lv_timer_t *t) {
     lv_label_set_text(ud->label, buf);
 }
 
+/* Called when the time label is deleted; cancels the timer and frees user data. */
+static void elapsed_label_delete_cb(lv_event_t *e) {
+    lv_timer_t *tmr = (lv_timer_t *)lv_event_get_user_data(e);
+    elapsed_user_data_t *ud = (elapsed_user_data_t *)lv_timer_get_user_data(tmr);
+    if (ud) {
+        ud->label = NULL;   /* guard against any in-flight tick */
+        lv_free(ud);
+        lv_timer_set_user_data(tmr, NULL);
+    }
+    lv_timer_delete(tmr);
+}
+
 lv_obj_t *activities_widget_create(lv_obj_t *parent) {
     lv_obj_t *cont = lv_obj_create(parent);
     lv_obj_clear_flag(cont, LV_OBJ_FLAG_SCROLLABLE);
@@ -129,12 +141,14 @@ void activities_widget_update(lv_obj_t *widget, const activity_t *list, int coun
             lv_label_set_text(time_lbl, tbuf);
         } else if (!a->is_done) {
             lv_label_set_text(time_lbl, "00:00:00");
-            /* Register live elapsed timer */
+            /* Register live elapsed timer; tie its lifetime to the label */
             elapsed_user_data_t *ud = lv_malloc(sizeof(*ud));
             ud->start_ts = a->start_ts;
             ud->label    = time_lbl;
             lv_timer_t *tmr = lv_timer_create(elapsed_timer_cb, 1000, ud);
-            (void)tmr;
+            /* Delete the timer (and free ud) when this label is destroyed */
+            lv_obj_add_event_cb(time_lbl, elapsed_label_delete_cb,
+                                LV_EVENT_DELETE, tmr);
         } else {
             lv_label_set_text(time_lbl, "--");
         }

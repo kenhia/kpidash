@@ -46,6 +46,18 @@ void redis_write_system_info(const char *logpath, const char *version);
 void redis_write_fortune_current(const char *json);
 
 /**
+ * Return the current in-memory activity list (populated by redis_poll).
+ * *count is set to the number of valid entries.
+ */
+const activity_t *redis_get_activities(int *count);
+
+/**
+ * Return the current in-memory repo list (populated by redis_poll).
+ * *count is set to the number of valid entries.
+ */
+const repo_entry_t *redis_get_repos(int *count);
+
+/**
  * Write "1" to kpidash:system:ping, read it back, and return true if the
  * round-trip succeeds. Prints INFO/ERROR line to stdout.
  */

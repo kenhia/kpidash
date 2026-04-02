@@ -157,6 +157,7 @@ HGETALL kpidash:activity:{id}          → per-activity fields
   "path": "/home/ken/src/kpidash",
   "branch": "001-mvp-dashboard",
   "is_dirty": true,
+  "explicit": true,
   "ts": 1743292801.0
 }
 ```
