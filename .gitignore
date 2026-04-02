@@ -1,8 +1,10 @@
 # User-specific files
 .scratch/
+.scratch-agent/
 
-# Build
+# C build output
 build/
+build-*/
 *.o
 *.d
 *.a
@@ -11,9 +13,21 @@ build/
 .vscode/
 .idea/
 
-# Scratch/working notes
-.scratch/
-
 # OS
 .DS_Store
 Thumbs.db
+*.tmp
+*.swp
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+dist/
+*.egg-info/
+.ruff_cache/
+.mypy_cache/
+.pytest_cache/
+

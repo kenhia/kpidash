@@ -8,8 +8,275 @@
 ## 1. Project Overview
 
 **kpidash** is a fullscreen dashboard for Raspberry Pi 5 built with LVGL 9.2.2.
-It uses DRM/KMS for direct rendering (no X11/Wayland), receives UDP JSON
-messages from client machines, and displays per-client health status and tasks.
+It uses DRM/KMS for direct rendering (no X11/Wayland). Client machines send
+telemetry, health, and activity data to a Redis instance running on the Pi;
+the dashboard polls Redis every second and renders a live multi-widget display.
+
+### Current state (as of implementation v1.0.0)
+
+MVP complete with:
+- Fullscreen LVGL UI on Pi 5 via DRM/KMS (`/dev/dri/card1`)
+- Redis 7.x as the message bus (hiredis client, 1 s poll cycle)
+- Dynamic client cards: health LED, uptime, CPU/RAM/GPU/disk telemetry
+- Activities widget (ZREVRANGE top-10, live elapsed timers)
+- Repo status widget (non-default branch or dirty repos)
+- Fortune strip (300 s rotation + client-push override)
+- Status bar (warning/error queue with CLI ack)
+- Python kpidash-client daemon (psutil + pynvml + GitPython)
+- Python kpidash-mcp server (start_activity/end_activity MCP tools)
+
+---
+
+## 2. Target Hardware
+
+| Item | Detail |
+|------|--------|
+| Board | Raspberry Pi 5 |
+| Architecture | aarch64 (ARM64) |
+| OS | Debian 13 (Trixie) |
+| Kernel | 6.6.20+rpt-rpi-2712 |
+| Display | HDMI-A-1 on `/dev/dri/card1`, 3840×2160 @ 30 Hz |
+| GPU driver | vc4-kms-v3d (DRM/KMS) |
+| DRI note | `card0` is RP1 (no dumb buffer support); `card1` is the vc4 GPU. Configurable via `KPIDASH_DRM_DEV` env var. |
+
+---
+
+## 3. Project Structure
+
+```
+kpidash/
+├── CMakeLists.txt              # CMake 3.22+, hiredis, cJSON, libdrm, LVGL
+├── lv_conf.h                   # LVGL configuration (see Section 5)
+├── src/
+│   ├── main.c                  # Entry: config, LVGL init, DRM, poll timers
+│   ├── config.{h,c}            # Env var parsing (KPIDASH_REDIS_HOST, etc.)
+│   ├── registry.{h,c}          # Thread-safe client array (mutex-protected)
+│   ├── redis.{h,c}             # hiredis 1 s poll cycle + cJSON parsing
+│   ├── status.{h,c}            # In-memory status message FIFO queue
+│   ├── fortune.{h,c}           # fortune popen + pushed-fortune override
+│   ├── ui.{h,c}                # Screen layout + Redis error overlay
+│   ├── protocol.h              # Redis key macros + constants
+│   └── widgets/
+│       ├── client_card.{h,c}
+│       ├── activities.{h,c}
+│       ├── repo_status.{h,c}
+│       ├── fortune.{h,c}
+│       └── status_bar.{h,c}
+├── tests/
+│   ├── CMakeLists.txt
+│   ├── test_config.c           # ctest: env var parsing (no hardware)
+│   └── test_redis_json.c       # ctest: cJSON parsing helpers (no hardware)
+├── clients/
+│   ├── kpidash-client/         # Python daemon + CLI
+│   └── kpidash-mcp/            # Python MCP server
+├── scripts/
+│   └── load_test.py            # 8-client concurrent stress test
+├── lib/
+│   └── lvgl/                   # LVGL v9.2.2 (git submodule)
+└── docs/
+    ├── ARCHITECTURE.md
+    ├── CLIENT-PROTOCOL.md
+    └── HANDOFF-CROSSCOMPILE.md
+```
+
+---
+
+## 4. Dependencies (Target — Pi 5 aarch64)
+
+These packages must be installed on the Pi **and** available as arm64 libraries
+for cross-compilation:
+
+| Library | Debian package (arm64) | pkg-config / cmake name | Used by |
+|---------|----------------------|-----------------|---------|
+| libdrm | `libdrm-dev:arm64` | `libdrm` | LVGL DRM driver |
+| libpng | `libpng-dev:arm64` | `libpng` | LVGL image decoder |
+| libcjson | `libcjson-dev:arm64` | `libcjson` | JSON parsing in redis.c |
+| **libhiredis** | **`libhiredis-dev:arm64`** | `hiredis` (CMake target `hiredis::hiredis`) | Redis client in redis.c |
+| libfreetype | `libfreetype-dev:arm64` | — | LVGL font rendering |
+| libinput | `libinput-dev:arm64` | — | LVGL (optional) |
+| libxkbcommon | `libxkbcommon-dev:arm64` | — | LVGL (optional) |
+
+On the Pi 5 itself:
+```bash
+sudo apt install libdrm-dev libpng-dev libcjson-dev libhiredis-dev \
+  libfreetype-dev libinput-dev libxkbcommon-dev redis-server fortune
+```
+
+---
+
+## 5. LVGL Configuration (`lv_conf.h`)
+
+Key settings:
+
+```c
+#define LV_COLOR_DEPTH 32           // XRGB8888 DRM framebuffer
+#define LV_USE_STDLIB_MALLOC    LV_STDLIB_CLIB
+#define LV_USE_STDLIB_STRING    LV_STDLIB_CLIB
+#define LV_USE_STDLIB_SPRINTF   LV_STDLIB_CLIB
+#define LV_DEF_REFR_PERIOD  33      // ~30 fps
+#define LV_DPI_DEF 160
+#define LV_USE_OS   LV_OS_PTHREAD   // mutex support needed
+#define LV_USE_LOG 1
+#define LV_LOG_LEVEL LV_LOG_LEVEL_WARN
+#define LV_LOG_PRINTF 1
+#define LV_FONT_MONTSERRAT_14  1
+#define LV_FONT_MONTSERRAT_16  1    // used by fortune + activities widgets
+#define LV_FONT_MONTSERRAT_20  1
+#define LV_FONT_MONTSERRAT_24  1
+#define LV_FONT_MONTSERRAT_28  1
+#define LV_FONT_MONTSERRAT_36  1
+#define LV_FONT_DEFAULT &lv_font_montserrat_20
+#define LV_USE_LINUX_DRM 1
+#define LV_USE_FS_POSIX 1
+#define LV_FS_POSIX_LETTER 'A'
+#define LV_USE_LIBPNG 1
+```
+
+### Gotchas
+
+1. **No Unicode symbols**: Montserrat built-in fonts don't include U+2713 etc.
+   Use ASCII only or add a custom symbol font.
+2. **DRM device**: `card0` = RP1 (no dumb buffer). `card1` = vc4 (**use this**).
+   Set `KPIDASH_DRM_DEV=/dev/dri/card1`.
+3. **Threading**: LVGL is NOT thread-safe. Redis polling happens in LVGL timer
+   callbacks (main thread only). Worker threads only update registry data under mutex.
+
+---
+
+## 6. Cross-Compilation from Ubuntu x86_64
+
+### 6.1 Install the cross toolchain
+
+```bash
+sudo apt-get update
+sudo apt-get install -y \
+    gcc-aarch64-linux-gnu g++-aarch64-linux-gnu \
+    cmake pkg-config
+```
+
+### 6.2 Set up an arm64 sysroot
+
+Multiarch method (recommended):
+```bash
+sudo dpkg --add-architecture arm64
+sudo apt-get update
+sudo apt-get install -y \
+    libdrm-dev:arm64 libpng-dev:arm64 libcjson-dev:arm64 \
+    libhiredis-dev:arm64 \
+    libfreetype-dev:arm64 libinput-dev:arm64 libxkbcommon-dev:arm64
+```
+
+Or rsync from the Pi:
+```bash
+SYSROOT=$HOME/pi5-sysroot; mkdir -p $SYSROOT
+rsync -avz --rsync-path="sudo rsync" ken@PI_IP:/lib/aarch64-linux-gnu $SYSROOT/lib/
+rsync -avz --rsync-path="sudo rsync" ken@PI_IP:/usr/lib/aarch64-linux-gnu $SYSROOT/usr/lib/
+rsync -avz ken@PI_IP:/usr/include $SYSROOT/usr/
+```
+
+### 6.3 CMake toolchain file (`cmake/aarch64-toolchain.cmake`)
+
+```cmake
+set(CMAKE_SYSTEM_NAME Linux)
+set(CMAKE_SYSTEM_PROCESSOR aarch64)
+set(CMAKE_C_COMPILER aarch64-linux-gnu-gcc)
+set(CMAKE_CXX_COMPILER aarch64-linux-gnu-g++)
+set(CMAKE_SYSROOT $ENV{HOME}/pi5-sysroot)
+set(CMAKE_FIND_ROOT_PATH ${CMAKE_SYSROOT})
+set(CMAKE_FIND_ROOT_PATH_MODE_PROGRAM NEVER)
+set(CMAKE_FIND_ROOT_PATH_MODE_LIBRARY ONLY)
+set(CMAKE_FIND_ROOT_PATH_MODE_INCLUDE ONLY)
+set(CMAKE_FIND_ROOT_PATH_MODE_PACKAGE ONLY)
+set(ENV{PKG_CONFIG_PATH} "${CMAKE_SYSROOT}/usr/lib/aarch64-linux-gnu/pkgconfig")
+set(ENV{PKG_CONFIG_SYSROOT_DIR} "${CMAKE_SYSROOT}")
+```
+
+### 6.4 Build for Pi 5
+
+```bash
+cd kpidash
+git submodule update --init --recursive
+
+mkdir -p build-pi5 && cd build-pi5
+cmake -DCMAKE_TOOLCHAIN_FILE=../cmake/aarch64-toolchain.cmake \
+      -DCMAKE_BUILD_TYPE=Release ..
+make -j$(nproc)
+
+file kpidash
+# → ELF 64-bit LSB pie executable, ARM aarch64, ...
+```
+
+### 6.5 Deploy to Pi
+
+```bash
+scp build-pi5/kpidash ken@PI_IP:~/kpidash
+```
+
+### 6.6 Native build + tests (x86_64)
+
+```bash
+# Requires: libhiredis-dev libcjson-dev libdrm-dev on the host
+mkdir -p build && cd build
+cmake ..
+make -j$(nproc)
+ctest -V        # runs test_config and test_redis_json without hardware
+```
+
+---
+
+## 7. Runtime on Pi 5
+
+```bash
+export REDISCLI_AUTH=yourpassword
+export KPIDASH_DRM_DEV=/dev/dri/card1
+
+# DRM requires root or video group membership
+sudo -E ./kpidash
+```
+
+### Environment variables
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `KPIDASH_REDIS_HOST` | `127.0.0.1` | Redis host |
+| `KPIDASH_REDIS_PORT` | `6379` | Redis port |
+| `REDISCLI_AUTH` | (none) | Redis password |
+| `KPIDASH_DRM_DEV` | `/dev/dri/card1` | DRM device path |
+| `KPIDASH_MAX_CLIENTS` | `16` | Max tracked clients |
+| `KPIDASH_ACTIVITY_MAX` | `10` | Max activities shown |
+| `KPIDASH_LOG_FILE` | `/var/log/kpidash/kpidash.log` | Log path (written to Redis) |
+| `KPIDASH_PRIORITY_CLIENTS` | (none) | Comma-separated hostnames; never evicted |
+
+---
+
+## 8. LVGL API Patterns Used
+
+### Display initialization
+```c
+lv_init();
+lv_display_t *disp = lv_linux_drm_create();
+lv_linux_drm_set_file(disp, "/dev/dri/card1", -1);
+```
+
+### Main loop
+```c
+while (running) {
+    uint32_t sleep_ms = lv_timer_handler();
+    if (sleep_ms > 100) sleep_ms = 100;
+    usleep(sleep_ms * 1000);
+}
+```
+
+### No-scroll enforcement (FR-008)
+```c
+lv_obj_clear_flag(obj, LV_OBJ_FLAG_SCROLLABLE);
+```
+
+### Redis poll timer
+```c
+lv_timer_create(timer_redis_poll_cb, 1000, NULL);
+```
+
 
 ### Current state (as of 30 March 2026)
 
