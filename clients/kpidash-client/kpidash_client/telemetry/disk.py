@@ -61,7 +61,9 @@ def _linux_detect_type(path: str) -> str | None:
         best_len = 0
         partitions = psutil.disk_partitions(all=True)
         for p in partitions:
-            if (p.mountpoint == path or path.startswith(p.mountpoint)) and len(p.mountpoint) > best_len:
+            if (p.mountpoint == path or path.startswith(p.mountpoint)) and len(
+                p.mountpoint
+            ) > best_len:
                 dev = p.device.split("/")[-1]
                 best_len = len(p.mountpoint)
         if not dev:
