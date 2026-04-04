@@ -74,13 +74,15 @@ class RedisClient:
 
     # ---- Health ----
 
-    def write_health(self, uptime_s: float | None = None) -> None:
+    def write_health(self, uptime_s: float | None = None, os_name: str | None = None) -> None:
         payload: dict = {
             "hostname": self._hostname,
             "last_seen_ts": time.time(),
         }
         if uptime_s is not None:
             payload["uptime_seconds"] = uptime_s
+        if os_name is not None:
+            payload["os_name"] = os_name
         self._cmd(
             "set",
             f"kpidash:client:{self._hostname}:health",

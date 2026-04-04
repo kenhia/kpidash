@@ -101,10 +101,10 @@ void ui_init(void) {
     lv_disp_t *disp = lv_display_get_default();
     int32_t scr_w = lv_display_get_horizontal_resolution(disp);
     int32_t scr_h = lv_display_get_vertical_resolution(disp);
-    int32_t card_area_h = (int32_t)(scr_h * 0.40);
-    int32_t mid_h       = (int32_t)(scr_h * 0.40);
-    int32_t fortune_h   = (int32_t)(scr_h * 0.10);
+    int32_t card_area_h = 320;  /* ~280px widget + padding */
     int32_t status_h    = 40;
+    int32_t fortune_h   = (int32_t)(scr_h * 0.10);
+    int32_t mid_h       = scr_h - card_area_h - fortune_h - status_h - 40;
 
     /* ---- Client card grid (top 40%) ---- */
     g_card_grid = lv_obj_create(g_screen);
@@ -183,7 +183,7 @@ void ui_refresh(void) {
     for (int i = 0; i < n; i++) {
         lv_obj_t *card = find_card(clients[i].hostname);
         if (!card) continue;
-        client_card_update_health(card, clients[i].online, clients[i].uptime_seconds);
+        client_card_update_health(card, &clients[i]);
         client_card_update_telemetry(card, &clients[i]);
     }
 

@@ -1,6 +1,6 @@
 # kpidash Development Guidelines
 
-Auto-generated from all feature plans. Last updated: 2026-03-31
+Auto-generated from all feature plans. Last updated: 2026-04-03
 
 ## Project Overview
 
@@ -12,6 +12,8 @@ kpidash is a multi-component system:
 All components communicate via a Redis server running on the Pi 5.
 
 ## Active Technologies
+- C11 (dashboard), Python 3.13 (kpidash-client) + LVGL 9.x (embedded GUI), hiredis (Redis C client), libcjson (JSON parsing), psutil/pynvml (Python telemetry) (002-exploration-sprint)
+- Redis (all telemetry, health, activities, repos, commands) (002-exploration-sprint)
 
 ### Dashboard (C / LVGL)
 - C11, CMake 3.22+, LVGL 9.2.2 (DRM/KMS backend)
@@ -99,6 +101,7 @@ ruff format --check . && ruff check . && ty check && pytest -q
 - GPU support: NVIDIA only for MVP (pynvml / NVML)
 
 ## Recent Changes
+- 002-exploration-sprint: Added C11 (dashboard), Python 3.13 (kpidash-client) + LVGL 9.x (embedded GUI), hiredis (Redis C client), libcjson (JSON parsing), psutil/pynvml (Python telemetry)
 
 - 001-mvp-dashboard: Full planning complete — Redis schema, data model, Python client + MCP server architecture, widget module breakdown
 

@@ -41,23 +41,35 @@ static int failed = 0;
 
 static void test_health_valid(void) {
     const char *json = "{\"hostname\":\"kubs0\",\"last_seen_ts\":1743292800.5,"
-                       "\"uptime_seconds\":86400.0}";
+                       "\"uptime_seconds\":86400.0,"
+                       "\"os_name\":\"Linux 5.15.0-173-generic\"}";
     client_info_t c = {0};
     bool ok = redis_parse_health_json(json, &c);
     CHECK(ok);
     CHECK(c.online == true);
     CHECK(c.last_seen_ts > 1743292800.0);
     CHECK(c.uptime_seconds > 86399.0f);
+    CHECK(strcmp(c.os_name, "Linux 5.15.0-173-generic") == 0);
 }
 
 static void test_health_missing_uptime(void) {
-    /* uptime_seconds is optional */
+    /* uptime_seconds and os_name are optional */
     const char *json = "{\"hostname\":\"kubs1\",\"last_seen_ts\":1743292801.0}";
     client_info_t c = {0};
     bool ok = redis_parse_health_json(json, &c);
     CHECK(ok);
     CHECK(c.online == true);
     CHECK(c.uptime_seconds == 0.0f);
+    CHECK(c.os_name[0] == '\0');  /* absent os_name → empty string */
+}
+
+static void test_health_os_name_empty(void) {
+    const char *json = "{\"hostname\":\"kubs2\",\"last_seen_ts\":1.0,"
+                       "\"os_name\":\"\"}";
+    client_info_t c = {0};
+    bool ok = redis_parse_health_json(json, &c);
+    CHECK(ok);
+    CHECK(c.os_name[0] == '\0');  /* empty os_name → empty string */
 }
 
 static void test_health_malformed(void) {
@@ -143,6 +155,7 @@ int main(void) {
 
     test_health_valid();
     test_health_missing_uptime();
+    test_health_os_name_empty();
     test_health_malformed();
     test_telemetry_full();
     test_telemetry_no_gpu();

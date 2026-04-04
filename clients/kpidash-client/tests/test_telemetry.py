@@ -10,6 +10,23 @@ import sys
 from unittest.mock import MagicMock, patch
 
 # ---------------------------------------------------------------------------
+# collect_os_name
+# ---------------------------------------------------------------------------
+
+
+def test_collect_os_name_format():
+    with (
+        patch("platform.system", return_value="Linux"),
+        patch("platform.release", return_value="5.15.0-173-generic"),
+    ):
+        from kpidash_client.telemetry.system import collect_os_name
+
+        result = collect_os_name()
+
+    assert result == "Linux 5.15.0-173-generic"
+
+
+# ---------------------------------------------------------------------------
 # collect_system
 # ---------------------------------------------------------------------------
 

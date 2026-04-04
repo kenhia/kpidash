@@ -36,6 +36,7 @@ typedef struct {
     bool         online;          /* health key present in Redis */
     double       last_seen_ts;    /* Unix epoch of last health ping */
     float        uptime_seconds;
+    char         os_name[OS_NAME_LEN]; /* e.g. "Linux 5.15.0-173-generic" */
     float        cpu_pct;
     float        top_core_pct;
     uint32_t     ram_used_mb;
@@ -83,6 +84,13 @@ typedef struct {
     int  sort_order;   /* 0 = explicit, 1 = scanned; lower = higher priority */
     double ts;
 } repo_entry_t;
+
+/* ---- Development command state (transient, from Redis poll) ---- */
+typedef struct {
+    bool grid_enabled;
+    int  grid_size;        /* pixels; 0 = disabled */
+    bool textsize_enabled;
+} dev_cmd_state_t;
 
 /* ---- Registry API (global singleton, thread-safe) ---- */
 void          registry_init(void);

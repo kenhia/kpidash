@@ -8,6 +8,7 @@
 #define TASK_LEN          128
 #define ACTIVITY_ID_LEN   37   /* UUID4 + NUL */
 #define ACTIVITY_NAME_LEN 128
+#define OS_NAME_LEN       128
 #define MSG_BUF_SIZE      4096
 
 /* ---- Capacity limits ---- */
@@ -41,5 +42,10 @@
 #define KPIDASH_KEY_STATUS_ACK      "kpidash:status:ack:%s"
 #define KPIDASH_KEY_LOGPATH         "kpidash:system:logpath"
 #define KPIDASH_KEY_VERSION         "kpidash:system:version"
+
+/* ---- Development command keys (002-exploration-sprint) ---- */
+#define KPIDASH_KEY_CMD_GRID     "kpidash:cmd:grid"
+#define KPIDASH_KEY_CMD_TEXTSIZE "kpidash:cmd:textsize"
+#define CMD_TTL_S                300
 
 #endif /* PROTOCOL_H */

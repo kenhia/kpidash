@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import platform
+
 import psutil
 
 
@@ -28,3 +30,8 @@ def collect_system() -> dict:
         "ram_used_mb": int(ram_used_mb),
         "ram_total_mb": int(ram_total_mb),
     }
+
+
+def collect_os_name() -> str:
+    """Return OS name string, e.g. 'Linux 5.15.0-173-generic'."""
+    return f"{platform.system()} {platform.release()}"

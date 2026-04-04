@@ -20,7 +20,7 @@ from .redis_client import RedisClient, RedisClientError
 from .repos import scan_repos
 from .telemetry.disk import collect_disks
 from .telemetry.gpu import collect_gpu
-from .telemetry.system import collect_system
+from .telemetry.system import collect_os_name, collect_system
 
 logger = logging.getLogger(__name__)
 
@@ -35,10 +35,11 @@ def _uptime() -> float | None:
 
 
 def _health_loop(rc: RedisClient, interval: int) -> None:
+    os_name = collect_os_name()
     while not _stop_event.is_set():
         try:
             up = _uptime()
-            rc.write_health(uptime_s=up)
+            rc.write_health(uptime_s=up, os_name=os_name)
         except RedisClientError as e:
             logger.warning("health write failed: %s — reconnecting", e)
             rc.reconnect_on_failure()
