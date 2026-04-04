@@ -234,6 +234,23 @@ bool redis_parse_cmd_textsize_json(const char *json, dev_cmd_state_t *state) {
     return true;
 }
 
+bool redis_parse_cmd_graph_json(const char *json, dev_cmd_state_t *state) {
+    state->graph_enabled = false;
+    state->graph_client[0] = '\0';
+    if (!json) return true;
+    cJSON *root = cJSON_Parse(json);
+    if (!root) return false;
+    cJSON *en = cJSON_GetObjectItemCaseSensitive(root, "enabled");
+    cJSON *cl = cJSON_GetObjectItemCaseSensitive(root, "client");
+    if (cJSON_IsBool(en))   state->graph_enabled = cJSON_IsTrue(en);
+    if (cJSON_IsString(cl) && cl->valuestring) {
+        strncpy(state->graph_client, cl->valuestring, HOSTNAME_LEN - 1);
+        state->graph_client[HOSTNAME_LEN - 1] = '\0';
+    }
+    cJSON_Delete(root);
+    return true;
+}
+
 /* ---- Poll helpers ---- */
 
 static void poll_activities(void) {
@@ -409,7 +426,7 @@ void redis_poll(void) {
     }
     if (fr) freeReplyObject(fr);
 
-    /* Step 7: Dev commands — grid and textsize */
+    /* Step 7: Dev commands — grid, textsize, and graph */
     redisReply *gr = redisCommand(g_ctx, "GET " KPIDASH_KEY_CMD_GRID);
     dev_cmd_state_t new_cmd = {0};
     redis_parse_cmd_grid_json(
@@ -420,6 +437,11 @@ void redis_poll(void) {
     redis_parse_cmd_textsize_json(
         (tsr && tsr->type == REDIS_REPLY_STRING) ? tsr->str : NULL, &new_cmd);
     if (tsr) freeReplyObject(tsr);
+
+    redisReply *gpr = redisCommand(g_ctx, "GET " KPIDASH_KEY_CMD_GRAPH);
+    redis_parse_cmd_graph_json(
+        (gpr && gpr->type == REDIS_REPLY_STRING) ? gpr->str : NULL, &new_cmd);
+    if (gpr) freeReplyObject(gpr);
 
     g_dev_cmd = new_cmd;
 

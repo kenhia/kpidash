@@ -92,6 +92,13 @@ bool redis_parse_cmd_grid_json(const char *json, dev_cmd_state_t *state);
 bool redis_parse_cmd_textsize_json(const char *json, dev_cmd_state_t *state);
 
 /**
+ * Parse kpidash:cmd:graph JSON into state.
+ * json == NULL (key absent) → graph_enabled=false.
+ * JSON: {"enabled": true, "client": "hostname"}
+ */
+bool redis_parse_cmd_graph_json(const char *json, dev_cmd_state_t *state);
+
+/**
  * Return a pointer to the current dev command state (updated each poll cycle).
  * Not thread-safe for writing; read from LVGL timer (main thread) only.
  */

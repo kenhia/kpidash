@@ -1,5 +1,6 @@
 #include "activities.h"
 #include "protocol.h"
+#include "lv_font_custom.h"
 #include <stdio.h>
 #include <string.h>
 #include <time.h>
@@ -11,8 +12,8 @@
 #define COLOR_DONE   lv_color_hex(0x89B4FA)
 #define COLOR_HEADER lv_color_hex(0xF5C2E7)
 
-static const lv_font_t *FONT_HDR  = &lv_font_montserrat_16;
-static const lv_font_t *FONT_BODY = &lv_font_montserrat_14;
+static const lv_font_t *FONT_HDR  = &lv_font_montserrat_bold_48;
+static const lv_font_t *FONT_BODY = &lv_font_montserrat_16;
 
 /* ---- Elapsed timer data attached to each active-row label ---- */
 typedef struct {
@@ -109,11 +110,12 @@ void activities_widget_update(lv_obj_t *widget, const activity_t *list, int coun
                                LV_FLEX_ALIGN_START);
         lv_obj_set_style_pad_column(row, 6, 0);
 
-        /* State badge */
+        /* State badge — fixed width for alignment */
         lv_obj_t *badge = lv_label_create(row);
         lv_label_set_text(badge, a->is_done ? "[done]" : "[active]");
         lv_obj_set_style_text_color(badge, a->is_done ? COLOR_DONE : COLOR_ACTIVE, 0);
         lv_obj_set_style_text_font(badge, FONT_BODY, 0);
+        lv_obj_set_width(badge, 80);
         lv_obj_clear_flag(badge, LV_OBJ_FLAG_SCROLLABLE);
 
         /* Host + name */
@@ -127,10 +129,12 @@ void activities_widget_update(lv_obj_t *widget, const activity_t *list, int coun
         lv_label_set_long_mode(name_lbl, LV_LABEL_LONG_CLIP);
         lv_obj_clear_flag(name_lbl, LV_OBJ_FLAG_SCROLLABLE);
 
-        /* Time label */
+        /* Time label — right-aligned, fixed width */
         lv_obj_t *time_lbl = lv_label_create(row);
         lv_obj_set_style_text_color(time_lbl, COLOR_MUTED, 0);
         lv_obj_set_style_text_font(time_lbl, FONT_BODY, 0);
+        lv_obj_set_style_text_align(time_lbl, LV_TEXT_ALIGN_RIGHT, 0);
+        lv_obj_set_width(time_lbl, 100);
         lv_obj_clear_flag(time_lbl, LV_OBJ_FLAG_SCROLLABLE);
 
         if (a->is_done && a->end_ts > 0 && a->start_ts > 0) {

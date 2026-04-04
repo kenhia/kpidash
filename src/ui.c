@@ -24,6 +24,7 @@
 #include "widgets/status_bar.h"
 #include "widgets/dev_grid.h"
 #include "widgets/dev_textsize.h"
+#include "widgets/gpu_graph.h"
 #include "protocol.h"
 #include <string.h>
 #include <stdio.h>
@@ -46,6 +47,10 @@ static int g_card_count = 0;
 static lv_obj_t *g_dev_grid     = NULL;
 static lv_obj_t *g_dev_textsize = NULL;
 static int       g_dev_grid_size = 0;  /* track size so we recreate on change */
+
+/* GPU graph handles (T039) */
+static lv_obj_t *g_gpu_graph    = NULL;
+static char      g_graph_client[HOSTNAME_LEN] = {0};
 
 /* ---- Helpers ---- */
 
@@ -108,7 +113,7 @@ void ui_init(void) {
     lv_disp_t *disp = lv_display_get_default();
     int32_t scr_w = lv_display_get_horizontal_resolution(disp);
     int32_t scr_h = lv_display_get_vertical_resolution(disp);
-    int32_t card_area_h = 320;  /* ~280px widget + padding */
+    int32_t card_area_h = 640;  /* ~624px widget + padding (6 across at 3840) */
     int32_t status_h    = 40;
     int32_t fortune_h   = (int32_t)(scr_h * 0.10);
     int32_t mid_h       = scr_h - card_area_h - fortune_h - status_h - 40;
@@ -230,6 +235,48 @@ void ui_refresh(void) {
         if (g_dev_textsize) {
             dev_textsize_destroy(g_dev_textsize);
             g_dev_textsize = NULL;
+        }
+    }
+
+    /* GPU graph overlay (T039) */
+    if (cmd->graph_enabled && cmd->graph_client[0]) {
+        /* Create or recreate if target client changed */
+        if (!g_gpu_graph ||
+            strncmp(g_graph_client, cmd->graph_client, HOSTNAME_LEN) != 0) {
+            gpu_graph_destroy(g_gpu_graph);
+            g_gpu_graph = gpu_graph_create(g_screen);
+            strncpy(g_graph_client, cmd->graph_client, HOSTNAME_LEN - 1);
+            g_graph_client[HOSTNAME_LEN - 1] = '\0';
+
+            /* Position: overlay the right half of the middle row area */
+            lv_disp_t *d = lv_display_get_default();
+            int32_t sw = lv_display_get_horizontal_resolution(d);
+            int32_t sh = lv_display_get_vertical_resolution(d);
+            int32_t ca_h = 640;
+            int32_t st_h = 40;
+            int32_t ft_h = (int32_t)(sh * 0.10);
+            int32_t mid  = sh - ca_h - ft_h - st_h - 40;
+            int32_t half = (sw - 24) / 2;
+            lv_obj_set_size(g_gpu_graph, half, mid);
+            lv_obj_set_pos(g_gpu_graph, half + 16, ca_h + 16);
+        }
+
+        /* Feed data from the target client's GPU telemetry */
+        for (int i = 0; i < n; i++) {
+            if (strncmp(clients[i].hostname, g_graph_client, HOSTNAME_LEN) == 0 &&
+                clients[i].gpu.present) {
+                gpu_graph_update(g_gpu_graph,
+                                 clients[i].gpu.compute_pct,
+                                 clients[i].gpu.vram_used_mb,
+                                 clients[i].gpu.vram_total_mb);
+                break;
+            }
+        }
+    } else {
+        if (g_gpu_graph) {
+            gpu_graph_destroy(g_gpu_graph);
+            g_gpu_graph = NULL;
+            g_graph_client[0] = '\0';
         }
     }
 }

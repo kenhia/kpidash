@@ -33,5 +33,20 @@ def collect_system() -> dict:
 
 
 def collect_os_name() -> str:
-    """Return OS name string, e.g. 'Linux 5.15.0-173-generic'."""
+    """Return a human-friendly OS name.
+
+    On Linux, reads PRETTY_NAME from /etc/os-release (e.g. 'Ubuntu 22.04.5 LTS').
+    Falls back to 'Linux <kernel>' if the file is missing or unparseable.
+    On other platforms returns '<system> <release>'.
+    """
+    if platform.system() == "Linux":
+        try:
+            with open("/etc/os-release") as f:
+                for line in f:
+                    if line.startswith("PRETTY_NAME="):
+                        value = line.split("=", 1)[1].strip().strip('"')
+                        if value:
+                            return value
+        except OSError:
+            pass
     return f"{platform.system()} {platform.release()}"

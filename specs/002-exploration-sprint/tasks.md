@@ -72,6 +72,36 @@
 
 ---
 
+## Phase 3.1: Client Widget Refinement (Iteration 1)
+
+**Goal**: Scale widget for 3840×2160 display (6 across at 624px), improve arc gauge readability, refine hostname/disk layout.
+
+- [x] T012a [US1] Increase CARD_WIDTH to 624px (6 across at 3840). Update card_area_h in ui.c to 640.
+- [x] T012b [US1] Increase arc widths to 21px (outer+inner). Recompute INNER_ARC_SIZE. Verify health circle still fits.
+- [x] T012c [US1] Split GPU text into two separate labels (VRAM line + usage% line) with 8px spacing. Widen text box to 90px.
+- [x] T012d [US1] Split CPU/RAM text into two separate labels (RAM line + CPU% line) with 8px spacing. Widen text box to 90px.
+- [x] T012e [US1] Hostname: bump to montserrat_20, center-aligned, full width. Uptime: own line above hostname, right-justified. OS name: centered.
+- [x] T012f [US1] Disk bars: remove type, overlay text inside lv_bar. Flex-grow fills remaining card space. 5px gap between bars. White text (COLOR_FG).
+
+**Checkpoint**: Widget sized for 3840×2160. Arc gauges thicker. Text split into readable lines. Disk bars with overlaid labels.
+
+---
+
+## Phase 3.2: Client Widget Refinement (Iteration 2)
+
+**Goal**: Arc angles to full 180° per side with flat ends, widen text areas to prevent wrapping, hostname bold+orange, OS name from PRETTY_NAME, disk bar color refinement.
+
+- [x] T024a [US1] Arc angles: expand each side to 180° sweep (minus 5° gap at each join). Set `arc_rounded = false` for flat ends on all arcs in `src/widgets/client_card.c`.
+- [x] T024b [US1] Widen TEXT_BOX_WIDTH to ~220px in `src/widgets/client_card.c` to prevent text wrapping (card internal width 608px, arcs 140px, ~234px per side).
+- [x] T024c [US1] Hostname: set color to COLOR_GPU_VRAM (orange 0xFAB387). Note: LVGL Montserrat has no bold variant; already using montserrat_20.
+- [x] T024d [US1] Change `collect_os_name()` in `clients/kpidash-client/kpidash_client/telemetry/system.py` to read `PRETTY_NAME` from `/etc/os-release`, fallback to `platform.system() + " " + platform.release()`.
+- [x] T024e [US1] Update Python test for `collect_os_name` in `clients/kpidash-client/tests/test_telemetry.py` to verify PRETTY_NAME parsing.
+- [x] T024f [US1] Disk bars: change bar background to light gray, text to dark gray. Increase label (center) font size; use montserrat_16 or montserrat_20.
+
+**Checkpoint**: Arcs sweep full semicircles with flat ends. Text no longer wraps. Hostname orange. OS shows distro name. Disk bars readable with light gray bg/dark text.
+
+---
+
 ## Phase 4: User Story 2 — Development Commands (Priority: P2)
 
 **Goal**: Enable grid overlay and text size reference widget toggled via Redis commands.
@@ -100,13 +130,27 @@
 
 ### Implementation for User Story 3
 
-- [ ] T032 [US3] Tune Activities widget sizing in `src/widgets/activities.c` — reduce container width, increase font size for activity names and elapsed times. Ensure each row's elapsed time visually aligns with its activity name (consider tabular layout or right-aligned column).
-- [ ] T033 [US3] Tune Repo Status widget sizing in `src/widgets/repo_status.c` — reduce container width, increase font size for repo names and status indicators.
-- [ ] T034 [US3] Implement host prefix dimming in `src/widgets/repo_status.c` — use `lv_label_set_recolor(label, true)` and format repo entries as `#888888 host/#repo` so "host/" appears dimmer than "repo". Alternatively, split into two labels with different opacity.
-- [ ] T035 [US3] Cap visible entries in `src/widgets/activities.c` at `ACTIVITY_MAX_DISPLAY` and in `src/widgets/repo_status.c` at a reasonable max (e.g., 15). Hide overflow without scrolling.
-- [ ] T036 [US3] Adjust middle-row layout in `src/ui.c` — resize Activities and Repo Status containers to fit the reduced footprint. Rebalance left/right split if needed.
+- [x] T032 [US3] Tune Activities widget sizing in `src/widgets/activities.c` — reduce container width, increase font size for activity names and elapsed times. Ensure each row's elapsed time visually aligns with its activity name (consider tabular layout or right-aligned column).
+- [x] T033 [US3] Tune Repo Status widget sizing in `src/widgets/repo_status.c` — reduce container width, increase font size for repo names and status indicators.
+- [x] T034 [US3] Implement host prefix dimming in `src/widgets/repo_status.c` — use `lv_label_set_recolor(label, true)` and format repo entries as `#888888 host/#repo` so "host/" appears dimmer than "repo". Alternatively, split into two labels with different opacity.
+- [x] T035 [US3] Cap visible entries in `src/widgets/activities.c` at `ACTIVITY_MAX_DISPLAY` and in `src/widgets/repo_status.c` at a reasonable max (e.g., 15). Hide overflow without scrolling.
+- [x] T036 [US3] Adjust middle-row layout in `src/ui.c` — resize Activities and Repo Status containers to fit the reduced footprint. Rebalance left/right split if needed.
 
 **Checkpoint**: Activities and Repo Status have larger text, less wasted space, and dimmed host prefixes. Row data alignment improved.
+
+---
+
+## Phase 5.1: Custom Font Pipeline
+
+**Goal**: Enable bold and larger font sizes via custom-generated LVGL fonts from TTF sources using `lv_font_conv`.
+
+- [x] T036a Set up `fonts/` directory with `ttf/` subdirectory. Copy `Montserrat-Bold.ttf` (from `lib/lvgl/demos/multilang/assets/fonts/`) and `SymbolsNerdFont-Regular.ttf` (Nerd Fonts v3.4.0 SymbolsOnly).
+- [x] T036b Create `fonts/generate.sh` — generates Montserrat Bold at sizes 14, 16, 20, 24, 28, 36, 48px with ASCII (0x20-0x7E) + Nerd Font Logos (0xF300-0xF381), 4bpp, `--no-compress --no-prefilter`.
+- [x] T036c Create `fonts/lv_font_custom.h` — extern declarations (`LV_FONT_DECLARE`) for all generated bold fonts.
+- [x] T036d Add generated `.c` files to `CMakeLists.txt` sources, `fonts/` to include path, and `LV_FONT_MONTSERRAT_BOLD_*=1` compile definitions to satisfy `lv_font_conv` guard macros.
+- [x] T036e Test: set Activities header to `lv_font_montserrat_bold_48`. Verify bold text renders on Pi.
+
+**Checkpoint**: Custom bold fonts available at all standard sizes. `#include "lv_font_custom.h"` and use `&lv_font_montserrat_bold_XX` in any widget.
 
 ---
 
@@ -118,10 +162,10 @@
 
 ### Implementation for User Story 4
 
-- [ ] T037 [US4] Create GPU graph widget in `src/widgets/gpu_graph.c` and `src/widgets/gpu_graph.h` — two `lv_chart` objects (`LV_CHART_TYPE_LINE`, `LV_CHART_UPDATE_MODE_SHIFT`): one for GPU compute % (range 0–100), one for VRAM used MB (range 0–max_vram). Point count ~300 (5 min at ~1/s). Expose `gpu_graph_create(lv_obj_t *parent)`, `gpu_graph_update(float compute_pct, uint32_t vram_mb)`, `gpu_graph_destroy()`.
-- [ ] T038 [US4] Add graph toggle mechanism — reuse dev command pattern: add `kpidash:cmd:graph` Redis key. Add macro to `src/protocol.h`, parse in `redis_poll()` in `src/redis.c`, add `graph_enabled` + `graph_client` fields to `dev_cmd_state_t`.
-- [ ] T039 [US4] Wire graph widget to UI in `src/ui.c` — when graph enabled, create graph widget in available screen area. Feed data from the specified client's telemetry on each `ui_refresh()`. When graph active and 6+ clients, suppress the two lowest-priority client widgets (reuse `KPIDASH_PRIORITY_CLIENTS` ordering).
-- [ ] T040 [US4] Add `src/widgets/gpu_graph.c` to `CMakeLists.txt` target sources.
+- [x] T037 [US4] Create GPU graph widget in `src/widgets/gpu_graph.c` and `src/widgets/gpu_graph.h` — single `lv_chart` with dual Y-axis (`LV_CHART_AXIS_PRIMARY_Y` for compute %, `LV_CHART_AXIS_SECONDARY_Y` for VRAM MB). Line type, shift mode. 60 data points (5 min at 5s telemetry interval). Expose `gpu_graph_create(lv_obj_t *parent)`, `gpu_graph_update(lv_obj_t *graph, float compute_pct, uint32_t vram_used_mb, uint32_t vram_total_mb)`, `gpu_graph_destroy(lv_obj_t *graph)`.
+- [x] T038 [US4] Add graph toggle mechanism — reuse dev command pattern: add `kpidash:cmd:graph` Redis key. Add macro to `src/protocol.h`, parse in `redis_poll()` in `src/redis.c`, add `graph_enabled` + `graph_client` fields to `dev_cmd_state_t`. JSON: `{"enabled": true, "client": "hostname"}`. 13 new unit tests.
+- [x] T039 [US4] Wire graph widget to UI in `src/ui.c` — when graph enabled, create graph widget overlaying right half of middle row. Feed data from the specified client's telemetry on each `ui_refresh()`. Create/destroy lifecycle follows grid/textsize pattern.
+- [x] T040 [US4] Add `src/widgets/gpu_graph.c` to `CMakeLists.txt` target sources.
 
 **Checkpoint**: GPU/VRAM graphs render and update. Layout accommodates graphs by suppressing low-priority clients.
 

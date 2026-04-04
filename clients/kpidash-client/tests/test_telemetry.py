@@ -15,15 +15,60 @@ from unittest.mock import MagicMock, patch
 
 
 def test_collect_os_name_format():
+    """Fallback on Linux when /etc/os-release is not readable."""
     with (
         patch("platform.system", return_value="Linux"),
         patch("platform.release", return_value="5.15.0-173-generic"),
+        patch("builtins.open", side_effect=OSError),
     ):
         from kpidash_client.telemetry.system import collect_os_name
 
         result = collect_os_name()
 
     assert result == "Linux 5.15.0-173-generic"
+
+
+def test_collect_os_name_pretty_name():
+    """Reads PRETTY_NAME from /etc/os-release on Linux."""
+    os_release = 'NAME="Ubuntu"\nPRETTY_NAME="Ubuntu 22.04.5 LTS"\nVERSION_ID="22.04"\n'
+    from unittest.mock import mock_open
+
+    with (
+        patch("platform.system", return_value="Linux"),
+        patch("builtins.open", mock_open(read_data=os_release)),
+    ):
+        from kpidash_client.telemetry.system import collect_os_name
+
+        result = collect_os_name()
+
+    assert result == "Ubuntu 22.04.5 LTS"
+
+
+def test_collect_os_name_fallback_no_file():
+    """Falls back to platform info when /etc/os-release is missing."""
+    with (
+        patch("platform.system", return_value="Linux"),
+        patch("platform.release", return_value="5.15.0-173-generic"),
+        patch("builtins.open", side_effect=OSError),
+    ):
+        from kpidash_client.telemetry.system import collect_os_name
+
+        result = collect_os_name()
+
+    assert result == "Linux 5.15.0-173-generic"
+
+
+def test_collect_os_name_non_linux():
+    """Non-Linux returns platform.system() + platform.release()."""
+    with (
+        patch("platform.system", return_value="Darwin"),
+        patch("platform.release", return_value="23.1.0"),
+    ):
+        from kpidash_client.telemetry.system import collect_os_name
+
+        result = collect_os_name()
+
+    assert result == "Darwin 23.1.0"
 
 
 # ---------------------------------------------------------------------------

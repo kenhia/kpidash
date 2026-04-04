@@ -90,6 +90,8 @@ typedef struct {
     bool grid_enabled;
     int  grid_size;        /* pixels; 0 = disabled */
     bool textsize_enabled;
+    bool graph_enabled;
+    char graph_client[HOSTNAME_LEN]; /* hostname of client to graph */
 } dev_cmd_state_t;
 
 /* ---- Registry API (global singleton, thread-safe) ---- */

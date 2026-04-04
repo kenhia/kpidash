@@ -10,8 +10,10 @@
 #define COLOR_HEADER lv_color_hex(0xF5C2E7)
 #define COLOR_CLEAN  lv_color_hex(0xA6E3A1)
 
-static const lv_font_t *FONT_HDR  = &lv_font_montserrat_16;
-static const lv_font_t *FONT_BODY = &lv_font_montserrat_14;
+static const lv_font_t *FONT_HDR  = &lv_font_montserrat_20;
+static const lv_font_t *FONT_BODY = &lv_font_montserrat_16;
+
+#define REPO_MAX_DISPLAY 15
 
 lv_obj_t *repo_status_widget_create(lv_obj_t *parent) {
     lv_obj_t *cont = lv_obj_create(parent);
@@ -59,7 +61,7 @@ void repo_status_widget_update(lv_obj_t *widget, const repo_entry_t *list, int c
         return;
     }
 
-    for (int i = 0; i < count; i++) {
+    for (int i = 0; i < count && i < REPO_MAX_DISPLAY; i++) {
         const repo_entry_t *r = &list[i];
 
         /* Row */
@@ -84,11 +86,17 @@ void repo_status_widget_update(lv_obj_t *widget, const repo_entry_t *list, int c
             lv_obj_clear_flag(dot, LV_OBJ_FLAG_SCROLLABLE);
         }
 
-        /* host:name */
-        char info[256];
-        snprintf(info, sizeof(info), "%s/%s", r->host, r->name);
+        /* host/name — dim host prefix, bright repo name */
+        char host_prefix[256];
+        snprintf(host_prefix, sizeof(host_prefix), "%s/", r->host);
+        lv_obj_t *host_lbl = lv_label_create(row);
+        lv_label_set_text(host_lbl, host_prefix);
+        lv_obj_set_style_text_color(host_lbl, COLOR_MUTED, 0);
+        lv_obj_set_style_text_font(host_lbl, FONT_BODY, 0);
+        lv_obj_clear_flag(host_lbl, LV_OBJ_FLAG_SCROLLABLE);
+
         lv_obj_t *name_lbl = lv_label_create(row);
-        lv_label_set_text(name_lbl, info);
+        lv_label_set_text(name_lbl, r->name);
         lv_obj_set_style_text_color(name_lbl, COLOR_FG, 0);
         lv_obj_set_style_text_font(name_lbl, FONT_BODY, 0);
         lv_obj_set_flex_grow(name_lbl, 1);

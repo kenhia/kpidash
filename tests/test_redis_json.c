@@ -213,6 +213,41 @@ int main(void) {
         CHECK(s.textsize_enabled == false);
     }
 
+    /* T038: graph command */
+    {
+        dev_cmd_state_t s = {0};
+        bool ok = redis_parse_cmd_graph_json("{\"enabled\":true,\"client\":\"gpu-box\"}", &s);
+        CHECK(ok);
+        CHECK(s.graph_enabled == true);
+        CHECK(strcmp(s.graph_client, "gpu-box") == 0);
+    }
+    {
+        dev_cmd_state_t s = {0};
+        bool ok = redis_parse_cmd_graph_json("{\"enabled\":false}", &s);
+        CHECK(ok);
+        CHECK(s.graph_enabled == false);
+        CHECK(s.graph_client[0] == '\0');
+    }
+    {
+        dev_cmd_state_t s = {0};
+        bool ok = redis_parse_cmd_graph_json(NULL, &s);  /* absent key */
+        CHECK(ok);
+        CHECK(s.graph_enabled == false);
+        CHECK(s.graph_client[0] == '\0');
+    }
+    {
+        dev_cmd_state_t s = {0};
+        bool ok = redis_parse_cmd_graph_json("not json", &s);
+        CHECK(!ok);
+    }
+    {
+        dev_cmd_state_t s = {0};
+        bool ok = redis_parse_cmd_graph_json("{\"enabled\":true}", &s);
+        CHECK(ok);
+        CHECK(s.graph_enabled == true);
+        CHECK(s.graph_client[0] == '\0');  /* no client = empty string */
+    }
+
     printf("test_redis_json: %d passed, %d failed\n", passed, failed);
     return failed > 0 ? 1 : 0;
 }
