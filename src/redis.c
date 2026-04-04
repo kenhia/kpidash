@@ -201,6 +201,39 @@ const repo_entry_t *redis_get_repos(int *count) {
     return g_repos;
 }
 
+/* ---- Dev command state (T025) ---- */
+static dev_cmd_state_t g_dev_cmd = {0};
+
+const dev_cmd_state_t *redis_get_dev_cmd_state(void) {
+    return &g_dev_cmd;
+}
+
+bool redis_parse_cmd_grid_json(const char *json, dev_cmd_state_t *state) {
+    state->grid_enabled = false;
+    state->grid_size    = 0;
+    if (!json) return true;  /* absent key = disabled */
+    cJSON *root = cJSON_Parse(json);
+    if (!root) return false;
+    cJSON *en = cJSON_GetObjectItemCaseSensitive(root, "enabled");
+    cJSON *sz = cJSON_GetObjectItemCaseSensitive(root, "size");
+    if (cJSON_IsBool(en))   state->grid_enabled = cJSON_IsTrue(en);
+    if (cJSON_IsNumber(sz) && sz->valueint > 0)
+        state->grid_size = sz->valueint;
+    cJSON_Delete(root);
+    return true;
+}
+
+bool redis_parse_cmd_textsize_json(const char *json, dev_cmd_state_t *state) {
+    state->textsize_enabled = false;
+    if (!json) return true;
+    cJSON *root = cJSON_Parse(json);
+    if (!root) return false;
+    cJSON *en = cJSON_GetObjectItemCaseSensitive(root, "enabled");
+    if (cJSON_IsBool(en)) state->textsize_enabled = cJSON_IsTrue(en);
+    cJSON_Delete(root);
+    return true;
+}
+
 /* ---- Poll helpers ---- */
 
 static void poll_activities(void) {
@@ -375,6 +408,20 @@ void redis_poll(void) {
         }
     }
     if (fr) freeReplyObject(fr);
+
+    /* Step 7: Dev commands — grid and textsize */
+    redisReply *gr = redisCommand(g_ctx, "GET " KPIDASH_KEY_CMD_GRID);
+    dev_cmd_state_t new_cmd = {0};
+    redis_parse_cmd_grid_json(
+        (gr && gr->type == REDIS_REPLY_STRING) ? gr->str : NULL, &new_cmd);
+    if (gr) freeReplyObject(gr);
+
+    redisReply *tsr = redisCommand(g_ctx, "GET " KPIDASH_KEY_CMD_TEXTSIZE);
+    redis_parse_cmd_textsize_json(
+        (tsr && tsr->type == REDIS_REPLY_STRING) ? tsr->str : NULL, &new_cmd);
+    if (tsr) freeReplyObject(tsr);
+
+    g_dev_cmd = new_cmd;
 
     freeReplyObject(smr);
 }

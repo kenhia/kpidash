@@ -161,6 +161,58 @@ int main(void) {
     test_telemetry_no_gpu();
     test_telemetry_disk_types();
 
+    /* T026: grid command */
+    {
+        dev_cmd_state_t s = {0};
+        bool ok = redis_parse_cmd_grid_json("{\"enabled\":true,\"size\":50}", &s);
+        CHECK(ok);
+        CHECK(s.grid_enabled == true);
+        CHECK(s.grid_size == 50);
+    }
+    {
+        dev_cmd_state_t s = {0};
+        bool ok = redis_parse_cmd_grid_json("{\"enabled\":false}", &s);
+        CHECK(ok);
+        CHECK(s.grid_enabled == false);
+    }
+    {
+        dev_cmd_state_t s = {0};
+        bool ok = redis_parse_cmd_grid_json(NULL, &s);  /* absent key */
+        CHECK(ok);
+        CHECK(s.grid_enabled == false);
+        CHECK(s.grid_size == 0);
+    }
+    {
+        dev_cmd_state_t s = {0};
+        bool ok = redis_parse_cmd_grid_json("not json", &s);
+        CHECK(!ok);
+    }
+    {
+        dev_cmd_state_t s = {0};
+        redis_parse_cmd_grid_json("{\"enabled\":true,\"size\":-1}", &s);
+        CHECK(s.grid_size == 0);  /* non-positive size ignored */
+    }
+
+    /* T027: textsize command */
+    {
+        dev_cmd_state_t s = {0};
+        bool ok = redis_parse_cmd_textsize_json("{\"enabled\":true}", &s);
+        CHECK(ok);
+        CHECK(s.textsize_enabled == true);
+    }
+    {
+        dev_cmd_state_t s = {0};
+        bool ok = redis_parse_cmd_textsize_json("{\"enabled\":false}", &s);
+        CHECK(ok);
+        CHECK(s.textsize_enabled == false);
+    }
+    {
+        dev_cmd_state_t s = {0};
+        bool ok = redis_parse_cmd_textsize_json(NULL, &s);  /* absent key */
+        CHECK(ok);
+        CHECK(s.textsize_enabled == false);
+    }
+
     printf("test_redis_json: %d passed, %d failed\n", passed, failed);
     return failed > 0 ? 1 : 0;
 }

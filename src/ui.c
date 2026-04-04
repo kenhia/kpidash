@@ -22,6 +22,8 @@
 #include "widgets/repo_status.h"
 #include "widgets/fortune.h"
 #include "widgets/status_bar.h"
+#include "widgets/dev_grid.h"
+#include "widgets/dev_textsize.h"
 #include "protocol.h"
 #include <string.h>
 #include <stdio.h>
@@ -39,6 +41,11 @@ static lv_obj_t *g_redis_err    = NULL;
 static char g_card_hostnames[MAX_CLIENTS][HOSTNAME_LEN];
 static lv_obj_t *g_cards[MAX_CLIENTS];
 static int g_card_count = 0;
+
+/* Dev overlay handles (T030) */
+static lv_obj_t *g_dev_grid     = NULL;
+static lv_obj_t *g_dev_textsize = NULL;
+static int       g_dev_grid_size = 0;  /* track size so we recreate on change */
 
 /* ---- Helpers ---- */
 
@@ -196,6 +203,35 @@ void ui_refresh(void) {
     int repo_count = 0;
     const repo_entry_t *repos = redis_get_repos(&repo_count);
     repo_status_widget_update(g_repo_status, repos, repo_count);
+
+    /* Dev command overlays (T030) */
+    const dev_cmd_state_t *cmd = redis_get_dev_cmd_state();
+
+    /* Grid overlay — create on enable, recreate on size change, destroy on disable */
+    if (cmd->grid_enabled) {
+        if (!g_dev_grid || g_dev_grid_size != cmd->grid_size) {
+            dev_grid_destroy(g_dev_grid);
+            g_dev_grid      = dev_grid_create(g_screen, cmd->grid_size);
+            g_dev_grid_size = cmd->grid_size;
+        }
+    } else {
+        if (g_dev_grid) {
+            dev_grid_destroy(g_dev_grid);
+            g_dev_grid      = NULL;
+            g_dev_grid_size = 0;
+        }
+    }
+
+    /* Textsize overlay */
+    if (cmd->textsize_enabled) {
+        if (!g_dev_textsize)
+            g_dev_textsize = dev_textsize_create(g_screen);
+    } else {
+        if (g_dev_textsize) {
+            dev_textsize_destroy(g_dev_textsize);
+            g_dev_textsize = NULL;
+        }
+    }
 }
 
 void ui_show_redis_error(const char *msg) {

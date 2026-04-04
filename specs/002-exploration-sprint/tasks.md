@@ -80,13 +80,13 @@
 
 ### Implementation for User Story 2
 
-- [ ] T025 [US2] Add command key polling to `redis_poll()` in `src/redis.c` — `GET kpidash:cmd:grid` and `GET kpidash:cmd:textsize` each poll cycle. Parse JSON, update `dev_cmd_state_t` global. Handle absent keys (treat as disabled).
-- [ ] T026 [P] [US2] Add unit test for grid command JSON parsing in `tests/test_redis_json.c` — test `{"enabled":true,"size":50}`, `{"enabled":false}`, absent key, invalid JSON, size ≤ 0.
-- [ ] T027 [P] [US2] Add unit test for textsize command JSON parsing in `tests/test_redis_json.c` — test `{"enabled":true}`, `{"enabled":false}`, absent key.
-- [ ] T028 [US2] Create grid overlay widget in `src/widgets/dev_grid.c` and `src/widgets/dev_grid.h` — full-screen `lv_obj` at high z-index with translucent line objects spaced at `grid_size` pixels (horizontal + vertical). Expose `dev_grid_create(lv_obj_t *parent, int grid_size)` and `dev_grid_destroy()`.
-- [ ] T029 [US2] Create text size reference widget in `src/widgets/dev_textsize.c` and `src/widgets/dev_textsize.h` — panel showing sample text at sizes 10, 12, 14, 16, 18, 20, 24, 28, 32px. Expose `dev_textsize_create(lv_obj_t *parent)` and `dev_textsize_destroy()`.
-- [ ] T030 [US2] Wire command state to UI in `src/ui.c` — in `ui_refresh()`, check `dev_cmd_state_t`: create/destroy grid overlay when `grid_enabled` changes; create/destroy textsize widget when `textsize_enabled` changes. Handle re-creation on grid size change.
-- [ ] T031 [US2] Add new widget source files to `CMakeLists.txt` — add `src/widgets/dev_grid.c` and `src/widgets/dev_textsize.c` to the kpidash target sources.
+- [x] T025 [US2] Add command key polling to `redis_poll()` in `src/redis.c` — `GET kpidash:cmd:grid` and `GET kpidash:cmd:textsize` each poll cycle. Parse JSON, update `dev_cmd_state_t` global. Handle absent keys (treat as disabled).
+- [x] T026 [P] [US2] Add unit test for grid command JSON parsing in `tests/test_redis_json.c` — test `{"enabled":true,"size":50}`, `{"enabled":false}`, absent key, invalid JSON, size ≤ 0.
+- [x] T027 [P] [US2] Add unit test for textsize command JSON parsing in `tests/test_redis_json.c` — test `{"enabled":true}`, `{"enabled":false}`, absent key.
+- [x] T028 [US2] Create grid overlay widget in `src/widgets/dev_grid.c` and `src/widgets/dev_grid.h` — full-screen `lv_obj` at high z-index with translucent line objects spaced at `grid_size` pixels (horizontal + vertical). Expose `dev_grid_create(lv_obj_t *parent, int grid_size)` and `dev_grid_destroy()`.
+- [x] T029 [US2] Create text size reference widget in `src/widgets/dev_textsize.c` and `src/widgets/dev_textsize.h` — panel showing sample text at sizes 10, 12, 14, 16, 18, 20, 24, 28, 32px. Expose `dev_textsize_create(lv_obj_t *parent)` and `dev_textsize_destroy()`.
+- [x] T030 [US2] Wire command state to UI in `src/ui.c` — in `ui_refresh()`, check `dev_cmd_state_t`: create/destroy grid overlay when `grid_enabled` changes; create/destroy textsize widget when `textsize_enabled` changes. Handle re-creation on grid size change.
+- [x] T031 [US2] Add new widget source files to `CMakeLists.txt` — add `src/widgets/dev_grid.c` and `src/widgets/dev_textsize.c` to the kpidash target sources.
 
 **Checkpoint**: Grid overlay and text size reference toggle via Redis commands. Auto-disable on TTL expiry.
 

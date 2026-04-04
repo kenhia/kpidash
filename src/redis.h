@@ -78,4 +78,23 @@ bool redis_parse_health_json(const char *json, client_info_t *c);
  */
 bool redis_parse_telemetry_json(const char *json, client_info_t *c);
 
+/**
+ * Parse kpidash:cmd:grid JSON into state.
+ * json == NULL (key absent) → grid_enabled=false, grid_size=0.
+ * Returns true if json was valid or NULL; false only on malformed JSON.
+ */
+bool redis_parse_cmd_grid_json(const char *json, dev_cmd_state_t *state);
+
+/**
+ * Parse kpidash:cmd:textsize JSON into state.
+ * json == NULL (key absent) → textsize_enabled=false.
+ */
+bool redis_parse_cmd_textsize_json(const char *json, dev_cmd_state_t *state);
+
+/**
+ * Return a pointer to the current dev command state (updated each poll cycle).
+ * Not thread-safe for writing; read from LVGL timer (main thread) only.
+ */
+const dev_cmd_state_t *redis_get_dev_cmd_state(void);
+
 #endif /* REDIS_H */

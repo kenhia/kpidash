@@ -60,6 +60,8 @@ add_executable(kpidash
     src/widgets/repo_status.c
     src/widgets/fortune.c
     src/widgets/status_bar.c
+    src/widgets/dev_grid.c
+    src/widgets/dev_textsize.c
 )
 
 target_include_directories(kpidash PRIVATE
