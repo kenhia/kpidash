@@ -60,11 +60,22 @@ add_executable(kpidash
     src/widgets/repo_status.c
     src/widgets/fortune.c
     src/widgets/status_bar.c
+    src/widgets/dev_grid.c
+    src/widgets/dev_textsize.c
+    src/widgets/dev_graph.c
+    fonts/lv_font_montserrat_bold_14.c
+    fonts/lv_font_montserrat_bold_16.c
+    fonts/lv_font_montserrat_bold_20.c
+    fonts/lv_font_montserrat_bold_24.c
+    fonts/lv_font_montserrat_bold_28.c
+    fonts/lv_font_montserrat_bold_36.c
+    fonts/lv_font_montserrat_bold_48.c
 )
 
 target_include_directories(kpidash PRIVATE
     ${CMAKE_SOURCE_DIR}
     ${CMAKE_SOURCE_DIR}/src
+    ${CMAKE_SOURCE_DIR}/fonts
     ${DRM_INCLUDE_DIRS}
     ${CJSON_INCLUDE_DIRS}
 )
@@ -80,11 +91,31 @@ target_link_libraries(kpidash
 
 target_compile_options(kpidash PRIVATE -Wall -Wextra -Wno-unused-parameter)
 
+# Enable custom font guard macros (lv_font_conv wraps each file in #if LV_FONT_xxx)
+target_compile_definitions(kpidash PRIVATE
+    LV_FONT_MONTSERRAT_BOLD_14=1
+    LV_FONT_MONTSERRAT_BOLD_16=1
+    LV_FONT_MONTSERRAT_BOLD_20=1
+    LV_FONT_MONTSERRAT_BOLD_24=1
+    LV_FONT_MONTSERRAT_BOLD_28=1
+    LV_FONT_MONTSERRAT_BOLD_36=1
+    LV_FONT_MONTSERRAT_BOLD_48=1
+)
+
 # Cross-linking against a Trixie sysroot (glibc 2.38) from an Ubuntu 22.04
 # host (glibc 2.35): shared libs like libdrm reference GLIBC_2.38 symbols
 # that the host linker's stub libc doesn't define. Allow these at link time —
 # they will resolve correctly at runtime on the Pi.
 target_link_options(kpidash PRIVATE -Wl,--allow-shlib-undefined)
+
+# Deploy to Pi: cmake --build build-pi --target deploy
+add_custom_target(deploy
+    COMMAND ssh ken@rpi53 "sudo systemctl stop kpidash"
+    COMMAND scp ${CMAKE_BINARY_DIR}/kpidash ken@rpi53:~/kpidash
+    COMMAND ssh ken@rpi53 "sudo systemctl start kpidash"
+    DEPENDS kpidash
+    COMMENT "Deploying kpidash to rpi53"
+)
 
 add_subdirectory(tests)
 

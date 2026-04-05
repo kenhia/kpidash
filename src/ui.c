@@ -14,31 +14,45 @@
  *   └─────────────────────────────────────────────┘
  */
 #include "ui.h"
-#include "registry.h"
-#include "redis.h"
-#include "fortune.h"
-#include "widgets/client_card.h"
-#include "widgets/activities.h"
-#include "widgets/repo_status.h"
-#include "widgets/fortune.h"
-#include "widgets/status_bar.h"
-#include "protocol.h"
-#include <string.h>
+
 #include <stdio.h>
+#include <string.h>
+
+#include "fortune.h"
+#include "protocol.h"
+#include "redis.h"
+#include "registry.h"
+#include "widgets/activities.h"
+#include "widgets/client_card.h"
+#include "widgets/dev_graph.h"
+#include "widgets/dev_grid.h"
+#include "widgets/dev_textsize.h"
+#include "widgets/fortune.h"
+#include "widgets/repo_status.h"
+#include "widgets/status_bar.h"
 
 /* ---- Layout objects ---- */
-static lv_obj_t *g_screen       = NULL;
-static lv_obj_t *g_card_grid    = NULL;
-static lv_obj_t *g_activities   = NULL;
-static lv_obj_t *g_repo_status  = NULL;
-static lv_obj_t *g_fortune      = NULL;
-static lv_obj_t *g_status_bar   = NULL;
-static lv_obj_t *g_redis_err    = NULL;
+static lv_obj_t *g_screen = NULL;
+static lv_obj_t *g_card_grid = NULL;
+static lv_obj_t *g_activities = NULL;
+static lv_obj_t *g_repo_status = NULL;
+static lv_obj_t *g_fortune = NULL;
+static lv_obj_t *g_status_bar = NULL;
+static lv_obj_t *g_redis_err = NULL;
 
 /* Track which hostnames have cards so we can add/remove dynamically */
 static char g_card_hostnames[MAX_CLIENTS][HOSTNAME_LEN];
 static lv_obj_t *g_cards[MAX_CLIENTS];
 static int g_card_count = 0;
+
+/* Dev overlay handles (T030) */
+static lv_obj_t *g_dev_grid = NULL;
+static lv_obj_t *g_dev_textsize = NULL;
+static int g_dev_grid_size = 0; /* track size so we recreate on change */
+
+/* Dev graph handles (Phase 6.1) */
+static lv_obj_t *g_dev_graph = NULL;
+static char g_graph_client[HOSTNAME_LEN] = {0};
 
 /* ---- Helpers ---- */
 
@@ -59,7 +73,8 @@ static lv_obj_t *find_card(const char *hostname) {
 }
 
 static void add_card(const char *hostname) {
-    if (g_card_count >= MAX_CLIENTS) return;
+    if (g_card_count >= MAX_CLIENTS)
+        return;
     lv_obj_t *card = client_card_create(g_card_grid, hostname);
     strncpy(g_card_hostnames[g_card_count], hostname, HOSTNAME_LEN - 1);
     g_cards[g_card_count] = card;
@@ -67,7 +82,7 @@ static void add_card(const char *hostname) {
 }
 
 static void remove_absent_cards(const client_info_t *clients, int n) {
-    for (int i = 0; i < g_card_count; ) {
+    for (int i = 0; i < g_card_count;) {
         bool found = false;
         for (int j = 0; j < n; j++) {
             if (strncmp(g_card_hostnames[i], clients[j].hostname, HOSTNAME_LEN) == 0) {
@@ -101,10 +116,10 @@ void ui_init(void) {
     lv_disp_t *disp = lv_display_get_default();
     int32_t scr_w = lv_display_get_horizontal_resolution(disp);
     int32_t scr_h = lv_display_get_vertical_resolution(disp);
-    int32_t card_area_h = (int32_t)(scr_h * 0.40);
-    int32_t mid_h       = (int32_t)(scr_h * 0.40);
-    int32_t fortune_h   = (int32_t)(scr_h * 0.10);
-    int32_t status_h    = 40;
+    int32_t card_area_h = 640; /* ~624px widget + padding (6 across at 3840) */
+    int32_t status_h = 40;
+    int32_t fortune_h = (int32_t)(scr_h * 0.10);
+    int32_t mid_h = scr_h - card_area_h - fortune_h - status_h - 40;
 
     /* ---- Client card grid (top 40%) ---- */
     g_card_grid = lv_obj_create(g_screen);
@@ -114,21 +129,20 @@ void ui_init(void) {
     lv_obj_set_pos(g_card_grid, 8, 8);
     lv_obj_set_flex_flow(g_card_grid, LV_FLEX_FLOW_ROW_WRAP);
     lv_obj_set_flex_align(g_card_grid, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_START,
-                           LV_FLEX_ALIGN_START);
+                          LV_FLEX_ALIGN_START);
     lv_obj_set_style_pad_column(g_card_grid, 8, 0);
     lv_obj_set_style_pad_row(g_card_grid, 8, 0);
 
     /* ---- Middle row: Activities (left) + Repo Status (right) ---- */
     int32_t mid_y = card_area_h + 16;
-    int32_t half_w = (scr_w - 24) / 2;
 
     g_activities = activities_widget_create(g_screen);
-    lv_obj_set_size(g_activities, half_w, mid_h);
+    lv_obj_set_size(g_activities, 1256, 620);
     lv_obj_set_pos(g_activities, 8, mid_y);
 
     g_repo_status = repo_status_widget_create(g_screen);
-    lv_obj_set_size(g_repo_status, half_w, mid_h);
-    lv_obj_set_pos(g_repo_status, half_w + 16, mid_y);
+    lv_obj_set_size(g_repo_status, 1256, 620);
+    lv_obj_set_pos(g_repo_status, 8 + 1256 + 8, mid_y);
 
     /* ---- Fortune strip (bottom 10%) ---- */
     int32_t fortune_y = mid_y + mid_h + 8;
@@ -182,8 +196,9 @@ void ui_refresh(void) {
     /* Update all cards */
     for (int i = 0; i < n; i++) {
         lv_obj_t *card = find_card(clients[i].hostname);
-        if (!card) continue;
-        client_card_update_health(card, clients[i].online, clients[i].uptime_seconds);
+        if (!card)
+            continue;
+        client_card_update_health(card, &clients[i]);
         client_card_update_telemetry(card, &clients[i]);
     }
 
@@ -196,10 +211,74 @@ void ui_refresh(void) {
     int repo_count = 0;
     const repo_entry_t *repos = redis_get_repos(&repo_count);
     repo_status_widget_update(g_repo_status, repos, repo_count);
+
+    /* Dev command overlays (T030) */
+    const dev_cmd_state_t *cmd = redis_get_dev_cmd_state();
+
+    /* Grid overlay — create on enable, recreate on size change, destroy on disable */
+    if (cmd->grid_enabled) {
+        if (!g_dev_grid || g_dev_grid_size != cmd->grid_size) {
+            dev_grid_destroy(g_dev_grid);
+            g_dev_grid = dev_grid_create(g_screen, cmd->grid_size);
+            g_dev_grid_size = cmd->grid_size;
+        }
+    } else {
+        if (g_dev_grid) {
+            dev_grid_destroy(g_dev_grid);
+            g_dev_grid = NULL;
+            g_dev_grid_size = 0;
+        }
+    }
+
+    /* Textsize overlay */
+    if (cmd->textsize_enabled) {
+        if (!g_dev_textsize)
+            g_dev_textsize = dev_textsize_create(g_screen);
+    } else {
+        if (g_dev_textsize) {
+            dev_textsize_destroy(g_dev_textsize);
+            g_dev_textsize = NULL;
+        }
+    }
+
+    /* Dev graph in card grid (Phase 6.1) */
+    if (cmd->graph_enabled && cmd->graph_client[0]) {
+        /* Create or recreate if target client changed */
+        if (!g_dev_graph || strncmp(g_graph_client, cmd->graph_client, HOSTNAME_LEN) != 0) {
+            dev_graph_destroy(g_dev_graph);
+            g_dev_graph = dev_graph_create(g_card_grid, cmd->graph_client);
+            strncpy(g_graph_client, cmd->graph_client, HOSTNAME_LEN - 1);
+            g_graph_client[HOSTNAME_LEN - 1] = '\0';
+            /* Move to the front of the card grid so it's top-left */
+            lv_obj_move_to_index(g_dev_graph, 0);
+        }
+
+        /* Feed data from dev telemetry (fast-poll key) */
+        const dev_telemetry_t *dt = redis_get_dev_telemetry();
+        if (dt->valid) {
+            dev_graph_data_t gd = {
+                .cpu_pct = dt->cpu_pct,
+                .top_core_pct = dt->top_core_pct,
+                .ram_used_mb = dt->ram_used_mb,
+                .ram_total_mb = dt->ram_total_mb,
+                .gpu_compute_pct = dt->gpu_compute_pct,
+                .gpu_vram_used_mb = dt->gpu_vram_used_mb,
+                .gpu_vram_total_mb = dt->gpu_vram_total_mb,
+            };
+            dev_graph_update(g_dev_graph, &gd);
+        }
+    } else {
+        if (g_dev_graph) {
+            dev_graph_destroy(g_dev_graph);
+            g_dev_graph = NULL;
+            g_graph_client[0] = '\0';
+        }
+    }
 }
 
 void ui_show_redis_error(const char *msg) {
-    if (!g_redis_err) return;
+    if (!g_redis_err)
+        return;
     /* Update label text */
     lv_obj_t *lbl = lv_obj_get_child(g_redis_err, 0);
     if (lbl) {
@@ -212,17 +291,19 @@ void ui_show_redis_error(const char *msg) {
 }
 
 void ui_hide_redis_error(void) {
-    if (!g_redis_err) return;
+    if (!g_redis_err)
+        return;
     lv_obj_add_flag(g_redis_err, LV_OBJ_FLAG_HIDDEN);
 }
 
 void ui_status_bar_show(status_severity_t severity, const char *message) {
-    if (!g_status_bar) return;
+    if (!g_status_bar)
+        return;
     status_bar_show(g_status_bar, severity, message);
 }
 
 void ui_status_bar_hide(void) {
-    if (!g_status_bar) return;
+    if (!g_status_bar)
+        return;
     status_bar_hide(g_status_bar);
 }
-

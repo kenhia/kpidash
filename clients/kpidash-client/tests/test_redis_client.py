@@ -43,6 +43,26 @@ def test_write_health_sets_key(tmp_path, monkeypatch):
     mock_r.sadd.assert_called_once_with("kpidash:clients", "testhost")
 
 
+def test_write_health_includes_os_name(tmp_path, monkeypatch):
+    monkeypatch.delenv("REDISCLI_AUTH", raising=False)
+    client, mock_r = make_client(tmp_path)
+    client.write_health(uptime_s=100.0, os_name="Linux 6.1.0")
+
+    value = mock_r.set.call_args.args[1]
+    payload = json.loads(value)
+    assert payload["os_name"] == "Linux 6.1.0"
+
+
+def test_write_health_omits_os_name_when_none(tmp_path, monkeypatch):
+    monkeypatch.delenv("REDISCLI_AUTH", raising=False)
+    client, mock_r = make_client(tmp_path)
+    client.write_health(uptime_s=100.0)
+
+    value = mock_r.set.call_args.args[1]
+    payload = json.loads(value)
+    assert "os_name" not in payload
+
+
 def test_write_telemetry_sets_key(tmp_path):
     client, mock_r = make_client(tmp_path)
     client.write_telemetry({"cpu_pct": 50.0, "ram_used_mb": 1024, "ram_total_mb": 4096})

@@ -20,7 +20,7 @@ from .redis_client import RedisClient, RedisClientError
 from .repos import scan_repos
 from .telemetry.disk import collect_disks
 from .telemetry.gpu import collect_gpu
-from .telemetry.system import collect_system
+from .telemetry.system import collect_os_name, collect_system
 
 logger = logging.getLogger(__name__)
 
@@ -35,10 +35,11 @@ def _uptime() -> float | None:
 
 
 def _health_loop(rc: RedisClient, interval: int) -> None:
+    os_name = collect_os_name()
     while not _stop_event.is_set():
         try:
             up = _uptime()
-            rc.write_health(uptime_s=up)
+            rc.write_health(uptime_s=up, os_name=os_name)
         except RedisClientError as e:
             logger.warning("health write failed: %s — reconnecting", e)
             rc.reconnect_on_failure()
@@ -57,6 +58,20 @@ def _telemetry_loop(rc: RedisClient, config: ClientConfig) -> None:
             logger.warning("telemetry write failed: %s", e)
             rc.reconnect_on_failure()
         _stop_event.wait(config.telemetry_interval_s)
+
+
+def _dev_telemetry_loop(rc: RedisClient, interval: int) -> None:
+    """Fast-poll GPU+CPU+RAM for dev graph (no disks)."""
+    while not _stop_event.is_set():
+        try:
+            sys_data = collect_system()
+            gpu_data = collect_gpu()
+            payload = {**sys_data, "gpu": gpu_data}
+            rc.write_dev_telemetry(payload)
+        except RedisClientError as e:
+            logger.warning("dev telemetry write failed: %s", e)
+            rc.reconnect_on_failure()
+        _stop_event.wait(interval)
 
 
 def _repo_loop(rc: RedisClient, config: ClientConfig) -> None:
@@ -86,6 +101,14 @@ def run_daemon(config: ClientConfig) -> None:
         threading.Thread(target=_telemetry_loop, args=(rc, config), daemon=True),
         threading.Thread(target=_repo_loop, args=(rc, config), daemon=True),
     ]
+
+    # Dev telemetry loop — only start if dev_interval_s is configured
+    dev_interval = config.dev_interval_s
+    if dev_interval is not None:
+        logger.info("dev telemetry loop enabled at %ds interval", dev_interval)
+        threads.append(
+            threading.Thread(target=_dev_telemetry_loop, args=(rc, dev_interval), daemon=True)
+        )
     for t in threads:
         t.start()
 

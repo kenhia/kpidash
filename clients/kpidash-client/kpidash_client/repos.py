@@ -101,17 +101,59 @@ def scan_repos(repo_config: RepoConfig) -> list[dict]:
 
         default = _default_branch(repo)
         is_dirty = repo.is_dirty(untracked_files=True)
+        detached = repo.head.is_detached
 
         if branch == default and not is_dirty:
             continue  # clean — skip (FR-041)
+
+        # Granular working-tree stats
+        try:
+            wt_diffs = repo.index.diff(None)
+        except Exception:
+            wt_diffs = []
+        changed = sum(1 for d in wt_diffs if d.change_type in ("M", "A", "T"))
+        deleted = sum(1 for d in wt_diffs if d.change_type == "D")
+        renamed = sum(1 for d in wt_diffs if d.change_type == "R")
+
+        try:
+            untracked = len(repo.untracked_files)
+        except Exception:
+            untracked = 0
+
+        # Ahead/behind upstream
+        ahead = 0
+        behind = 0
+        if not detached:
+            try:
+                ab = repo.git.rev_list("--left-right", "--count", "HEAD...@{upstream}")
+                parts = ab.strip().split()
+                if len(parts) == 2:
+                    ahead, behind = int(parts[0]), int(parts[1])
+            except Exception:
+                pass  # no upstream configured
+
+        # Last commit timestamp (branch tip)
+        try:
+            last_commit_ts = float(repo.head.commit.committed_date)
+        except Exception:
+            last_commit_ts = 0.0
 
         results.append(
             {
                 "name": path.name,
                 "path": path_str,
                 "branch": branch,
+                "default_branch": default,
                 "is_dirty": is_dirty,
                 "explicit": path_str in explicit_paths,
+                "detached_head": detached,
+                "ahead": ahead,
+                "behind": behind,
+                "untracked_count": untracked,
+                "changed_count": changed,
+                "deleted_count": deleted,
+                "renamed_count": renamed,
+                "last_commit_ts": last_commit_ts,
                 "ts": time.time(),
             }
         )

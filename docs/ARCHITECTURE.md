@@ -39,7 +39,7 @@ LVGL/DRM/KMS with no mouse or keyboard interaction.
 | Message bus | Redis 7.x | TTL-based expiry = implicit offline detection; atomic writes; cross-platform clients |
 | JSON parsing (C) | cJSON | Tiny, single-file C lib; no dynamic allocation surprises |
 | Redis client (C) | hiredis 1.2.0 | Official C client; `find_package(hiredis)` on Debian Trixie |
-| Client language | Python 3.11+ | psutil, pynvml, GitPython available on all platforms |
+| Client language | Python 3.13+ | psutil, pynvml, GitPython>=3.1 available on all platforms |
 | Client Redis | redis-py 5+ | Official Python client with pipeline support |
 | MCP server | Python + `mcp>=1` | FastMCP for tool registration; stdio transport |
 | Build system | CMake 3.22+ | LVGL ships CMakeLists; standard for C projects |
@@ -66,7 +66,8 @@ LVGL/DRM/KMS with no mouse or keyboard interaction.
 │  │  ┌──────────────────────────────────▼──────────────┐  │  │
 │  │  │ ui.c + widgets/ (LVGL screen composition)       │  │  │
 │  │  │  client_card · activities · repo_status         │  │  │
-│  │  │  fortune · status_bar · redis_error_overlay     │  │  │
+│  │  │  fortune · status_bar · dev_grid · dev_textsize │  │  │
+│  │  │  dev_graph · redis_error_overlay                │  │  │
 │  │  └──────────────────────────────────┬──────────────┘  │  │
 │  │                                     │                 │  │
 │  └─────────────────────────────────────┼─────────────────┘  │
@@ -109,17 +110,25 @@ LVGL/DRM/KMS with no mouse or keyboard interaction.
    absence = TTL expired = client offline → LED turns red.
 2. **Telemetry**: client writes `kpidash:client:{h}:telemetry` (JSON, EX 15 s)
    with CPU, RAM, GPU, disk data. Dashboard parses and updates client cards.
-3. **Activities**: client writes HSET + ZADD; dashboard ZREVRANGE top-10 +
+3. **Dev Telemetry**: client writes `kpidash:client:{h}:dev_telemetry` (JSON,
+   EX 5 s) at 1 s intervals with GPU compute, CPU avg/top, VRAM, RAM for the
+   dev graph. Only read when graph is enabled.
+4. **Activities**: client writes HSET + ZADD; dashboard ZREVRANGE top-10 +
    HGETALL per activity. Active entries show live elapsed time via LVGL timer.
-4. **Repos**: client writes HGETALL `kpidash:repos:{h}` (field=path,
+   Displayed as table: host | duration | DoW | activity name.
+5. **Repos**: client writes HGETALL `kpidash:repos:{h}` (field=path,
    value=JSON, EX 30 s). Dashboard shows repos where branch ≠ default or
-   is_dirty.
-5. **Fortune**: rotation timer in dashboard runs `fortune` popen every 300 s
+   is_dirty. Expanded fields include ahead/behind counts, untracked/changed/
+   deleted/renamed counts, detached head, last commit timestamp.
+6. **Fortune**: rotation timer in dashboard runs `fortune` popen every 300 s
    and caches in `kpidash:fortune:current`. Clients can push an override via
    `kpidash:fortune:pushed` with TTL.
-6. **Status**: dashboard pushes warning/error messages to
+7. **Status**: dashboard pushes warning/error messages to
    `kpidash:status:current`. Client CLIs read and acknowledge via
    `kpidash:status:ack:{id}`.
+8. **Dev Commands**: `kpidash:cmd:grid`, `kpidash:cmd:textsize`,
+   `kpidash:cmd:graph` control developer overlay widgets. Set via redis-cli
+   with 300 s TTL. Auto-expire disables the overlay.
 
 ## Source Structure
 
@@ -127,6 +136,11 @@ LVGL/DRM/KMS with no mouse or keyboard interaction.
 kpidash/
 ├── CMakeLists.txt              # CMake 3.22+, hiredis, cJSON, libdrm, LVGL
 ├── lv_conf.h                   # LVGL configuration
+├── fonts/
+│   ├── generate.sh             # lv_font_conv: Montserrat Bold 14-48px + NF icons
+│   ├── lv_font_custom.h        # Extern declarations for generated bold fonts
+│   ├── lv_font_montserrat_bold_*.c  # Generated font sources (7 sizes)
+│   └── ttf/                    # Source TTF files (Montserrat-Bold, SymbolsNerdFont)
 ├── src/
 │   ├── main.c                  # Entry: config, LVGL init, DRM, poll timers
 │   ├── config.{h,c}            # Environment variable parsing
@@ -135,18 +149,22 @@ kpidash/
 │   ├── status.{h,c}            # In-memory status message FIFO queue
 │   ├── fortune.{h,c}           # fortune popen + pushed-fortune override
 │   ├── ui.{h,c}                # Screen layout + redis error overlay
+│   ├── protocol.h              # Key macros, TTLs, capacity limits
 │   └── widgets/
-│       ├── client_card.{h,c}   # Per-client health/telemetry card
-│       ├── activities.{h,c}    # Activity list with live elapsed timers
-│       ├── repo_status.{h,c}   # Repo dirty/branch status list
+│       ├── client_card.{h,c}   # Per-client arc gauge card (CPU/RAM/GPU/disks)
+│       ├── activities.{h,c}    # Activity table with live elapsed timers
+│       ├── repo_status.{h,c}   # Repo card grid (branch/dirty/age indicators)
 │       ├── fortune.{h,c}       # Fortune text label widget
-│       └── status_bar.{h,c}    # Bottom status bar (warning/error)
+│       ├── status_bar.{h,c}    # Bottom status bar (warning/error)
+│       ├── dev_grid.{h,c}      # Pixel grid overlay (dev command)
+│       ├── dev_textsize.{h,c}  # Font size reference panel (dev command)
+│       └── dev_graph.{h,c}     # 5-series time-series chart (dev command)
 ├── tests/
 │   ├── test_config.c           # Config env var parsing (ctest, no hardware)
 │   └── test_redis_json.c       # cJSON parsing helpers (ctest, no hardware)
 ├── clients/
-│   ├── kpidash-client/         # Python 3.11+ daemon + CLI (psutil, pynvml)
-│   └── kpidash-mcp/            # Python 3.11+ MCP server (mcp>=1)
+│   ├── kpidash-client/         # Python 3.13+ daemon + CLI (psutil, pynvml)
+│   └── kpidash-mcp/            # Python 3.13+ MCP server (mcp>=1)
 ├── scripts/
 │   └── load_test.py            # 8-client concurrent write stress test
 └── docs/
@@ -154,6 +172,54 @@ kpidash/
     ├── CLIENT-PROTOCOL.md      # Redis schema canonical reference
     └── HANDOFF-CROSSCOMPILE.md # Cross-compilation guide for Pi 5
 ```
+
+## Widget Layout (3840×2160)
+
+```
+┌──────────────────────────────────────────────────────────────┐
+│  [dev_graph 2×1]  [client card] [client card] [client card] │
+│  (when enabled)   [client card] [client card] [client card] │
+├──────────────────────┬──────────────────────────────────────┤
+│  Activities  (2×1)   │  Repo Status  (2×1)                  │
+│  table: host|dur|    │  card grid: 4×4 repo cards with      │
+│  DoW|activity name   │  branch/dirty/age indicators          │
+├──────────────────────┴──────────────────────────────────────┤
+│  Fortune widget (bottom strip)                               │
+├──────────────────────────────────────────────────────────────┤
+│  Status bar (hidden when no messages)                        │
+└──────────────────────────────────────────────────────────────┘
+
+Unit sizes (based on client card = 1×1 = 624×620):
+  1×1 = 624 × 620    (client card, single widget)
+  2×1 = 1256 × 620   (activities, repo status, dev graph)
+  Gap = 8px between units
+```
+
+## Color Palette (Catppuccin Mocha)
+
+| Name | Hex | Usage |
+|------|-----|-------|
+| Base | `#1E1E2E` | Widget backgrounds |
+| Crust | `#11111B` | Screen background |
+| Text | `#CDD6F4` | Primary text (white) |
+| Overlay0 | `#6C7086` | Muted text (hosts, secondary) |
+| Surface0 | `#313244` | Arc backgrounds |
+| Surface1 | `#45475A` | Widget borders |
+| Pink | `#F5C2E7` | Widget headers |
+| Green | `#A6E3A1` | Active, disk OK, default branch |
+| Blue | `#89B4FA` | Done, CPU avg |
+| Peach | `#FAB387` | Hostname, GPU VRAM, warnings |
+| Red | `#F38BA8` | Offline, disk critical, non-default branch, RAM |
+| Mauve | `#CBA6F7` | GPU compute, non-default branch alt |
+| Teal | `#94E2D5` | CPU top core |
+| Yellow | `#F9E2AF` | Disk warning tier, commit age warning |
+
+## Custom Font Pipeline
+
+Bold fonts generated via `lv_font_conv` from Montserrat-Bold.ttf at sizes
+14, 16, 20, 24, 28, 36, 48px. Includes ASCII (0x20-0x7E), Nerd Font Logos
+(0xF300-0xF381), and Git icons (0xF1D2-0xF1D3). Regular-weight
+`lv_font_montserrat_20` from LVGL built-in is used for activity text.
 
 ## Key Design Decisions
 
