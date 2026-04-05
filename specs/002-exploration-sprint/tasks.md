@@ -175,12 +175,12 @@
 
 **Purpose**: Documentation, code quality, and validation across all stories
 
-- [ ] T041 [P] Update `docs/CLIENT-PROTOCOL.md` — add `os_name` field to health JSON schema, add `kpidash:cmd:grid`, `kpidash:cmd:textsize`, and `kpidash:cmd:graph` key documentation
-- [ ] T042 [P] Update `docs/ARCHITECTURE.md` — update widget layout diagram to reflect new arc-gauge client cards, dev overlay, and optional graph area
-- [ ] T043 Run `clang-format -i src/*.c src/*.h src/widgets/*.c src/widgets/*.h` and `cppcheck` across all modified files
-- [ ] T044 Run `ruff format . && ruff check .` in `clients/kpidash-client/`
-- [ ] T045 Run full test suite: `ctest --test-dir build-tests -V` (C) and `pytest -q` (Python)
-- [ ] T046 Cross-compile, deploy to Pi, and perform on-device visual validation of all stories per quickstart.md
+- [x] T041 [P] Update `docs/CLIENT-PROTOCOL.md` — add `os_name` field to health JSON schema, add `kpidash:cmd:grid`, `kpidash:cmd:textsize`, and `kpidash:cmd:graph` key documentation
+- [x] T042 [P] Update `docs/ARCHITECTURE.md` — update widget layout diagram to reflect new arc-gauge client cards, dev overlay, and optional graph area
+- [x] T043 Run `clang-format -i src/*.c src/*.h src/widgets/*.c src/widgets/*.h` and `cppcheck` across all modified files
+- [x] T044 Run `ruff format . && ruff check .` in `clients/kpidash-client/`
+- [x] T045 Run full test suite: `ctest --test-dir build-tests -V` (C) and `pytest -q` (Python)
+- [x] T046 Cross-compile, deploy to Pi, and perform on-device visual validation of all stories per quickstart.md
 
 **Checkpoint**: All code formatted, linted, tested. Dashboard renders correctly on Pi at 1920×1080.
 

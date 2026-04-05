@@ -2,6 +2,7 @@
 #define REDIS_H
 
 #include <stdbool.h>
+
 #include "registry.h"
 
 /**
@@ -103,5 +104,25 @@ bool redis_parse_cmd_graph_json(const char *json, dev_cmd_state_t *state);
  * Not thread-safe for writing; read from LVGL timer (main thread) only.
  */
 const dev_cmd_state_t *redis_get_dev_cmd_state(void);
+
+/**
+ * Parse kpidash:client:<host>:dev_telemetry JSON into a dev_telemetry_t.
+ * json == NULL (key absent) → valid=false.
+ * Same field layout as regular telemetry minus disks.
+ */
+bool redis_parse_dev_telemetry_json(const char *json, dev_telemetry_t *dt);
+
+/**
+ * Parse a single repo status JSON object into a repo_entry_t.
+ * Does NOT fill host or path — caller sets those before/after.
+ * Returns true on valid JSON, false on NULL or malformed input.
+ */
+bool redis_parse_repo_json(const char *json, repo_entry_t *re);
+
+/**
+ * Return the latest dev telemetry snapshot (polled when graph is enabled).
+ * Check .valid before reading fields.
+ */
+const dev_telemetry_t *redis_get_dev_telemetry(void);
 
 #endif /* REDIS_H */

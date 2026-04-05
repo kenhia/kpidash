@@ -62,7 +62,7 @@ add_executable(kpidash
     src/widgets/status_bar.c
     src/widgets/dev_grid.c
     src/widgets/dev_textsize.c
-    src/widgets/gpu_graph.c
+    src/widgets/dev_graph.c
     fonts/lv_font_montserrat_bold_14.c
     fonts/lv_font_montserrat_bold_16.c
     fonts/lv_font_montserrat_bold_20.c

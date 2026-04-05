@@ -30,6 +30,7 @@ for sz in "${SIZES[@]}"; do
         --no-prefilter \
         --font "${BOLD_TTF}" -r "${RANGE}" \
         --font "${SYMBOLS_TTF}" -r 0xF300-0xF381 \
+        --font "${SYMBOLS_TTF}" -r 0xF1D2-0xF1D3 \
         -o "${out}" \
         --lv-font-name "${name}"
 done

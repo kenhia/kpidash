@@ -4,6 +4,14 @@ A fullscreen KPI dashboard for Raspberry Pi 5, built with [LVGL](https://lvgl.io
 Displays real-time health, telemetry, activities, repo status, and fortune messages for multiple
 client machines — Linux and Windows.
 
+> Note: this project is centered around building the dashboard I want; it's not
+> a "general purpose dashboard creation tool". I had an RPi 5 and a spare 4K
+> monitor and specific information I wanted to be able to glance at.
+>
+> That said, I do think there is some goodness here for others wanting to do
+> something similar...the decision to put a Redis server on the RPi and use
+> that for communication is a big win for me.
+
 ## Dashboard layout
 
 ```
@@ -86,7 +94,7 @@ See [clients/kpidash-client/README.md](clients/kpidash-client/README.md) for con
 cmake -B build-tests -DTESTS_ONLY=ON
 cmake --build build-tests
 ctest --test-dir build-tests -V
-# 51 tests: config env-var parsing + Redis JSON parsing
+# 133 tests: config env-var parsing + Redis JSON parsing
 ```
 
 ---
@@ -110,6 +118,11 @@ kpidash/
 ├── lv_conf.h                   # LVGL configuration
 ├── cmake/
 │   └── aarch64-toolchain.cmake # Cross-compile toolchain for Pi 5
+├── fonts/
+│   ├── generate.sh             # lv_font_conv: Montserrat Bold 14-48px + NF icons
+│   ├── lv_font_custom.h        # Extern declarations for generated bold fonts
+│   ├── lv_font_montserrat_bold_*.c  # Generated font sources (7 sizes)
+│   └── ttf/                    # Source TTF files (Montserrat-Bold, SymbolsNerdFont)
 ├── src/
 │   ├── main.c                  # Entry: config, LVGL init, DRM, poll timers
 │   ├── config.{h,c}            # Environment variable parsing
@@ -120,11 +133,14 @@ kpidash/
 │   ├── ui.{h,c}                # Screen layout + Redis error overlay
 │   ├── protocol.h              # Redis key macros + compile-time constants
 │   └── widgets/
-│       ├── client_card.{h,c}   # Per-client health/telemetry card
-│       ├── activities.{h,c}    # Activity list with live elapsed timers
-│       ├── repo_status.{h,c}   # Repo dirty/branch status list
+│       ├── client_card.{h,c}   # Per-client arc gauge card (CPU/RAM/GPU/disks)
+│       ├── activities.{h,c}    # Activity table with live elapsed timers
+│       ├── repo_status.{h,c}   # Repo card grid (branch/dirty/age indicators)
 │       ├── fortune.{h,c}       # Fortune text label
-│       └── status_bar.{h,c}    # Bottom status bar
+│       ├── status_bar.{h,c}    # Bottom status bar
+│       ├── dev_grid.{h,c}      # Pixel grid overlay (dev command)
+│       ├── dev_textsize.{h,c}  # Font size reference panel (dev command)
+│       └── dev_graph.{h,c}     # 5-series time-series chart (dev command)
 ├── tests/
 │   ├── test_config.c           # ctest: config env-var parsing
 │   └── test_redis_json.c       # ctest: Redis JSON parsing helpers
@@ -136,7 +152,8 @@ kpidash/
 ├── lib/
 │   └── lvgl/                   # LVGL v9.2.2 (git submodule)
 ├── specs/
-│   └── 001-mvp-dashboard/      # Spec, plan, tasks, contracts, data model
+│   ├── 001-mvp-dashboard/      # Spec, plan, tasks, contracts, data model
+│   └── 002-exploration-sprint/ # Spec, plan, tasks (widget redesign, dev tools)
 └── docs/
     ├── ARCHITECTURE.md         # System design and component diagram
     ├── CLIENT-PROTOCOL.md      # Redis key/value schema reference

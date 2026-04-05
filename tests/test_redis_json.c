@@ -248,6 +248,120 @@ int main(void) {
         CHECK(s.graph_client[0] == '\0');  /* no client = empty string */
     }
 
+    /* ---- dev_telemetry parse tests ---- */
+    {
+        /* Full JSON with GPU */
+        dev_telemetry_t dt = {0};
+        bool ok = redis_parse_dev_telemetry_json(
+            "{\"cpu_pct\":42.5,\"top_core_pct\":88.1,"
+            "\"ram_used_mb\":8192,\"ram_total_mb\":32768,"
+            "\"gpu\":{\"compute_pct\":75.0,\"vram_used_mb\":4096,\"vram_total_mb\":8192},"
+            "\"ts\":1700000000.0}", &dt);
+        CHECK(ok);
+        CHECK(dt.valid == true);
+        CHECK(dt.cpu_pct > 42.4f && dt.cpu_pct < 42.6f);
+        CHECK(dt.top_core_pct > 88.0f && dt.top_core_pct < 88.2f);
+        CHECK(dt.ram_used_mb == 8192);
+        CHECK(dt.ram_total_mb == 32768);
+        CHECK(dt.gpu_present == true);
+        CHECK(dt.gpu_compute_pct > 74.9f && dt.gpu_compute_pct < 75.1f);
+        CHECK(dt.gpu_vram_used_mb == 4096);
+        CHECK(dt.gpu_vram_total_mb == 8192);
+    }
+    {
+        /* JSON without GPU */
+        dev_telemetry_t dt = {0};
+        bool ok = redis_parse_dev_telemetry_json(
+            "{\"cpu_pct\":10.0,\"top_core_pct\":25.0,"
+            "\"ram_used_mb\":2048,\"ram_total_mb\":16384}", &dt);
+        CHECK(ok);
+        CHECK(dt.valid == true);
+        CHECK(dt.gpu_present == false);
+        CHECK(dt.gpu_compute_pct < 0.1f);
+        CHECK(dt.ram_used_mb == 2048);
+    }
+    {
+        /* NULL JSON (key absent) → valid=false */
+        dev_telemetry_t dt = {0};
+        dt.valid = true;  /* pre-set to verify it gets cleared */
+        bool ok = redis_parse_dev_telemetry_json(NULL, &dt);
+        CHECK(ok);
+        CHECK(dt.valid == false);
+    }
+    {
+        /* Invalid JSON */
+        dev_telemetry_t dt = {0};
+        bool ok = redis_parse_dev_telemetry_json("not json", &dt);
+        CHECK(!ok);
+        CHECK(dt.valid == false);
+    }
+    {
+        /* GPU with null compute_pct (missing field) */
+        dev_telemetry_t dt = {0};
+        bool ok = redis_parse_dev_telemetry_json(
+            "{\"cpu_pct\":5.0,\"gpu\":{\"vram_used_mb\":1024,\"vram_total_mb\":4096}}", &dt);
+        CHECK(ok);
+        CHECK(dt.valid == true);
+        CHECK(dt.gpu_present == true);
+        CHECK(dt.gpu_compute_pct < 0.1f);  /* 0 since field missing */
+        CHECK(dt.gpu_vram_used_mb == 1024);
+    }
+
+    /* ---- repo JSON parse tests ---- */
+    {
+        /* Full repo JSON with all fields */
+        repo_entry_t re = {0};
+        bool ok = redis_parse_repo_json(
+            "{\"name\":\"kpidash\",\"branch\":\"feature/x\","
+            "\"default_branch\":\"main\",\"is_dirty\":true,"
+            "\"detached_head\":false,\"ahead\":3,\"behind\":1,"
+            "\"untracked_count\":2,\"changed_count\":5,\"deleted_count\":1,"
+            "\"renamed_count\":0,\"last_commit_ts\":1700000000.5,"
+            "\"explicit\":true,\"ts\":1700000001.0}", &re);
+        CHECK(ok);
+        CHECK(strcmp(re.name, "kpidash") == 0);
+        CHECK(strcmp(re.branch, "feature/x") == 0);
+        CHECK(strcmp(re.default_branch, "main") == 0);
+        CHECK(re.is_dirty == true);
+        CHECK(re.detached_head == false);
+        CHECK(re.ahead == 3);
+        CHECK(re.behind == 1);
+        CHECK(re.untracked_count == 2);
+        CHECK(re.changed_count == 5);
+        CHECK(re.deleted_count == 1);
+        CHECK(re.renamed_count == 0);
+        CHECK(re.last_commit_ts > 1699999999.0);
+        CHECK(re.sort_order == 0);  /* explicit=true → 0 */
+        CHECK(re.ts > 1700000000.0);
+    }
+    {
+        /* Minimal repo JSON (backward compat — only name/branch/is_dirty) */
+        repo_entry_t re = {0};
+        bool ok = redis_parse_repo_json(
+            "{\"name\":\"old-repo\",\"branch\":\"main\","
+            "\"is_dirty\":false,\"explicit\":false,\"ts\":1.0}", &re);
+        CHECK(ok);
+        CHECK(strcmp(re.name, "old-repo") == 0);
+        CHECK(re.is_dirty == false);
+        CHECK(re.ahead == 0);
+        CHECK(re.behind == 0);
+        CHECK(re.detached_head == false);
+        CHECK(re.default_branch[0] == '\0');  /* absent → empty */
+        CHECK(re.sort_order == 1);  /* explicit=false → 1 */
+    }
+    {
+        /* NULL json → false */
+        repo_entry_t re = {0};
+        bool ok = redis_parse_repo_json(NULL, &re);
+        CHECK(!ok);
+    }
+    {
+        /* Invalid JSON → false */
+        repo_entry_t re = {0};
+        bool ok = redis_parse_repo_json("not json", &re);
+        CHECK(!ok);
+    }
+
     printf("test_redis_json: %d passed, %d failed\n", passed, failed);
     return failed > 0 ? 1 : 0;
 }

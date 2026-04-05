@@ -1,11 +1,12 @@
 #include "registry.h"
-#include <string.h>
-#include <stdio.h>
+
 #include <pthread.h>
+#include <stdio.h>
+#include <string.h>
 
 /* ---- Global singleton ---- */
 static client_info_t g_clients[MAX_CLIENTS];
-static int           g_count = 0;
+static int g_count = 0;
 static pthread_mutex_t g_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 void registry_init(void) {
@@ -24,8 +25,8 @@ void registry_unlock(void) {
 }
 
 /* Priority client list set once by registry_set_priority_clients() */
-static char     g_priority[MAX_CLIENTS][HOSTNAME_LEN];
-static int      g_priority_count = 0;
+static char g_priority[MAX_CLIENTS][HOSTNAME_LEN];
+static int g_priority_count = 0;
 
 void registry_set_priority_clients(const char hosts[][HOSTNAME_LEN], int count) {
     pthread_mutex_lock(&g_mutex);
@@ -77,8 +78,7 @@ client_info_t *registry_find_or_create(const char *hostname) {
 
     if (evict_idx == -1) {
         /* All slots are priority clients; cannot make room */
-        fprintf(stderr, "registry: max clients (%d) reached and all are priority\n",
-                MAX_CLIENTS);
+        fprintf(stderr, "registry: max clients (%d) reached and all are priority\n", MAX_CLIENTS);
         return NULL;
     }
 

@@ -5,14 +5,14 @@
 
 typedef struct {
     char redis_host[128];
-    int  redis_port;
-    char redis_auth[256];   /* from REDISCLI_AUTH */
+    int redis_port;
+    char redis_auth[256]; /* from REDISCLI_AUTH */
     char drm_dev[256];
-    int  max_clients;       /* from KPIDASH_MAX_CLIENTS, bounded by MAX_CLIENTS */
-    int  activity_max;      /* from KPIDASH_ACTIVITY_MAX */
-    char log_file[512];     /* from KPIDASH_LOG_FILE */
+    int max_clients;    /* from KPIDASH_MAX_CLIENTS, bounded by MAX_CLIENTS */
+    int activity_max;   /* from KPIDASH_ACTIVITY_MAX */
+    char log_file[512]; /* from KPIDASH_LOG_FILE */
     char priority_clients[PRIORITY_CLIENTS_MAX][HOSTNAME_LEN]; /* from KPIDASH_PRIORITY_CLIENTS */
-    int  priority_client_count;
+    int priority_client_count;
 } kpidash_config_t;
 
 /**

@@ -104,6 +104,18 @@ class RedisClient:
             ex=15,  # TELEMETRY_TTL_S
         )
 
+    def write_dev_telemetry(self, telemetry: dict) -> None:
+        """Write fast-poll GPU+CPU+RAM data to a dedicated dev key."""
+        payload = dict(telemetry)
+        payload["hostname"] = self._hostname
+        payload["ts"] = time.time()
+        self._cmd(
+            "set",
+            f"kpidash:client:{self._hostname}:dev_telemetry",
+            json.dumps(payload),
+            ex=5,  # short TTL — only useful while graph is active
+        )
+
     # ---- Repos ----
 
     def write_repos(self, repo_statuses: list[dict]) -> None:

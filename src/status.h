@@ -6,10 +6,10 @@
 typedef enum { STATUS_WARNING, STATUS_ERROR } status_severity_t;
 
 typedef struct {
-    char   message_id[37];   /* UUID4 + NUL */
+    char message_id[37]; /* UUID4 + NUL */
     status_severity_t severity;
-    char   message[256];
-    double ts;               /* Unix epoch when recorded */
+    char message[256];
+    double ts; /* Unix epoch when recorded */
 } status_message_t;
 
 /**

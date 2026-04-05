@@ -1,6 +1,6 @@
 #include "fortune.h"
 
-#define COLOR_BG   lv_color_hex(0x181825)
+#define COLOR_BG lv_color_hex(0x181825)
 #define COLOR_TEXT lv_color_hex(0xBAC2DE)
 
 lv_obj_t *fortune_widget_create(lv_obj_t *parent) {
@@ -12,8 +12,7 @@ lv_obj_t *fortune_widget_create(lv_obj_t *parent) {
     lv_obj_set_style_border_width(cont, 1, 0);
     lv_obj_set_style_pad_all(cont, 10, 0);
     lv_obj_set_flex_flow(cont, LV_FLEX_FLOW_COLUMN);
-    lv_obj_set_flex_align(cont, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER,
-                           LV_FLEX_ALIGN_CENTER);
+    lv_obj_set_flex_align(cont, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
 
     lv_obj_t *lbl = lv_label_create(cont);
     lv_label_set_text(lbl, "Loading fortune...");
@@ -28,7 +27,9 @@ lv_obj_t *fortune_widget_create(lv_obj_t *parent) {
 }
 
 void fortune_widget_update(lv_obj_t *widget, const char *text) {
-    if (!widget || !text) return;
+    if (!widget || !text)
+        return;
     lv_obj_t *lbl = lv_obj_get_child(widget, 0);
-    if (lbl) lv_label_set_text(lbl, text);
+    if (lbl)
+        lv_label_set_text(lbl, text);
 }

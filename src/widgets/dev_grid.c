@@ -1,12 +1,14 @@
 #include "dev_grid.h"
+
 #include <stdio.h>
 
-#define GRID_LINE_COLOR  lv_color_hex(0xFFFFFF)
-#define GRID_LINE_OPA    LV_OPA_20
-#define GRID_LINE_WIDTH  1
+#define GRID_LINE_COLOR lv_color_hex(0xFFFFFF)
+#define GRID_LINE_OPA LV_OPA_20
+#define GRID_LINE_WIDTH 1
 
 lv_obj_t *dev_grid_create(lv_obj_t *parent, int grid_size) {
-    if (grid_size <= 0) grid_size = 50;
+    if (grid_size <= 0)
+        grid_size = 50;
 
     lv_disp_t *disp = lv_display_get_default();
     int32_t scr_w = lv_display_get_horizontal_resolution(disp);
@@ -51,5 +53,6 @@ lv_obj_t *dev_grid_create(lv_obj_t *parent, int grid_size) {
 }
 
 void dev_grid_destroy(lv_obj_t *grid) {
-    if (grid) lv_obj_delete(grid);
+    if (grid)
+        lv_obj_delete(grid);
 }

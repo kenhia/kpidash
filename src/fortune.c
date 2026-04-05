@@ -1,14 +1,16 @@
 #include "fortune.h"
-#include "widgets/fortune.h"
-#include "protocol.h"
-#include "redis.h"
-#include "status.h"
+
 #include <cjson/cJSON.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
 #include <unistd.h>
+
+#include "protocol.h"
+#include "redis.h"
+#include "status.h"
+#include "widgets/fortune.h"
 
 /* ---- Canned fortune errors (U2) ---- */
 static const char *CANNED_ERRORS[] = {
@@ -22,21 +24,21 @@ static const char *CANNED_ERRORS[] = {
 #define CANNED_COUNT ((int)(sizeof(CANNED_ERRORS) / sizeof(CANNED_ERRORS[0])))
 
 static lv_obj_t *g_widget = NULL;
-static bool      g_fortune_available = false;
-static bool      g_pushed_active = false;
+static bool g_fortune_available = false;
+static bool g_pushed_active = false;
 
 static const char *fortune_binary(void) {
-    static const char *candidates[] = {
-        "/usr/bin/fortune", "/usr/games/fortune", NULL
-    };
+    static const char *candidates[] = {"/usr/bin/fortune", "/usr/games/fortune", NULL};
     for (int i = 0; candidates[i]; i++) {
-        if (access(candidates[i], X_OK) == 0) return candidates[i];
+        if (access(candidates[i], X_OK) == 0)
+            return candidates[i];
     }
     return NULL;
 }
 
 static void update_widget(const char *text) {
-    if (!g_widget) return;
+    if (!g_widget)
+        return;
     fortune_widget_update(g_widget, text);
 }
 
@@ -78,14 +80,14 @@ static void fortune_timer_cb(lv_timer_t *t) {
     (void)t;
     if (g_pushed_active) {
         /* Pushed fortune still being displayed; don't override */
-        g_pushed_active = false;   /* will be re-set by fortune_on_pushed() if still in Redis */
+        g_pushed_active = false; /* will be re-set by fortune_on_pushed() if still in Redis */
         return;
     }
     run_fortune_or_canned();
 }
 
 void fortune_init(const kpidash_config_t *cfg) {
-    (void)cfg;   /* fortune interval is compile-time FORTUNE_INTERVAL_S */
+    (void)cfg; /* fortune interval is compile-time FORTUNE_INTERVAL_S */
 
     const char *bin = fortune_binary();
     if (!bin) {
@@ -106,7 +108,8 @@ void fortune_set_widget(lv_obj_t *widget) {
 
 void fortune_on_pushed(const char *json) {
     cJSON *root = cJSON_Parse(json);
-    if (!root) return;
+    if (!root)
+        return;
 
     cJSON *text_obj = cJSON_GetObjectItemCaseSensitive(root, "text");
     if (cJSON_IsString(text_obj) && text_obj->valuestring) {

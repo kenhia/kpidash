@@ -4,22 +4,21 @@
  * Initializes LVGL, Redis, registry, UI, and fortune.
  * Runs a 1-second poll timer for Redis → UI refresh.
  */
+#include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <signal.h>
-#include <unistd.h>
 #include <time.h>
-
-#include "lvgl.h"
-#include "src/drivers/display/drm/lv_linux_drm.h"
+#include <unistd.h>
 
 #include "config.h"
-#include "registry.h"
-#include "redis.h"
-#include "ui.h"
-#include "status.h"
 #include "fortune.h"
+#include "lvgl.h"
 #include "protocol.h"
+#include "redis.h"
+#include "registry.h"
+#include "src/drivers/display/drm/lv_linux_drm.h"
+#include "status.h"
+#include "ui.h"
 
 static volatile sig_atomic_t g_running = 1;
 static kpidash_config_t g_config;
@@ -32,7 +31,8 @@ static void sigint_handler(int sig) {
 /* ---- 1-second LVGL timer: poll Redis, refresh UI ---- */
 static void timer_poll_cb(lv_timer_t *t) {
     (void)t;
-    if (!redis_reconnect_if_needed()) return;
+    if (!redis_reconnect_if_needed())
+        return;
     redis_poll();
     ui_refresh();
 }
@@ -43,7 +43,7 @@ int main(void) {
     sa.sa_handler = sigint_handler;
     sigemptyset(&sa.sa_mask);
     sa.sa_flags = 0;
-    sigaction(SIGINT,  &sa, NULL);
+    sigaction(SIGINT, &sa, NULL);
     sigaction(SIGTERM, &sa, NULL);
 
     /* Load config from environment */
@@ -78,13 +78,14 @@ int main(void) {
     /* Fortune (after ui_init so widget exists) */
     fortune_init(&g_config);
 
-    printf("kpidash: running (Redis %s:%d, DRM %s)\n",
-           g_config.redis_host, g_config.redis_port, g_config.drm_dev);
+    printf("kpidash: running (Redis %s:%d, DRM %s)\n", g_config.redis_host, g_config.redis_port,
+           g_config.drm_dev);
 
     /* Main loop */
     while (g_running) {
         uint32_t sleep_ms = lv_timer_handler();
-        if (sleep_ms > 100) sleep_ms = 100;
+        if (sleep_ms > 100)
+            sleep_ms = 100;
         usleep(sleep_ms * 1000);
     }
 
@@ -93,4 +94,3 @@ int main(void) {
     lv_deinit();
     return 0;
 }
-

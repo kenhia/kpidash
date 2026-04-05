@@ -50,6 +50,7 @@ class ClientConfig:
     redis_port: int = 6379
     hostname: str | None = None  # overrides socket hostname
     telemetry_interval_s: int = 5  # A1: configurable telemetry interval
+    dev_interval_s: int | None = None  # fast GPU+CPU+RAM interval (default: telemetry_interval_s)
     health_interval_s: int = 3  # health ping interval
     repo_scan_interval_s: int = 30  # repo scan interval
     disks: list[DiskConfig] = field(default_factory=list)
@@ -105,6 +106,9 @@ class ClientConfig:
             redis_port=int(redis_section.get("port", 6379)),
             hostname=client_section.get("hostname"),
             telemetry_interval_s=int(client_section.get("telemetry_interval_s", 5)),
+            dev_interval_s=int(client_section["dev_interval_s"])
+            if "dev_interval_s" in client_section
+            else None,
             health_interval_s=int(client_section.get("health_interval_s", 3)),
             repo_scan_interval_s=int(client_section.get("repo_scan_interval_s", 30)),
             disks=disks,

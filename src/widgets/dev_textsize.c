@@ -1,20 +1,19 @@
 #include "dev_textsize.h"
+
 #include <stdio.h>
 
-#define PANEL_COLOR  lv_color_hex(0x1E1E2E)
-#define TEXT_COLOR   lv_color_hex(0xCDD6F4)
-#define PAD          12
+#define PANEL_COLOR lv_color_hex(0x1E1E2E)
+#define TEXT_COLOR lv_color_hex(0xCDD6F4)
+#define PAD 12
 
 /* font sizes available in lv_conf.h for this project */
 static const struct {
     const lv_font_t *font;
-    const char       label[8];
+    const char label[8];
 } kFonts[] = {
-    { &lv_font_montserrat_14, "14px" },
-    { &lv_font_montserrat_16, "16px" },
-    { &lv_font_montserrat_20, "20px" },
-    { &lv_font_montserrat_24, "24px" },
-    { &lv_font_montserrat_28, "28px" },
+    {&lv_font_montserrat_14, "14px"}, {&lv_font_montserrat_16, "16px"},
+    {&lv_font_montserrat_20, "20px"}, {&lv_font_montserrat_24, "24px"},
+    {&lv_font_montserrat_28, "28px"},
 };
 #define N_FONTS ((int)(sizeof(kFonts) / sizeof(kFonts[0])))
 
@@ -30,8 +29,7 @@ lv_obj_t *dev_textsize_create(lv_obj_t *parent) {
     lv_obj_set_width(panel, LV_SIZE_CONTENT);
     lv_obj_set_height(panel, LV_SIZE_CONTENT);
     lv_obj_set_flex_flow(panel, LV_FLEX_FLOW_COLUMN);
-    lv_obj_set_flex_align(panel, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_START,
-                           LV_FLEX_ALIGN_START);
+    lv_obj_set_flex_align(panel, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_START);
     lv_obj_clear_flag(panel, LV_OBJ_FLAG_SCROLLABLE | LV_OBJ_FLAG_CLICKABLE);
     lv_obj_align(panel, LV_ALIGN_TOP_RIGHT, -8, 8);
     lv_obj_move_foreground(panel);
@@ -50,5 +48,6 @@ lv_obj_t *dev_textsize_create(lv_obj_t *parent) {
 }
 
 void dev_textsize_destroy(lv_obj_t *panel) {
-    if (panel) lv_obj_delete(panel);
+    if (panel)
+        lv_obj_delete(panel);
 }

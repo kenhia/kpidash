@@ -60,6 +60,20 @@ def _telemetry_loop(rc: RedisClient, config: ClientConfig) -> None:
         _stop_event.wait(config.telemetry_interval_s)
 
 
+def _dev_telemetry_loop(rc: RedisClient, interval: int) -> None:
+    """Fast-poll GPU+CPU+RAM for dev graph (no disks)."""
+    while not _stop_event.is_set():
+        try:
+            sys_data = collect_system()
+            gpu_data = collect_gpu()
+            payload = {**sys_data, "gpu": gpu_data}
+            rc.write_dev_telemetry(payload)
+        except RedisClientError as e:
+            logger.warning("dev telemetry write failed: %s", e)
+            rc.reconnect_on_failure()
+        _stop_event.wait(interval)
+
+
 def _repo_loop(rc: RedisClient, config: ClientConfig) -> None:
     while not _stop_event.is_set():
         try:
@@ -87,6 +101,14 @@ def run_daemon(config: ClientConfig) -> None:
         threading.Thread(target=_telemetry_loop, args=(rc, config), daemon=True),
         threading.Thread(target=_repo_loop, args=(rc, config), daemon=True),
     ]
+
+    # Dev telemetry loop — only start if dev_interval_s is configured
+    dev_interval = config.dev_interval_s
+    if dev_interval is not None:
+        logger.info("dev telemetry loop enabled at %ds interval", dev_interval)
+        threads.append(
+            threading.Thread(target=_dev_telemetry_loop, args=(rc, dev_interval), daemon=True)
+        )
     for t in threads:
         t.start()
 

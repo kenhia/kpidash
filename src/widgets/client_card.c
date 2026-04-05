@@ -1,60 +1,62 @@
 #include "client_card.h"
-#include "protocol.h"
+
+#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <math.h>
+
+#include "protocol.h"
 
 /* ---- Colors ---- */
-#define COLOR_ONLINE     lv_color_hex(0x00C853)   /* green */
-#define COLOR_OFFLINE    lv_color_hex(0xFF1744)   /* red   */
-#define COLOR_BG         lv_color_hex(0x1E1E2E)
-#define COLOR_FG         lv_color_hex(0xCDD6F4)
-#define COLOR_MUTED      lv_color_hex(0x6C7086)
-#define COLOR_ARC_BG     lv_color_hex(0x313244)
-#define COLOR_CPU_AVG    lv_color_hex(0x89B4FA)   /* blue */
-#define COLOR_CPU_TOP    lv_color_hex(0xCBA6F7)   /* purple */
-#define COLOR_RAM        lv_color_hex(0xA6E3A1)   /* green */
-#define COLOR_GPU_USAGE  lv_color_hex(0xF38BA8)   /* pink */
-#define COLOR_GPU_VRAM   lv_color_hex(0xFAB387)   /* orange */
-#define COLOR_DISK_OK    lv_color_hex(0xA6E3A1)   /* green  ≤60% */
-#define COLOR_DISK_WARN  lv_color_hex(0xFAB387)   /* orange 60-75% */
-#define COLOR_DISK_CRIT  lv_color_hex(0xF38BA8)   /* red    >75% */
-#define COLOR_BAR_BG     lv_color_hex(0x585B70)
-#define COLOR_GRAY       lv_color_hex(0x585B70)   /* disabled arc */
-#define COLOR_DISK_TEXT  lv_color_hex(0x000000)   /* black text on light bar */
-#define COLOR_DISK_BG    lv_color_hex(0xBAC2DE)   /* lighter gray bar bg */
+#define COLOR_ONLINE lv_color_hex(0x00C853)  /* green */
+#define COLOR_OFFLINE lv_color_hex(0xFF1744) /* red   */
+#define COLOR_BG lv_color_hex(0x1E1E2E)
+#define COLOR_FG lv_color_hex(0xCDD6F4)
+#define COLOR_MUTED lv_color_hex(0x6C7086)
+#define COLOR_ARC_BG lv_color_hex(0x313244)
+#define COLOR_CPU_AVG lv_color_hex(0x89B4FA)   /* blue */
+#define COLOR_CPU_TOP lv_color_hex(0xCBA6F7)   /* purple */
+#define COLOR_RAM lv_color_hex(0xA6E3A1)       /* green */
+#define COLOR_GPU_USAGE lv_color_hex(0xF38BA8) /* pink */
+#define COLOR_GPU_VRAM lv_color_hex(0xFAB387)  /* orange */
+#define COLOR_DISK_OK lv_color_hex(0xA6E3A1)   /* green  ≤60% */
+#define COLOR_DISK_WARN lv_color_hex(0xFAB387) /* orange 60-75% */
+#define COLOR_DISK_CRIT lv_color_hex(0xF38BA8) /* red    >75% */
+#define COLOR_BAR_BG lv_color_hex(0x585B70)
+#define COLOR_GRAY lv_color_hex(0x585B70)      /* disabled arc */
+#define COLOR_DISK_TEXT lv_color_hex(0x000000) /* black text on light bar */
+#define COLOR_DISK_BG lv_color_hex(0xBAC2DE)   /* lighter gray bar bg */
 
 /* ---- Layout constants (R2 → refined Phase 3.1) ---- */
-#define CARD_WIDTH        624
-#define ARC_AREA_SIZE     140
-#define ARC_OUTER_WIDTH   21
-#define ARC_INNER_WIDTH   21
-#define ARC_GAP           2
-#define HEALTH_CIRCLE_SZ  20
-#define INNER_ARC_SIZE    (ARC_AREA_SIZE - 2 * (ARC_OUTER_WIDTH + ARC_GAP))
-#define TEXT_BOX_WIDTH    220
-#define DISK_BAR_GAP      5
-#define DISK_BAR_MAX_H    120
+#define CARD_WIDTH 624
+#define ARC_AREA_SIZE 140
+#define ARC_OUTER_WIDTH 21
+#define ARC_INNER_WIDTH 21
+#define ARC_GAP 2
+#define HEALTH_CIRCLE_SZ 20
+#define INNER_ARC_SIZE (ARC_AREA_SIZE - 2 * (ARC_OUTER_WIDTH + ARC_GAP))
+#define TEXT_BOX_WIDTH 220
+#define DISK_BAR_GAP 5
+#define DISK_BAR_MAX_H 120
 #define MAX_DISPLAY_DISKS 6
 
 /* Arc angle ranges — full 180° per side, trimmed 5° at each join */
-#define LEFT_ARC_START    95
-#define LEFT_ARC_END      265
-#define RIGHT_ARC_START   275
-#define RIGHT_ARC_END     85
+#define LEFT_ARC_START 95
+#define LEFT_ARC_END 265
+#define RIGHT_ARC_START 275
+#define RIGHT_ARC_END 85
 
 /* ---- Per-card widget handles ---- */
 typedef struct {
     lv_obj_t *health_circle;
-    lv_obj_t *gpu_vram_arc;   /* outer left  */
-    lv_obj_t *gpu_usage_arc;  /* inner left  */
-    lv_obj_t *ram_arc;        /* outer right */
-    lv_obj_t *cpu_top_arc;    /* inner right — purple, lower z */
-    lv_obj_t *cpu_avg_arc;    /* inner right — blue, upper z   */
-    lv_obj_t *gpu_vram_lbl;   /* "431 MB / 16.0 GB" */
-    lv_obj_t *gpu_usage_lbl;  /* "0%" */
-    lv_obj_t *ram_lbl;        /* "6.0 GB / 16.0 GB" */
-    lv_obj_t *cpu_lbl;        /* "45% / 78%" */
+    lv_obj_t *gpu_vram_arc;  /* outer left  */
+    lv_obj_t *gpu_usage_arc; /* inner left  */
+    lv_obj_t *ram_arc;       /* outer right */
+    lv_obj_t *cpu_top_arc;   /* inner right — purple, lower z */
+    lv_obj_t *cpu_avg_arc;   /* inner right — blue, upper z   */
+    lv_obj_t *gpu_vram_lbl;  /* "431 MB / 16.0 GB" */
+    lv_obj_t *gpu_usage_lbl; /* "0%" */
+    lv_obj_t *ram_lbl;       /* "6.0 GB / 16.0 GB" */
+    lv_obj_t *cpu_lbl;       /* "45% / 78%" */
     lv_obj_t *hostname_lbl;
     lv_obj_t *os_name_lbl;
     lv_obj_t *uptime_lbl;
@@ -64,48 +66,62 @@ typedef struct {
 /* ---- Helpers ---- */
 
 static void format_uptime(float seconds, char *buf, size_t len) {
-    if (seconds <= 0.0f) { snprintf(buf, len, "--"); return; }
+    if (seconds <= 0.0f) {
+        snprintf(buf, len, "--");
+        return;
+    }
     long s = (long)seconds;
     int d = (int)(s / 86400);
     int h = (int)((s % 86400) / 3600);
     int m = (int)((s % 3600) / 60);
-    if (d > 0)      snprintf(buf, len, "up %dd %dh", d, h);
-    else if (h > 0) snprintf(buf, len, "up %dh %dm", h, m);
-    else             snprintf(buf, len, "up %dm", m);
+    if (d > 0)
+        snprintf(buf, len, "up %dd %dh", d, h);
+    else if (h > 0)
+        snprintf(buf, len, "up %dh %dm", h, m);
+    else
+        snprintf(buf, len, "up %dm", m);
 }
 
 static void format_bytes(uint32_t mb, char *buf, size_t len) {
-    if (mb >= 1024) snprintf(buf, len, "%.1f GB", mb / 1024.0f);
-    else            snprintf(buf, len, "%u MB", mb);
+    if (mb >= 1024)
+        snprintf(buf, len, "%.1f GB", mb / 1024.0f);
+    else
+        snprintf(buf, len, "%u MB", mb);
 }
 
 /* Format GB float for disk bars: "1.8 TB", "237 GB", "28 GB" */
 static void format_bytes_short(float gb, char *buf, size_t len) {
-    if (gb >= 1024.0f)     snprintf(buf, len, "%.1f TB", gb / 1024.0f);
-    else if (gb >= 100.0f) snprintf(buf, len, "%.0f GB", gb);
-    else                   snprintf(buf, len, "%.1f GB", gb);
+    if (gb >= 1024.0f)
+        snprintf(buf, len, "%.1f TB", gb / 1024.0f);
+    else if (gb >= 100.0f)
+        snprintf(buf, len, "%.0f GB", gb);
+    else
+        snprintf(buf, len, "%.1f GB", gb);
 }
 
 static int clamp_pct(float val) {
-    if (val < 0.0f) return 0;
-    if (val > 100.0f) return 100;
+    if (val < 0.0f)
+        return 0;
+    if (val > 100.0f)
+        return 100;
     return (int)(val + 0.5f);
 }
 
-static lv_obj_t *make_label(lv_obj_t *parent, const char *text,
-                             lv_color_t color, const lv_font_t *font) {
+static lv_obj_t *make_label(lv_obj_t *parent, const char *text, lv_color_t color,
+                            const lv_font_t *font) {
     lv_obj_t *lbl = lv_label_create(parent);
     lv_label_set_text(lbl, text);
     lv_obj_set_style_text_color(lbl, color, 0);
-    if (font) lv_obj_set_style_text_font(lbl, font, 0);
+    if (font)
+        lv_obj_set_style_text_font(lbl, font, 0);
     lv_obj_clear_flag(lbl, LV_OBJ_FLAG_SCROLLABLE);
     return lbl;
 }
 
 /* Create a display-only arc centred in parent */
 static lv_obj_t *make_arc(lv_obj_t *parent, int32_t size, int32_t width,
-                           lv_value_precise_t bg_start, lv_value_precise_t bg_end,
-                           lv_color_t indicator_color) {
+                          lv_value_precise_t bg_start, lv_value_precise_t bg_end,
+                          lv_color_t indicator_color) {
     lv_obj_t *arc = lv_arc_create(parent);
     lv_obj_set_size(arc, size, size);
     lv_obj_center(arc);
@@ -137,8 +153,10 @@ static lv_obj_t *make_arc(lv_obj_t *parent, int32_t size, int32_t width,
 }
 
 static lv_color_t disk_bar_color(float pct) {
-    if (pct > 75.0f) return COLOR_DISK_CRIT;
-    if (pct > 60.0f) return COLOR_DISK_WARN;
+    if (pct > 75.0f)
+        return COLOR_DISK_CRIT;
+    if (pct > 60.0f)
+        return COLOR_DISK_WARN;
     return COLOR_DISK_OK;
 }
 
@@ -164,8 +182,7 @@ lv_obj_t *client_card_create(lv_obj_t *parent, const char *hostname) {
     lv_obj_set_width(card, CARD_WIDTH);
     lv_obj_set_height(card, 620);
     lv_obj_set_flex_flow(card, LV_FLEX_FLOW_COLUMN);
-    lv_obj_set_flex_align(card, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER,
-                           LV_FLEX_ALIGN_START);
+    lv_obj_set_flex_align(card, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_START);
 
     card_handles_t *h = calloc(1, sizeof(card_handles_t));
     lv_obj_set_user_data(card, h);
@@ -189,16 +206,15 @@ lv_obj_t *client_card_create(lv_obj_t *parent, const char *hostname) {
     lv_obj_set_size(gpu_text_cont, TEXT_BOX_WIDTH, ARC_AREA_SIZE);
     lv_obj_set_flex_flow(gpu_text_cont, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_flex_align(gpu_text_cont, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_END,
-                           LV_FLEX_ALIGN_END);
+                          LV_FLEX_ALIGN_END);
     lv_obj_align(gpu_text_cont, LV_ALIGN_LEFT_MID, 2, 0);
 
-    h->gpu_vram_lbl = make_label(gpu_text_cont, "VRAM\n--", COLOR_GPU_VRAM,
-                                  &lv_font_montserrat_14);
+    h->gpu_vram_lbl = make_label(gpu_text_cont, "VRAM\n--", COLOR_GPU_VRAM, &lv_font_montserrat_14);
     lv_obj_set_style_text_align(h->gpu_vram_lbl, LV_TEXT_ALIGN_RIGHT, 0);
     lv_obj_set_width(h->gpu_vram_lbl, TEXT_BOX_WIDTH);
 
-    h->gpu_usage_lbl = make_label(gpu_text_cont, "Usage\n--", COLOR_GPU_USAGE,
-                                   &lv_font_montserrat_14);
+    h->gpu_usage_lbl =
+        make_label(gpu_text_cont, "Usage\n--", COLOR_GPU_USAGE, &lv_font_montserrat_14);
     lv_obj_set_style_text_align(h->gpu_usage_lbl, LV_TEXT_ALIGN_RIGHT, 0);
     lv_obj_set_width(h->gpu_usage_lbl, TEXT_BOX_WIDTH);
 
@@ -212,18 +228,18 @@ lv_obj_t *client_card_create(lv_obj_t *parent, const char *hostname) {
     lv_obj_center(arc_area);
 
     /* Outer arcs — GPU VRAM left, RAM right */
-    h->gpu_vram_arc = make_arc(arc_area, ARC_AREA_SIZE, ARC_OUTER_WIDTH,
-                                LEFT_ARC_START, LEFT_ARC_END, COLOR_GPU_VRAM);
-    h->ram_arc = make_arc(arc_area, ARC_AREA_SIZE, ARC_OUTER_WIDTH,
-                           RIGHT_ARC_START, RIGHT_ARC_END, COLOR_RAM);
+    h->gpu_vram_arc = make_arc(arc_area, ARC_AREA_SIZE, ARC_OUTER_WIDTH, LEFT_ARC_START,
+                               LEFT_ARC_END, COLOR_GPU_VRAM);
+    h->ram_arc = make_arc(arc_area, ARC_AREA_SIZE, ARC_OUTER_WIDTH, RIGHT_ARC_START, RIGHT_ARC_END,
+                          COLOR_RAM);
 
     /* Inner arcs — GPU usage left, CPU top + avg right */
-    h->gpu_usage_arc = make_arc(arc_area, INNER_ARC_SIZE, ARC_INNER_WIDTH,
-                                 LEFT_ARC_START, LEFT_ARC_END, COLOR_GPU_USAGE);
-    h->cpu_top_arc = make_arc(arc_area, INNER_ARC_SIZE, ARC_INNER_WIDTH,
-                               RIGHT_ARC_START, RIGHT_ARC_END, COLOR_CPU_TOP);
-    h->cpu_avg_arc = make_arc(arc_area, INNER_ARC_SIZE, ARC_INNER_WIDTH,
-                               RIGHT_ARC_START, RIGHT_ARC_END, COLOR_CPU_AVG);
+    h->gpu_usage_arc = make_arc(arc_area, INNER_ARC_SIZE, ARC_INNER_WIDTH, LEFT_ARC_START,
+                                LEFT_ARC_END, COLOR_GPU_USAGE);
+    h->cpu_top_arc = make_arc(arc_area, INNER_ARC_SIZE, ARC_INNER_WIDTH, RIGHT_ARC_START,
+                              RIGHT_ARC_END, COLOR_CPU_TOP);
+    h->cpu_avg_arc = make_arc(arc_area, INNER_ARC_SIZE, ARC_INNER_WIDTH, RIGHT_ARC_START,
+                              RIGHT_ARC_END, COLOR_CPU_AVG);
 
     /* Center health circle */
     h->health_circle = lv_obj_create(arc_area);
@@ -244,7 +260,7 @@ lv_obj_t *client_card_create(lv_obj_t *parent, const char *hostname) {
     lv_obj_set_size(cpuram_cont, TEXT_BOX_WIDTH, ARC_AREA_SIZE);
     lv_obj_set_flex_flow(cpuram_cont, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_flex_align(cpuram_cont, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_START,
-                           LV_FLEX_ALIGN_START);
+                          LV_FLEX_ALIGN_START);
     lv_obj_align(cpuram_cont, LV_ALIGN_RIGHT_MID, -2, 0);
 
     h->ram_lbl = make_label(cpuram_cont, "RAM\n--", COLOR_RAM, &lv_font_montserrat_14);
@@ -295,11 +311,11 @@ lv_obj_t *client_card_create(lv_obj_t *parent, const char *hostname) {
 
 void client_card_update_health(lv_obj_t *card, const client_info_t *c) {
     card_handles_t *h = lv_obj_get_user_data(card);
-    if (!h) return;
+    if (!h)
+        return;
 
     /* Center circle color */
-    lv_obj_set_style_bg_color(h->health_circle,
-                               c->online ? COLOR_ONLINE : COLOR_OFFLINE, 0);
+    lv_obj_set_style_bg_color(h->health_circle, c->online ? COLOR_ONLINE : COLOR_OFFLINE, 0);
 
     /* Uptime */
     char buf[32];
@@ -319,7 +335,8 @@ void client_card_update_health(lv_obj_t *card, const client_info_t *c) {
 static void update_disk_bars(card_handles_t *h, const client_info_t *c) {
     lv_obj_clean(h->disk_cont);
     int count = c->disk_count > MAX_DISPLAY_DISKS ? MAX_DISPLAY_DISKS : c->disk_count;
-    if (count == 0) return;
+    if (count == 0)
+        return;
 
     /* Each disk bar: lv_bar with overlaid text labels */
     /* Bar height: flex-grow fills remaining card space; use 30px as baseline */
@@ -382,7 +399,8 @@ static void update_disk_bars(card_handles_t *h, const client_info_t *c) {
 
 void client_card_update_telemetry(lv_obj_t *card, const client_info_t *c) {
     card_handles_t *h = lv_obj_get_user_data(card);
-    if (!h) return;
+    if (!h)
+        return;
 
     char buf[64];
 
@@ -390,9 +408,9 @@ void client_card_update_telemetry(lv_obj_t *card, const client_info_t *c) {
     if (c->gpu.present) {
         /* VRAM arc: % of total */
         lv_arc_set_value(h->gpu_vram_arc,
-            c->gpu.vram_total_mb > 0
-            ? clamp_pct(100.0f * c->gpu.vram_used_mb / c->gpu.vram_total_mb)
-            : 0);
+                         c->gpu.vram_total_mb > 0
+                             ? clamp_pct(100.0f * c->gpu.vram_used_mb / c->gpu.vram_total_mb)
+                             : 0);
         lv_arc_set_value(h->gpu_usage_arc, clamp_pct(c->gpu.compute_pct));
 
         /* Restore indicator colors */
@@ -427,10 +445,8 @@ void client_card_update_telemetry(lv_obj_t *card, const client_info_t *c) {
     }
 
     /* ---- RAM arc + text ---- */
-    lv_arc_set_value(h->ram_arc,
-        c->ram_total_mb > 0
-        ? clamp_pct(100.0f * c->ram_used_mb / c->ram_total_mb)
-        : 0);
+    lv_arc_set_value(
+        h->ram_arc, c->ram_total_mb > 0 ? clamp_pct(100.0f * c->ram_used_mb / c->ram_total_mb) : 0);
     char ru[16], rt[16];
     format_bytes(c->ram_used_mb, ru, sizeof(ru));
     format_bytes(c->ram_total_mb, rt, sizeof(rt));
