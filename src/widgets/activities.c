@@ -4,18 +4,8 @@
 #include <string.h>
 #include <time.h>
 
-#include "lv_font_custom.h"
+#include "common.h"
 #include "protocol.h"
-
-#define COLOR_BG lv_color_hex(0x1E1E2E)
-#define COLOR_FG lv_color_hex(0xCDD6F4)
-#define COLOR_MUTED lv_color_hex(0x6C7086)
-#define COLOR_ACTIVE lv_color_hex(0xA6E3A1)
-#define COLOR_DONE lv_color_hex(0x89B4FA)
-#define COLOR_HEADER lv_color_hex(0xF5C2E7)
-
-static const lv_font_t *FONT_HDR = &lv_font_montserrat_bold_20;
-static const lv_font_t *FONT_BODY = &lv_font_montserrat_20;
 
 /* Column widths for table layout (624px - 20px pad = 604px internal) */
 #define COL_HOST 70
@@ -82,9 +72,9 @@ static const char *dow_from_ts(double ts) {
 lv_obj_t *activities_widget_create(lv_obj_t *parent) {
     lv_obj_t *cont = lv_obj_create(parent);
     lv_obj_clear_flag(cont, LV_OBJ_FLAG_SCROLLABLE);
-    lv_obj_set_style_bg_color(cont, COLOR_BG, 0);
+    lv_obj_set_style_bg_color(cont, WS_COLOR_BG, 0);
     lv_obj_set_style_radius(cont, 8, 0);
-    lv_obj_set_style_border_color(cont, lv_color_hex(0x45475A), 0);
+    lv_obj_set_style_border_color(cont, WS_COLOR_SURFACE1, 0);
     lv_obj_set_style_border_width(cont, 1, 0);
     lv_obj_set_style_pad_all(cont, 10, 0);
     lv_obj_set_style_pad_row(cont, 4, 0);
@@ -94,21 +84,52 @@ lv_obj_t *activities_widget_create(lv_obj_t *parent) {
     /* Header */
     lv_obj_t *hdr = lv_label_create(cont);
     lv_label_set_text(hdr, "Activities");
-    lv_obj_set_style_text_color(hdr, COLOR_HEADER, 0);
-    lv_obj_set_style_text_font(hdr, FONT_HDR, 0);
+    lv_obj_set_style_text_color(hdr, WS_COLOR_HEADER, 0);
+    lv_obj_set_style_text_font(hdr, WS_FONT_HDR, 0);
     lv_obj_clear_flag(hdr, LV_OBJ_FLAG_SCROLLABLE);
 
     /* Placeholder */
     lv_obj_t *empty = lv_label_create(cont);
     lv_label_set_text(empty, "No activities");
-    lv_obj_set_style_text_color(empty, COLOR_MUTED, 0);
-    lv_obj_set_style_text_font(empty, FONT_BODY, 0);
+    lv_obj_set_style_text_color(empty, WS_COLOR_MUTED, 0);
+    lv_obj_set_style_text_font(empty, WS_FONT_BODY, 0);
     lv_obj_clear_flag(empty, LV_OBJ_FLAG_SCROLLABLE);
 
     return cont;
 }
 
+/* ---- Cache: skip rebuild when data unchanged ---- */
+static activity_t s_cache[ACTIVITY_MAX_DISPLAY];
+static int s_cache_count = -1; /* -1 = never drawn */
+
+/* Compare activity entries ignoring the volatile start_ts/end_ts fields.
+ * The elapsed timer handles live time display independently. */
+static bool activities_equal(const activity_t *a, const activity_t *b, int n) {
+    for (int i = 0; i < n; i++) {
+        if (strncmp(a[i].activity_id, b[i].activity_id, ACTIVITY_ID_LEN) != 0)
+            return false;
+        if (strncmp(a[i].name, b[i].name, ACTIVITY_NAME_LEN) != 0)
+            return false;
+        if (strncmp(a[i].host, b[i].host, HOSTNAME_LEN) != 0)
+            return false;
+        if (a[i].is_done != b[i].is_done)
+            return false;
+    }
+    return true;
+}
+
 void activities_widget_update(lv_obj_t *widget, const activity_t *list, int count) {
+    int show = count < ACTIVITY_MAX_DISPLAY ? count : ACTIVITY_MAX_DISPLAY;
+
+    /* Skip rebuild if data identical to last draw */
+    if (show == s_cache_count && (show == 0 || activities_equal(s_cache, list, show)))
+        return;
+
+    /* Cache the new data */
+    s_cache_count = show;
+    if (show > 0)
+        memcpy(s_cache, list, (size_t)show * sizeof(activity_t));
+
     /* Remove all children after header (index 0) */
     uint32_t n = lv_obj_get_child_count(widget);
     for (uint32_t i = n; i > 1; i--) {
@@ -118,8 +139,8 @@ void activities_widget_update(lv_obj_t *widget, const activity_t *list, int coun
     if (count == 0) {
         lv_obj_t *empty = lv_label_create(widget);
         lv_label_set_text(empty, "No activities");
-        lv_obj_set_style_text_color(empty, COLOR_MUTED, 0);
-        lv_obj_set_style_text_font(empty, FONT_BODY, 0);
+        lv_obj_set_style_text_color(empty, WS_COLOR_MUTED, 0);
+        lv_obj_set_style_text_font(empty, WS_FONT_BODY, 0);
         lv_obj_clear_flag(empty, LV_OBJ_FLAG_SCROLLABLE);
         return;
     }
@@ -142,16 +163,16 @@ void activities_widget_update(lv_obj_t *widget, const activity_t *list, int coun
         /* Column 1: Host (muted) */
         lv_obj_t *host_lbl = lv_label_create(row);
         lv_label_set_text(host_lbl, a->host);
-        lv_obj_set_style_text_color(host_lbl, COLOR_MUTED, 0);
-        lv_obj_set_style_text_font(host_lbl, FONT_BODY, 0);
+        lv_obj_set_style_text_color(host_lbl, WS_COLOR_MUTED, 0);
+        lv_obj_set_style_text_font(host_lbl, WS_FONT_BODY, 0);
         lv_obj_set_width(host_lbl, COL_HOST);
         lv_label_set_long_mode(host_lbl, LV_LABEL_LONG_CLIP);
         lv_obj_clear_flag(host_lbl, LV_OBJ_FLAG_SCROLLABLE);
 
         /* Column 2: Duration (white) */
         lv_obj_t *dur_lbl = lv_label_create(row);
-        lv_obj_set_style_text_color(dur_lbl, COLOR_FG, 0);
-        lv_obj_set_style_text_font(dur_lbl, FONT_BODY, 0);
+        lv_obj_set_style_text_color(dur_lbl, WS_COLOR_FG, 0);
+        lv_obj_set_style_text_font(dur_lbl, WS_FONT_BODY, 0);
         lv_obj_set_width(dur_lbl, COL_DURATION);
         lv_obj_clear_flag(dur_lbl, LV_OBJ_FLAG_SCROLLABLE);
 
@@ -175,16 +196,16 @@ void activities_widget_update(lv_obj_t *widget, const activity_t *list, int coun
         /* Column 3: Day of Week (white) */
         lv_obj_t *dow_lbl = lv_label_create(row);
         lv_label_set_text(dow_lbl, dow_from_ts(a->start_ts));
-        lv_obj_set_style_text_color(dow_lbl, COLOR_FG, 0);
-        lv_obj_set_style_text_font(dow_lbl, FONT_BODY, 0);
+        lv_obj_set_style_text_color(dow_lbl, WS_COLOR_FG, 0);
+        lv_obj_set_style_text_font(dow_lbl, WS_FONT_BODY, 0);
         lv_obj_set_width(dow_lbl, COL_DOW);
         lv_obj_clear_flag(dow_lbl, LV_OBJ_FLAG_SCROLLABLE);
 
         /* Column 4: Activity name (color = state) */
         lv_obj_t *name_lbl = lv_label_create(row);
         lv_label_set_text(name_lbl, a->name);
-        lv_obj_set_style_text_color(name_lbl, a->is_done ? COLOR_DONE : COLOR_ACTIVE, 0);
-        lv_obj_set_style_text_font(name_lbl, FONT_BODY, 0);
+        lv_obj_set_style_text_color(name_lbl, a->is_done ? WS_COLOR_BLUE : WS_COLOR_GREEN, 0);
+        lv_obj_set_style_text_font(name_lbl, WS_FONT_BODY, 0);
         lv_obj_set_flex_grow(name_lbl, 1);
         lv_label_set_long_mode(name_lbl, LV_LABEL_LONG_CLIP);
         lv_obj_clear_flag(name_lbl, LV_OBJ_FLAG_SCROLLABLE);

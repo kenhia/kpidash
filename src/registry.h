@@ -98,7 +98,9 @@ typedef struct {
 /* ---- Development command state (transient, from Redis poll) ---- */
 typedef struct {
     bool grid_enabled;
-    int grid_size; /* pixels; 0 = disabled */
+    int grid_size;        /* pixels; 0 = disabled */
+    bool grid_unit;       /* unit-based grid mode */
+    float grid_unit_size; /* unit multiplier (0.5, 1, 2) */
     bool textsize_enabled;
     bool graph_enabled;
     char graph_client[HOSTNAME_LEN]; /* hostname of client to graph */
@@ -154,5 +156,12 @@ int registry_count(void);
  * Must NOT be called with the registry locked.
  */
 void registry_set_priority_clients(const char hosts[][HOSTNAME_LEN], int count);
+
+/**
+ * Return the priority index (0-based) for the given hostname,
+ * or -1 if the hostname is not in the priority list.
+ * Thread-safe (reads only; list is set once at startup).
+ */
+int registry_priority_index(const char *hostname);
 
 #endif /* REGISTRY_H */

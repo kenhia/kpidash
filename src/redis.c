@@ -284,6 +284,8 @@ bool redis_parse_dev_telemetry_json(const char *json, dev_telemetry_t *dt) {
 bool redis_parse_cmd_grid_json(const char *json, dev_cmd_state_t *state) {
     state->grid_enabled = false;
     state->grid_size = 0;
+    state->grid_unit = false;
+    state->grid_unit_size = 1.0f;
     if (!json)
         return true; /* absent key = disabled */
     cJSON *root = cJSON_Parse(json);
@@ -291,10 +293,17 @@ bool redis_parse_cmd_grid_json(const char *json, dev_cmd_state_t *state) {
         return false;
     cJSON *en = cJSON_GetObjectItemCaseSensitive(root, "enabled");
     cJSON *sz = cJSON_GetObjectItemCaseSensitive(root, "size");
+    cJSON *unit = cJSON_GetObjectItemCaseSensitive(root, "unit");
     if (cJSON_IsBool(en))
         state->grid_enabled = cJSON_IsTrue(en);
-    if (cJSON_IsNumber(sz) && sz->valueint > 0)
-        state->grid_size = sz->valueint;
+    if (cJSON_IsBool(unit) && cJSON_IsTrue(unit)) {
+        state->grid_unit = true;
+        if (cJSON_IsNumber(sz) && sz->valuedouble > 0)
+            state->grid_unit_size = (float)sz->valuedouble;
+    } else {
+        if (cJSON_IsNumber(sz) && sz->valueint > 0)
+            state->grid_size = sz->valueint;
+    }
     cJSON_Delete(root);
     return true;
 }

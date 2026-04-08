@@ -46,6 +46,14 @@ static bool is_priority(const char *hostname) {
     return false;
 }
 
+int registry_priority_index(const char *hostname) {
+    for (int i = 0; i < g_priority_count; i++) {
+        if (strncmp(g_priority[i], hostname, HOSTNAME_LEN) == 0)
+            return i;
+    }
+    return -1;
+}
+
 client_info_t *registry_find_or_create(const char *hostname) {
     /* Search existing (must be called with lock held) */
     for (int i = 0; i < g_count; i++) {

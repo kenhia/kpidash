@@ -193,6 +193,52 @@ int main(void) {
         CHECK(s.grid_size == 0);  /* non-positive size ignored */
     }
 
+    /* T010: unit-based grid commands */
+    {
+        dev_cmd_state_t s = {0};
+        bool ok = redis_parse_cmd_grid_json("{\"enabled\":true,\"unit\":true,\"size\":1}", &s);
+        CHECK(ok);
+        CHECK(s.grid_enabled == true);
+        CHECK(s.grid_unit == true);
+        CHECK(s.grid_unit_size >= 0.99f && s.grid_unit_size <= 1.01f);
+        CHECK(s.grid_size == 0);  /* pixel size not set in unit mode */
+    }
+    {
+        dev_cmd_state_t s = {0};
+        bool ok = redis_parse_cmd_grid_json("{\"enabled\":true,\"unit\":true,\"size\":0.5}", &s);
+        CHECK(ok);
+        CHECK(s.grid_unit == true);
+        CHECK(s.grid_unit_size >= 0.49f && s.grid_unit_size <= 0.51f);
+    }
+    {
+        dev_cmd_state_t s = {0};
+        bool ok = redis_parse_cmd_grid_json("{\"enabled\":true,\"unit\":true,\"size\":2}", &s);
+        CHECK(ok);
+        CHECK(s.grid_unit == true);
+        CHECK(s.grid_unit_size >= 1.99f && s.grid_unit_size <= 2.01f);
+    }
+    {
+        /* unit:true with size:0 => clamp to default 1.0 */
+        dev_cmd_state_t s = {0};
+        redis_parse_cmd_grid_json("{\"enabled\":true,\"unit\":true,\"size\":0}", &s);
+        CHECK(s.grid_unit == true);
+        CHECK(s.grid_unit_size >= 0.99f && s.grid_unit_size <= 1.01f);
+    }
+    {
+        /* unit:false => pixel mode, unit fields unset */
+        dev_cmd_state_t s = {0};
+        redis_parse_cmd_grid_json("{\"enabled\":true,\"unit\":false,\"size\":100}", &s);
+        CHECK(s.grid_unit == false);
+        CHECK(s.grid_size == 100);
+    }
+    {
+        /* no unit field => pixel mode (backward compatible) */
+        dev_cmd_state_t s = {0};
+        redis_parse_cmd_grid_json("{\"enabled\":true,\"size\":200}", &s);
+        CHECK(s.grid_unit == false);
+        CHECK(s.grid_size == 200);
+    }
+
     /* T027: textsize command */
     {
         dev_cmd_state_t s = {0};

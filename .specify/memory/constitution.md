@@ -23,6 +23,12 @@ Amendment 1.0.0 → 1.1.0 (2026-03-31, MINOR)
   - Principle IV: added Python / pytest standards gate subsection for kpidash-client and kpidash-mcp (I2)
   - Directory Structure: added `clients/` entry
 Templates requiring updates: none (no structural changes)
+
+Amendment 1.1.0 → 1.2.0 (2026-04-05, MINOR)
+  - Principle IV / Pre-Commit Checks: clang-format globs extended to include
+    `src/widgets/*.c src/widgets/*.h` (D1 from speckit.analyze — src/widgets/
+    added in Sprint 002 but constitution globs were not updated)
+Templates requiring updates: none
 -->
 
 # kpidash Constitution
@@ -134,7 +140,7 @@ Primary language is C (C11). Build system is CMake.
 
 ```bash
 # Format (in-place)
-clang-format -i src/*.c src/*.h
+clang-format -i src/*.c src/*.h src/widgets/*.c src/widgets/*.h
 
 # Static analysis
 cppcheck --enable=warning,style,performance --error-exitcode=1 src/
@@ -146,7 +152,7 @@ cmake -B build && cmake --build build --parallel
 ctest --test-dir build -V
 
 # CI variant (must pass clean before commit)
-clang-format --dry-run --Werror src/*.c src/*.h
+clang-format --dry-run --Werror src/*.c src/*.h src/widgets/*.c src/widgets/*.h
 cppcheck --enable=warning,style,performance --error-exitcode=1 src/
 cmake -B build && cmake --build build --parallel
 ctest --test-dir build -V

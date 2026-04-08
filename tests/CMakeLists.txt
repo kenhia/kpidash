@@ -40,3 +40,9 @@ add_kpidash_test(test_redis_json
 # Provide stub implementations of ui.h / status.h / fortune.h symbols
 # so redis.c links without the full UI tree.
 target_compile_definitions(test_redis_json PRIVATE KPIDASH_TEST_STUBS=1)
+
+# T003: layout.h unit arithmetic tests
+add_executable(test_layout ${CMAKE_CURRENT_SOURCE_DIR}/test_layout.c)
+target_include_directories(test_layout PRIVATE ${CMAKE_SOURCE_DIR}/src)
+target_compile_options(test_layout PRIVATE -Wall -Wextra -Wno-unused-parameter)
+add_test(NAME test_layout COMMAND test_layout)
