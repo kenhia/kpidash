@@ -258,17 +258,34 @@ values with a TTL of 300 s (auto-expire).
 |-----|------|-----------|---------|-----|
 | `kpidash:cmd:grid` | STRING (JSON) | manual (redis-cli) | dashboard | 300 s |
 
+**Pixel-based mode** (original):
 ```json
 {"enabled": true, "size": 50}
+```
+
+**Unit-based mode** (Sprint 003):
+```json
+{"enabled": true, "unit": true, "size": 1}
 ```
 
 | Field | Type | Notes |
 |-------|------|-------|
 | `enabled` | bool | Show/hide grid overlay |
-| `size` | int | Grid line spacing in pixels (>0) |
+| `size` | int/float | Pixel spacing (pixel mode) or unit multiplier (unit mode) |
+| `unit` | bool | Optional. When `true`, `size` is a unit multiplier (0.5, 1, 2) and grid lines are drawn at interior cell boundaries using `layout.h` constants. When absent or `false`, pixel-based mode (unchanged from Sprint 002). |
 
 ```bash
+# Pixel grid (50px spacing)
 redis-cli SET kpidash:cmd:grid '{"enabled":true,"size":50}' EX 300
+
+# Unit grid (1-unit intervals — lines at cell boundaries)
+redis-cli SET kpidash:cmd:grid '{"enabled":true,"unit":true,"size":1}' EX 300
+
+# Half-unit intervals
+redis-cli SET kpidash:cmd:grid '{"enabled":true,"unit":true,"size":0.5}' EX 300
+
+# Double-unit intervals (2×1 widget boundaries)
+redis-cli SET kpidash:cmd:grid '{"enabled":true,"unit":true,"size":2}' EX 300
 ```
 
 ### 9.2 Text Size Reference

@@ -6,7 +6,7 @@
  *   Secondary Y (0-max MB): VRAM used, RAM used
  *
  * 300 data points = 5 min at 1s dev telemetry interval.
- * Sized to two client card slots (1256 x 620).
+ * Sized to two cell slots (UNIT_W_N(2) x UNIT_H).
  *
  * Header row:
  *   GPU (left)                hostname (center)            System (right)
@@ -18,18 +18,15 @@
 #include <stdio.h>
 #include <string.h>
 
-#include "lv_font_custom.h"
+#include "common.h"
+#include "layout.h"
 
-/* Catppuccin Mocha palette */
-#define COLOR_BG lv_color_hex(0x1E1E2E)
-#define COLOR_FG lv_color_hex(0xCDD6F4)
-#define COLOR_MUTED lv_color_hex(0x6C7086)
-#define COLOR_SURFACE0 lv_color_hex(0x313244)
-#define COLOR_GREEN lv_color_hex(0xA6E3A1)  /* GPU compute % */
-#define COLOR_BLUE lv_color_hex(0x89B4FA)   /* CPU avg % */
-#define COLOR_PURPLE lv_color_hex(0xCBA6F7) /* CPU top core % */
-#define COLOR_ORANGE lv_color_hex(0xFAB387) /* VRAM MB */
-#define COLOR_RED lv_color_hex(0xF38BA8)    /* RAM MB */
+/* Graph series colors (widget-specific aliases from shared palette) */
+#define COLOR_GREEN WS_COLOR_GREEN   /* GPU compute % */
+#define COLOR_BLUE WS_COLOR_BLUE     /* CPU avg % */
+#define COLOR_PURPLE WS_COLOR_MAUVE  /* CPU top core % */
+#define COLOR_ORANGE WS_COLOR_ORANGE /* VRAM MB */
+#define COLOR_RED WS_COLOR_RED       /* RAM MB */
 
 #define POINT_COUNT 300 /* 5 min at 1s interval */
 
@@ -53,13 +50,13 @@ typedef struct {
 lv_obj_t *dev_graph_create(lv_obj_t *parent, const char *hostname) {
     /* Container */
     lv_obj_t *cont = lv_obj_create(parent);
-    lv_obj_set_size(cont, 1256, 620); /* two card slots: 624+8+624 x 620 */
-    lv_obj_set_style_bg_color(cont, COLOR_BG, 0);
+    lv_obj_set_size(cont, UNIT_W_N(2), UNIT_H);
+    lv_obj_set_style_bg_color(cont, WS_COLOR_BG, 0);
     lv_obj_set_style_bg_opa(cont, LV_OPA_COVER, 0);
     lv_obj_set_style_border_width(cont, 1, 0);
-    lv_obj_set_style_border_color(cont, COLOR_SURFACE0, 0);
+    lv_obj_set_style_border_color(cont, WS_COLOR_SURFACE0, 0);
     lv_obj_set_style_radius(cont, 8, 0);
-    lv_obj_set_style_pad_all(cont, 12, 0);
+    lv_obj_set_style_pad_all(cont, CELL_PAD, 0);
     lv_obj_clear_flag(cont, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_set_flex_flow(cont, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_style_pad_row(cont, 4, 0);
@@ -76,7 +73,7 @@ lv_obj_t *dev_graph_create(lv_obj_t *parent, const char *hostname) {
     /* GPU column (left) */
     lv_obj_t *gpu_title = lv_label_create(hdr);
     lv_label_set_text(gpu_title, "GPU");
-    lv_obj_set_style_text_color(gpu_title, COLOR_FG, 0);
+    lv_obj_set_style_text_color(gpu_title, WS_COLOR_FG, 0);
     lv_obj_set_style_text_font(gpu_title, &lv_font_montserrat_bold_20, 0);
     lv_obj_align(gpu_title, LV_ALIGN_TOP_LEFT, 0, 0);
 
@@ -102,7 +99,7 @@ lv_obj_t *dev_graph_create(lv_obj_t *parent, const char *hostname) {
     /* System column (right) */
     lv_obj_t *sys_title = lv_label_create(hdr);
     lv_label_set_text(sys_title, "System");
-    lv_obj_set_style_text_color(sys_title, COLOR_FG, 0);
+    lv_obj_set_style_text_color(sys_title, WS_COLOR_FG, 0);
     lv_obj_set_style_text_font(sys_title, &lv_font_montserrat_bold_20, 0);
     lv_obj_align(sys_title, LV_ALIGN_TOP_RIGHT, 0, 0);
 
@@ -122,10 +119,10 @@ lv_obj_t *dev_graph_create(lv_obj_t *parent, const char *hostname) {
     lv_obj_t *chart = lv_chart_create(cont);
     lv_obj_set_width(chart, LV_PCT(100));
     lv_obj_set_flex_grow(chart, 1);
-    lv_obj_set_style_bg_color(chart, COLOR_BG, 0);
+    lv_obj_set_style_bg_color(chart, WS_COLOR_BG, 0);
     lv_obj_set_style_bg_opa(chart, LV_OPA_COVER, 0);
     lv_obj_set_style_border_width(chart, 0, 0);
-    lv_obj_set_style_line_color(chart, COLOR_SURFACE0, LV_PART_MAIN);
+    lv_obj_set_style_line_color(chart, WS_COLOR_SURFACE0, LV_PART_MAIN);
     lv_obj_set_style_line_width(chart, 1, LV_PART_MAIN);
     lv_obj_clear_flag(chart, LV_OBJ_FLAG_SCROLLABLE);
 

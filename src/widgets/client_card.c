@@ -4,30 +4,30 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#include "common.h"
+#include "layout.h"
 #include "protocol.h"
 
-/* ---- Colors ---- */
+/* ---- Widget-specific colors (not in shared palette) ---- */
 #define COLOR_ONLINE lv_color_hex(0x00C853)  /* green */
 #define COLOR_OFFLINE lv_color_hex(0xFF1744) /* red   */
-#define COLOR_BG lv_color_hex(0x1E1E2E)
-#define COLOR_FG lv_color_hex(0xCDD6F4)
-#define COLOR_MUTED lv_color_hex(0x6C7086)
-#define COLOR_ARC_BG lv_color_hex(0x313244)
-#define COLOR_CPU_AVG lv_color_hex(0x89B4FA)   /* blue */
-#define COLOR_CPU_TOP lv_color_hex(0xCBA6F7)   /* purple */
-#define COLOR_RAM lv_color_hex(0xA6E3A1)       /* green */
-#define COLOR_GPU_USAGE lv_color_hex(0xF38BA8) /* pink */
-#define COLOR_GPU_VRAM lv_color_hex(0xFAB387)  /* orange */
-#define COLOR_DISK_OK lv_color_hex(0xA6E3A1)   /* green  ≤60% */
-#define COLOR_DISK_WARN lv_color_hex(0xFAB387) /* orange 60-75% */
-#define COLOR_DISK_CRIT lv_color_hex(0xF38BA8) /* red    >75% */
+/* Widget-specific colors using shared palette aliases */
+#define COLOR_ARC_BG WS_COLOR_SURFACE0
+#define COLOR_CPU_AVG WS_COLOR_BLUE     /* blue */
+#define COLOR_CPU_TOP WS_COLOR_MAUVE    /* purple */
+#define COLOR_RAM WS_COLOR_GREEN        /* green */
+#define COLOR_GPU_USAGE WS_COLOR_RED    /* pink */
+#define COLOR_GPU_VRAM WS_COLOR_ORANGE  /* orange */
+#define COLOR_DISK_OK WS_COLOR_GREEN    /* green  ≤60% */
+#define COLOR_DISK_WARN WS_COLOR_ORANGE /* orange 60-75% */
+#define COLOR_DISK_CRIT WS_COLOR_RED    /* red    >75% */
 #define COLOR_BAR_BG lv_color_hex(0x585B70)
 #define COLOR_GRAY lv_color_hex(0x585B70)      /* disabled arc */
 #define COLOR_DISK_TEXT lv_color_hex(0x000000) /* black text on light bar */
 #define COLOR_DISK_BG lv_color_hex(0xBAC2DE)   /* lighter gray bar bg */
 
 /* ---- Layout constants (R2 → refined Phase 3.1) ---- */
-#define CARD_WIDTH 624
+#define CARD_WIDTH (UNIT_W - 2 * CELL_PAD)
 #define ARC_AREA_SIZE 140
 #define ARC_OUTER_WIDTH 21
 #define ARC_INNER_WIDTH 21
@@ -173,14 +173,14 @@ lv_obj_t *client_card_create(lv_obj_t *parent, const char *hostname) {
     /* Card container */
     lv_obj_t *card = lv_obj_create(parent);
     lv_obj_clear_flag(card, LV_OBJ_FLAG_SCROLLABLE);
-    lv_obj_set_style_bg_color(card, COLOR_BG, 0);
+    lv_obj_set_style_bg_color(card, WS_COLOR_BG, 0);
     lv_obj_set_style_radius(card, 8, 0);
     lv_obj_set_style_border_width(card, 1, 0);
-    lv_obj_set_style_border_color(card, lv_color_hex(0x45475A), 0);
-    lv_obj_set_style_pad_all(card, 8, 0);
+    lv_obj_set_style_border_color(card, WS_COLOR_SURFACE1, 0);
+    lv_obj_set_style_pad_all(card, CELL_PAD, 0);
     lv_obj_set_style_pad_row(card, 4, 0);
-    lv_obj_set_width(card, CARD_WIDTH);
-    lv_obj_set_height(card, 620);
+    lv_obj_set_width(card, UNIT_W);
+    lv_obj_set_height(card, UNIT_H);
     lv_obj_set_flex_flow(card, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_flex_align(card, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_START);
 
@@ -272,7 +272,7 @@ lv_obj_t *client_card_create(lv_obj_t *parent, const char *hostname) {
     lv_obj_set_width(h->cpu_lbl, TEXT_BOX_WIDTH);
 
     /* ======== Uptime (right-justified, above hostname) ======== */
-    h->uptime_lbl = make_label(card, "--", COLOR_MUTED, &lv_font_montserrat_14);
+    h->uptime_lbl = make_label(card, "--", WS_COLOR_MUTED, &lv_font_montserrat_14);
     lv_obj_set_width(h->uptime_lbl, LV_PCT(100));
     lv_obj_set_style_text_align(h->uptime_lbl, LV_TEXT_ALIGN_RIGHT, 0);
 
@@ -287,7 +287,7 @@ lv_obj_t *client_card_create(lv_obj_t *parent, const char *hostname) {
     lv_obj_clear_flag(h->hostname_lbl, LV_OBJ_FLAG_SCROLLABLE);
 
     /* ======== OS name (centered, smaller) ======== */
-    h->os_name_lbl = make_label(card, "", COLOR_MUTED, &lv_font_montserrat_14);
+    h->os_name_lbl = make_label(card, "", WS_COLOR_MUTED, &lv_font_montserrat_14);
     lv_label_set_long_mode(h->os_name_lbl, LV_LABEL_LONG_DOT);
     lv_obj_set_width(h->os_name_lbl, LV_PCT(100));
     lv_obj_set_style_text_align(h->os_name_lbl, LV_TEXT_ALIGN_CENTER, 0);

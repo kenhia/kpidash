@@ -149,8 +149,10 @@ kpidash/
 │   ├── status.{h,c}            # In-memory status message FIFO queue
 │   ├── fortune.{h,c}           # fortune popen + pushed-fortune override
 │   ├── ui.{h,c}                # Screen layout + redis error overlay
+│   ├── layout.h                # Cell-based unit system constants and macros
 │   ├── protocol.h              # Key macros, TTLs, capacity limits
 │   └── widgets/
+│       ├── common.h            # Shared color palette and font constants (WS_*)
 │       ├── client_card.{h,c}   # Per-client arc gauge card (CPU/RAM/GPU/disks)
 │       ├── activities.{h,c}    # Activity table with live elapsed timers
 │       ├── repo_status.{h,c}   # Repo card grid (branch/dirty/age indicators)
@@ -161,7 +163,8 @@ kpidash/
 │       └── dev_graph.{h,c}     # 5-series time-series chart (dev command)
 ├── tests/
 │   ├── test_config.c           # Config env var parsing (ctest, no hardware)
-│   └── test_redis_json.c       # cJSON parsing helpers (ctest, no hardware)
+│   ├── test_redis_json.c       # cJSON parsing helpers (ctest, no hardware)
+│   └── test_layout.c           # Unit system macro arithmetic (ctest, no hardware)
 ├── clients/
 │   ├── kpidash-client/         # Python 3.13+ daemon + CLI (psutil, pynvml)
 │   └── kpidash-mcp/            # Python 3.13+ MCP server (mcp>=1)
@@ -175,24 +178,55 @@ kpidash/
 
 ## Widget Layout (3840×2160)
 
+The layout uses a cell-based unit system defined in `src/layout.h`.
+Each cell internalizes half the visual gap via `CELL_PAD` — adjacent
+widget content has `4+4 = 8px` visual gap with no separate gap constant.
+
+### Unit System Constants
+
+| Constant | Value | Description |
+|----------|-------|-------------|
+| `SCR_W` | 3840 | Screen width |
+| `SCR_H` | 2160 | Screen height |
+| `UNIT_W` | 632 | Cell width (gap-inclusive) |
+| `UNIT_H` | 628 | Cell height (gap-inclusive) |
+| `CELL_PAD` | 4 | Per-side widget inset within cell |
+| `PAD_TOP` | 0 | Top screen margin |
+| `PAD_LEFT` | 24 | Left screen margin |
+| `PAD_RIGHT` | 24 | Right screen margin |
+| `FOOTER_H` | 276 | Footer height below 3 unit rows |
+| `COLS` | 6 | Number of columns |
+| `ROWS` | 3 | Number of unit-height rows |
+
+### Macros
+
+- `UNIT_W_N(n)` = `n × UNIT_W` (no gap correction needed)
+- `UNIT_H_N(n)` = `n × UNIT_H`
+- `ROW_Y(r)` = `PAD_TOP + r × UNIT_H`
+- `COL_X(c)` = `PAD_LEFT + c × UNIT_W`
+
+### Layout Arithmetic
+
+```
+Horizontal: PAD_LEFT + 6×UNIT_W + PAD_RIGHT = 24 + 3792 + 24 = 3840
+Vertical:   PAD_TOP + 3×UNIT_H + FOOTER_H  = 0 + 1884 + 276 = 2160
+Widget content (1×1): UNIT_W - 2×CELL_PAD = 624, UNIT_H - 2×CELL_PAD = 620
+```
+
+### Grid Layout
+
 ```
 ┌──────────────────────────────────────────────────────────────┐
-│  [dev_graph 2×1]  [client card] [client card] [client card] │
-│  (when enabled)   [client card] [client card] [client card] │
-├──────────────────────┬──────────────────────────────────────┤
-│  Activities  (2×1)   │  Repo Status  (2×1)                  │
-│  table: host|dur|    │  card grid: 4×4 repo cards with      │
-│  DoW|activity name   │  branch/dirty/age indicators          │
-├──────────────────────┴──────────────────────────────────────┤
-│  Fortune widget (bottom strip)                               │
+│  Row 0: [dev_graph 2×1] [card] [card] [card] [card]         │
+│         (when enabled)                                       │
+├──────────────────────┬───────────────────────────────────────┤
+│  Row 1: Activities   │  Repo Status  (2×1 each)             │
+│         (2×1)        │                                       │
+├──────────────────────┴───────────────────────────────────────┤
+│  Row 2: (available for future widgets)                       │
 ├──────────────────────────────────────────────────────────────┤
-│  Status bar (hidden when no messages)                        │
+│  Footer (276px): Fortune strip + status bar                  │
 └──────────────────────────────────────────────────────────────┘
-
-Unit sizes (based on client card = 1×1 = 624×620):
-  1×1 = 624 × 620    (client card, single widget)
-  2×1 = 1256 × 620   (activities, repo status, dev graph)
-  Gap = 8px between units
 ```
 
 ## Color Palette (Catppuccin Mocha)

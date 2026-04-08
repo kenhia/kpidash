@@ -18,7 +18,9 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "config.h"
 #include "fortune.h"
+#include "layout.h"
 #include "protocol.h"
 #include "redis.h"
 #include "registry.h"
@@ -48,7 +50,9 @@ static int g_card_count = 0;
 /* Dev overlay handles (T030) */
 static lv_obj_t *g_dev_grid = NULL;
 static lv_obj_t *g_dev_textsize = NULL;
-static int g_dev_grid_size = 0; /* track size so we recreate on change */
+static int g_dev_grid_size = 0;        /* track pixel size so we recreate on change */
+static bool g_dev_grid_unit = false;   /* track unit mode */
+static float g_dev_grid_unit_size = 0; /* track unit size */
 
 /* Dev graph handles (Phase 6.1) */
 static lv_obj_t *g_dev_graph = NULL;
@@ -109,57 +113,49 @@ static void remove_absent_cards(const client_info_t *clients, int n) {
 void ui_init(void) {
     g_screen = lv_screen_active();
     clear_bg(g_screen);
-    lv_obj_set_style_pad_all(g_screen, 8, 0);
-    lv_obj_set_style_pad_row(g_screen, 8, 0);
-    lv_obj_set_style_pad_column(g_screen, 8, 0);
+    /* No screen-level padding — widgets positioned via cell system */
 
-    lv_disp_t *disp = lv_display_get_default();
-    int32_t scr_w = lv_display_get_horizontal_resolution(disp);
-    int32_t scr_h = lv_display_get_vertical_resolution(disp);
-    int32_t card_area_h = 640; /* ~624px widget + padding (6 across at 3840) */
-    int32_t status_h = 40;
-    int32_t fortune_h = (int32_t)(scr_h * 0.10);
-    int32_t mid_h = scr_h - card_area_h - fortune_h - status_h - 40;
+    /* Footer sub-layout constants */
+    static const int32_t status_bar_h = 40;
+    static const int32_t footer_gap = 20;
+    static const int32_t fortune_h = FOOTER_H - status_bar_h - footer_gap;
 
-    /* ---- Client card grid (top 40%) ---- */
+    /* ---- Client card grid (row 0, full width) ---- */
     g_card_grid = lv_obj_create(g_screen);
     clear_bg(g_card_grid);
-    lv_obj_set_width(g_card_grid, scr_w - 16);
-    lv_obj_set_height(g_card_grid, card_area_h);
-    lv_obj_set_pos(g_card_grid, 8, 8);
+    lv_obj_set_size(g_card_grid, UNIT_W_N(COLS), UNIT_H);
+    lv_obj_set_pos(g_card_grid, COL_X(0), ROW_Y(0));
     lv_obj_set_flex_flow(g_card_grid, LV_FLEX_FLOW_ROW_WRAP);
     lv_obj_set_flex_align(g_card_grid, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_START,
                           LV_FLEX_ALIGN_START);
-    lv_obj_set_style_pad_column(g_card_grid, 8, 0);
-    lv_obj_set_style_pad_row(g_card_grid, 8, 0);
+    lv_obj_set_style_pad_column(g_card_grid, 0, 0);
+    lv_obj_set_style_pad_row(g_card_grid, 0, 0);
 
-    /* ---- Middle row: Activities (left) + Repo Status (right) ---- */
-    int32_t mid_y = card_area_h + 16;
-
+    /* ---- Row 1: Activities (columns 0-1) + Repo Status (columns 2-3) ---- */
     g_activities = activities_widget_create(g_screen);
-    lv_obj_set_size(g_activities, 1256, 620);
-    lv_obj_set_pos(g_activities, 8, mid_y);
+    lv_obj_set_size(g_activities, UNIT_W_N(2), UNIT_H);
+    lv_obj_set_pos(g_activities, COL_X(0), ROW_Y(1));
+    lv_obj_set_style_pad_all(g_activities, CELL_PAD, 0);
 
     g_repo_status = repo_status_widget_create(g_screen);
-    lv_obj_set_size(g_repo_status, 1256, 620);
-    lv_obj_set_pos(g_repo_status, 8 + 1256 + 8, mid_y);
+    lv_obj_set_size(g_repo_status, UNIT_W_N(2), UNIT_H);
+    lv_obj_set_pos(g_repo_status, COL_X(2), ROW_Y(1));
+    lv_obj_set_style_pad_all(g_repo_status, CELL_PAD, 0);
 
-    /* ---- Fortune strip (bottom 10%) ---- */
-    int32_t fortune_y = mid_y + mid_h + 8;
+    /* ---- Fortune strip (top of footer area) ---- */
     g_fortune = fortune_widget_create(g_screen);
-    lv_obj_set_size(g_fortune, scr_w - 16, fortune_h);
-    lv_obj_set_pos(g_fortune, 8, fortune_y);
+    lv_obj_set_size(g_fortune, UNIT_W_N(COLS), fortune_h);
+    lv_obj_set_pos(g_fortune, PAD_LEFT, ROW_Y(ROWS));
     fortune_set_widget(g_fortune);
 
-    /* ---- Status bar (bottom edge, hidden initially) ---- */
-    int32_t sb_y = scr_h - status_h - 4;
+    /* ---- Status bar (bottom of footer, hidden initially) ---- */
     g_status_bar = status_bar_create(g_screen);
-    lv_obj_set_size(g_status_bar, scr_w - 16, status_h);
-    lv_obj_set_pos(g_status_bar, 8, sb_y);
+    lv_obj_set_size(g_status_bar, UNIT_W_N(COLS), status_bar_h);
+    lv_obj_set_pos(g_status_bar, PAD_LEFT, SCR_H - status_bar_h);
 
     /* ---- Redis error overlay (covers full screen, hidden) ---- */
     g_redis_err = lv_obj_create(g_screen);
-    lv_obj_set_size(g_redis_err, scr_w, scr_h);
+    lv_obj_set_size(g_redis_err, SCR_W, SCR_H);
     lv_obj_set_pos(g_redis_err, 0, 0);
     lv_obj_set_style_bg_color(g_redis_err, lv_color_hex(0x1E1E2E), 0);
     lv_obj_set_style_bg_opa(g_redis_err, LV_OPA_90, 0);
@@ -185,6 +181,27 @@ void ui_refresh(void) {
     client_info_t clients[MAX_CLIENTS];
     int n = registry_snapshot(clients, MAX_CLIENTS);
 
+    /* Sort by priority: priority clients first (in config order),
+     * then remaining clients in their original registration order. */
+    for (int i = 0; i < n - 1; i++) {
+        for (int j = i + 1; j < n; j++) {
+            int pi = registry_priority_index(clients[i].hostname);
+            int pj = registry_priority_index(clients[j].hostname);
+            /* Both priority: lower index wins. Priority vs non: priority wins.
+             * Both non-priority: preserve order (stable, no swap). */
+            bool swap = false;
+            if (pi < 0 && pj >= 0)
+                swap = true; /* j is priority, i is not */
+            else if (pi >= 0 && pj >= 0 && pj < pi)
+                swap = true; /* both priority, j has higher precedence */
+            if (swap) {
+                client_info_t tmp = clients[i];
+                clients[i] = clients[j];
+                clients[j] = tmp;
+            }
+        }
+    }
+
     /* Add new cards, remove absent ones */
     for (int i = 0; i < n; i++) {
         if (!find_card(clients[i].hostname)) {
@@ -192,6 +209,15 @@ void ui_refresh(void) {
         }
     }
     remove_absent_cards(clients, n);
+
+    /* Reorder card LVGL objects to match sorted client order.
+     * When the dev graph occupies index 0, offset card indices by 1. */
+    int card_offset = g_dev_graph ? 1 : 0;
+    for (int i = 0; i < n; i++) {
+        lv_obj_t *card = find_card(clients[i].hostname);
+        if (card)
+            lv_obj_move_to_index(card, i + card_offset);
+    }
 
     /* Update all cards */
     for (int i = 0; i < n; i++) {
@@ -217,16 +243,24 @@ void ui_refresh(void) {
 
     /* Grid overlay — create on enable, recreate on size change, destroy on disable */
     if (cmd->grid_enabled) {
-        if (!g_dev_grid || g_dev_grid_size != cmd->grid_size) {
+        bool changed = !g_dev_grid || g_dev_grid_size != cmd->grid_size ||
+                       g_dev_grid_unit != cmd->grid_unit ||
+                       g_dev_grid_unit_size != cmd->grid_unit_size;
+        if (changed) {
             dev_grid_destroy(g_dev_grid);
-            g_dev_grid = dev_grid_create(g_screen, cmd->grid_size);
+            g_dev_grid =
+                dev_grid_create(g_screen, cmd->grid_size, cmd->grid_unit, cmd->grid_unit_size);
             g_dev_grid_size = cmd->grid_size;
+            g_dev_grid_unit = cmd->grid_unit;
+            g_dev_grid_unit_size = cmd->grid_unit_size;
         }
     } else {
         if (g_dev_grid) {
             dev_grid_destroy(g_dev_grid);
             g_dev_grid = NULL;
             g_dev_grid_size = 0;
+            g_dev_grid_unit = false;
+            g_dev_grid_unit_size = 0;
         }
     }
 

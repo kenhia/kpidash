@@ -5,23 +5,9 @@
 #include <string.h>
 #include <time.h>
 
-#include "lv_font_custom.h"
+#include "common.h"
 
-/* ---- Catppuccin Mocha palette ---- */
-#define COLOR_BG lv_color_hex(0x1E1E2E)
-#define COLOR_FG lv_color_hex(0xCDD6F4)
-#define COLOR_MUTED lv_color_hex(0x6C7086)
-#define COLOR_SURFACE0 lv_color_hex(0x313244)
-#define COLOR_SURFACE1 lv_color_hex(0x45475A)
-#define COLOR_GREEN lv_color_hex(0xA6E3A1)
-#define COLOR_YELLOW lv_color_hex(0xF9E2AF)
-#define COLOR_RED lv_color_hex(0xF38BA8)
-#define COLOR_ORANGE lv_color_hex(0xFAB387)
-#define COLOR_MAUVE lv_color_hex(0xCBA6F7)
-#define COLOR_BLUE lv_color_hex(0x89B4FA)
-#define COLOR_HEADER lv_color_hex(0xF5C2E7)
-
-static const lv_font_t *FONT_HDR = &lv_font_montserrat_bold_20;
+/* Widget-specific font aliases (repo cards use bold variants at specific sizes) */
 static const lv_font_t *FONT_NAME = &lv_font_montserrat_bold_20;
 static const lv_font_t *FONT_SMALL = &lv_font_montserrat_bold_14;
 static const lv_font_t *FONT_STATUS = &lv_font_montserrat_bold_20;
@@ -36,14 +22,14 @@ static const lv_font_t *FONT_BRANCH = &lv_font_montserrat_bold_16;
 /* ---- Age formatting ---- */
 static lv_color_t age_color(double ts) {
     if (ts <= 0.0)
-        return COLOR_MUTED;
+        return WS_COLOR_MUTED;
     double age_s = difftime(time(NULL), (time_t)ts);
     double days = age_s / 86400.0;
     if (days < 7.0)
-        return COLOR_GREEN;
+        return WS_COLOR_GREEN;
     if (days < 30.0)
-        return COLOR_YELLOW;
-    return COLOR_RED;
+        return WS_COLOR_YELLOW;
+    return WS_COLOR_RED;
 }
 
 static void format_age(double ts, char *buf, size_t len) {
@@ -92,7 +78,7 @@ static lv_obj_t *create_repo_card(lv_obj_t *parent, const repo_entry_t *r) {
     lv_obj_t *card = lv_obj_create(parent);
     lv_obj_clear_flag(card, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_set_size(card, REPO_CARD_W, REPO_CARD_H);
-    lv_obj_set_style_bg_color(card, COLOR_SURFACE0, 0);
+    lv_obj_set_style_bg_color(card, WS_COLOR_SURFACE0, 0);
     lv_obj_set_style_bg_opa(card, LV_OPA_COVER, 0);
     lv_obj_set_style_radius(card, 6, 0);
     lv_obj_set_style_pad_all(card, 8, 0);
@@ -104,12 +90,12 @@ static lv_obj_t *create_repo_card(lv_obj_t *parent, const repo_entry_t *r) {
     lv_obj_set_style_border_width(card, 0, 0);
     if (r->is_dirty) {
         lv_obj_set_style_border_side(card, LV_BORDER_SIDE_LEFT, 0);
-        lv_obj_set_style_border_color(card, COLOR_ORANGE, 0);
+        lv_obj_set_style_border_color(card, WS_COLOR_ORANGE, 0);
         lv_obj_set_style_border_width(card, (r->sort_order == 0) ? 4 : 2, 0);
     } else if (r->sort_order == 0) {
         /* Explicit but clean — thin muted left border */
         lv_obj_set_style_border_side(card, LV_BORDER_SIDE_LEFT, 0);
-        lv_obj_set_style_border_color(card, COLOR_SURFACE1, 0);
+        lv_obj_set_style_border_color(card, WS_COLOR_SURFACE1, 0);
         lv_obj_set_style_border_width(card, 2, 0);
     }
 
@@ -127,7 +113,7 @@ static lv_obj_t *create_repo_card(lv_obj_t *parent, const repo_entry_t *r) {
 
     lv_obj_t *host_lbl = lv_label_create(row1);
     lv_label_set_text(host_lbl, r->host);
-    lv_obj_set_style_text_color(host_lbl, COLOR_MUTED, 0);
+    lv_obj_set_style_text_color(host_lbl, WS_COLOR_MUTED, 0);
     lv_obj_set_style_text_font(host_lbl, FONT_SMALL, 0);
 
     char age_buf[16];
@@ -140,7 +126,7 @@ static lv_obj_t *create_repo_card(lv_obj_t *parent, const repo_entry_t *r) {
     /* Line 2: repo name (bold, center) */
     lv_obj_t *name_lbl = lv_label_create(card);
     lv_label_set_text(name_lbl, r->name);
-    lv_obj_set_style_text_color(name_lbl, COLOR_FG, 0);
+    lv_obj_set_style_text_color(name_lbl, WS_COLOR_FG, 0);
     lv_obj_set_style_text_font(name_lbl, FONT_NAME, 0);
     lv_obj_set_width(name_lbl, LV_PCT(100));
     lv_obj_set_style_text_align(name_lbl, LV_TEXT_ALIGN_CENTER, 0);
@@ -152,7 +138,7 @@ static lv_obj_t *create_repo_card(lv_obj_t *parent, const repo_entry_t *r) {
     bool is_default = (r->default_branch[0] != '\0')
                           ? (strcmp(r->branch, r->default_branch) == 0)
                           : (strcmp(r->branch, "main") == 0 || strcmp(r->branch, "master") == 0);
-    lv_obj_set_style_text_color(br_lbl, is_default ? COLOR_GREEN : COLOR_MAUVE, 0);
+    lv_obj_set_style_text_color(br_lbl, is_default ? WS_COLOR_GREEN : WS_COLOR_MAUVE, 0);
     lv_obj_set_style_text_font(br_lbl, FONT_BRANCH, 0);
     lv_obj_set_width(br_lbl, LV_PCT(100));
     lv_obj_set_style_text_align(br_lbl, LV_TEXT_ALIGN_CENTER, 0);
@@ -163,7 +149,7 @@ static lv_obj_t *create_repo_card(lv_obj_t *parent, const repo_entry_t *r) {
     format_status(r, status_buf, sizeof(status_buf));
     lv_obj_t *stat_lbl = lv_label_create(card);
     lv_label_set_text(stat_lbl, status_buf);
-    lv_obj_set_style_text_color(stat_lbl, COLOR_BLUE, 0);
+    lv_obj_set_style_text_color(stat_lbl, WS_COLOR_BLUE, 0);
     lv_obj_set_style_text_font(stat_lbl, FONT_STATUS, 0);
     lv_obj_set_style_pad_top(stat_lbl, 14, 0);
     lv_obj_set_width(stat_lbl, LV_PCT(100));
@@ -177,10 +163,10 @@ static lv_obj_t *create_repo_card(lv_obj_t *parent, const repo_entry_t *r) {
 lv_obj_t *repo_status_widget_create(lv_obj_t *parent) {
     lv_obj_t *cont = lv_obj_create(parent);
     lv_obj_clear_flag(cont, LV_OBJ_FLAG_SCROLLABLE);
-    lv_obj_set_style_bg_color(cont, COLOR_BG, 0);
+    lv_obj_set_style_bg_color(cont, WS_COLOR_BG, 0);
     lv_obj_set_style_bg_opa(cont, LV_OPA_COVER, 0);
     lv_obj_set_style_radius(cont, 8, 0);
-    lv_obj_set_style_border_color(cont, COLOR_SURFACE1, 0);
+    lv_obj_set_style_border_color(cont, WS_COLOR_SURFACE1, 0);
     lv_obj_set_style_border_width(cont, 1, 0);
     lv_obj_set_style_pad_all(cont, 10, 0);
     lv_obj_set_style_pad_row(cont, 6, 0);
@@ -191,8 +177,8 @@ lv_obj_t *repo_status_widget_create(lv_obj_t *parent) {
     /* Header */
     lv_obj_t *hdr = lv_label_create(cont);
     lv_label_set_text(hdr, "Repo Status");
-    lv_obj_set_style_text_color(hdr, COLOR_HEADER, 0);
-    lv_obj_set_style_text_font(hdr, FONT_HDR, 0);
+    lv_obj_set_style_text_color(hdr, WS_COLOR_HEADER, 0);
+    lv_obj_set_style_text_font(hdr, WS_FONT_HDR, 0);
 
     /* Card grid container */
     lv_obj_t *grid = lv_obj_create(cont);
@@ -210,7 +196,7 @@ lv_obj_t *repo_status_widget_create(lv_obj_t *parent) {
     /* Initial placeholder */
     lv_obj_t *clean = lv_label_create(grid);
     lv_label_set_text(clean, "All repos clean");
-    lv_obj_set_style_text_color(clean, COLOR_GREEN, 0);
+    lv_obj_set_style_text_color(clean, WS_COLOR_GREEN, 0);
     lv_obj_set_style_text_font(clean, FONT_SMALL, 0);
 
     return cont;
@@ -259,7 +245,7 @@ void repo_status_widget_update(lv_obj_t *widget, const repo_entry_t *list, int c
     if (count == 0) {
         lv_obj_t *clean = lv_label_create(grid);
         lv_label_set_text(clean, "All repos clean");
-        lv_obj_set_style_text_color(clean, COLOR_GREEN, 0);
+        lv_obj_set_style_text_color(clean, WS_COLOR_GREEN, 0);
         lv_obj_set_style_text_font(clean, FONT_SMALL, 0);
         return;
     }
