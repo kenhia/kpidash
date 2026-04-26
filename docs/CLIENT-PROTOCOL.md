@@ -316,8 +316,9 @@ Shows sample text at various font sizes for visual calibration.
 | `client` | string | Hostname whose dev_telemetry to graph |
 
 Enables a 5-series time-series chart (GPU compute, CPU avg, CPU top, VRAM,
-RAM) displayed in the top-left of the client card grid. Uses 300 data points
-at 1s intervals (5 min history). Reads from `kpidash:client:{client}:dev_telemetry`.
+RAM) displayed in Row 1 columns 0–1 (absolute positioned, 2×1 units). Uses
+300 data points at 1s intervals (5 min history). Reads from
+`kpidash:client:{client}:dev_telemetry`.
 
 ```bash
 redis-cli SET kpidash:cmd:graph '{"enabled":true,"client":"kubs0"}' EX 300

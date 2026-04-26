@@ -4,10 +4,11 @@
  * Layout (no title bar, FR-002a; no scroll anywhere, FR-008):
  *
  *   ┌─────────────────────────────────────────────┐
- *   │  [client cards grid — top, fills width]     │
- *   ├────────────────────┬────────────────────────┤
- *   │  Activities        │  Repo Status           │
- *   ├────────────────────┴────────────────────────┤
+ *   │  [client cards grid — Row 0, 6×1 units]     │
+ *   ├──────────┬──────────┬───────────────────────┤
+ *   │ DevGraph │Activities│  Repo Status           │
+ *   │  (opt)   │  2×1     │  2×1                   │
+ *   ├──────────┴──────────┴───────────────────────┤
  *   │  Fortune widget (bottom strip)              │
  *   ├─────────────────────────────────────────────┤
  *   │  Status bar (hidden when no messages)       │
@@ -131,15 +132,16 @@ void ui_init(void) {
     lv_obj_set_style_pad_column(g_card_grid, 0, 0);
     lv_obj_set_style_pad_row(g_card_grid, 0, 0);
 
-    /* ---- Row 1: Activities (columns 0-1) + Repo Status (columns 2-3) ---- */
+    /* ---- Row 1: Activities (columns 2-3) + Repo Status (columns 4-5) ---- */
+    /* Columns 0-1 reserved for dev graph when enabled */
     g_activities = activities_widget_create(g_screen);
     lv_obj_set_size(g_activities, UNIT_W_N(2), UNIT_H);
-    lv_obj_set_pos(g_activities, COL_X(0), ROW_Y(1));
+    lv_obj_set_pos(g_activities, COL_X(2), ROW_Y(1));
     lv_obj_set_style_pad_all(g_activities, CELL_PAD, 0);
 
     g_repo_status = repo_status_widget_create(g_screen);
     lv_obj_set_size(g_repo_status, UNIT_W_N(2), UNIT_H);
-    lv_obj_set_pos(g_repo_status, COL_X(2), ROW_Y(1));
+    lv_obj_set_pos(g_repo_status, COL_X(4), ROW_Y(1));
     lv_obj_set_style_pad_all(g_repo_status, CELL_PAD, 0);
 
     /* ---- Fortune strip (top of footer area) ---- */
@@ -210,13 +212,11 @@ void ui_refresh(void) {
     }
     remove_absent_cards(clients, n);
 
-    /* Reorder card LVGL objects to match sorted client order.
-     * When the dev graph occupies index 0, offset card indices by 1. */
-    int card_offset = g_dev_graph ? 1 : 0;
+    /* Reorder card LVGL objects to match sorted client order. */
     for (int i = 0; i < n; i++) {
         lv_obj_t *card = find_card(clients[i].hostname);
         if (card)
-            lv_obj_move_to_index(card, i + card_offset);
+            lv_obj_move_to_index(card, i);
     }
 
     /* Update all cards */
@@ -275,16 +275,15 @@ void ui_refresh(void) {
         }
     }
 
-    /* Dev graph in card grid (Phase 6.1) */
+    /* Dev graph in Row 1 (absolute positioned) */
     if (cmd->graph_enabled && cmd->graph_client[0]) {
         /* Create or recreate if target client changed */
         if (!g_dev_graph || strncmp(g_graph_client, cmd->graph_client, HOSTNAME_LEN) != 0) {
             dev_graph_destroy(g_dev_graph);
-            g_dev_graph = dev_graph_create(g_card_grid, cmd->graph_client);
+            g_dev_graph = dev_graph_create(g_screen, cmd->graph_client);
+            lv_obj_set_pos(g_dev_graph, COL_X(0), ROW_Y(1));
             strncpy(g_graph_client, cmd->graph_client, HOSTNAME_LEN - 1);
             g_graph_client[HOSTNAME_LEN - 1] = '\0';
-            /* Move to the front of the card grid so it's top-left */
-            lv_obj_move_to_index(g_dev_graph, 0);
         }
 
         /* Feed data from dev telemetry (fast-poll key) */
