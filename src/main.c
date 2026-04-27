@@ -58,6 +58,8 @@ int main(void) {
 
     /* Registry */
     registry_init();
+    if (g_config.priority_client_count > 0)
+        registry_set_priority_clients(g_config.priority_clients, g_config.priority_client_count);
 
     /* Build UI — must be after LVGL display init */
     ui_init();
