@@ -47,6 +47,14 @@
 
 /* ---- Per-card widget handles ---- */
 typedef struct {
+    lv_obj_t *row;
+    lv_obj_t *bar;
+    lv_obj_t *used_lbl;
+    lv_obj_t *label_lbl;
+    lv_obj_t *total_lbl;
+} disk_row_t;
+
+typedef struct {
     lv_obj_t *health_circle;
     lv_obj_t *gpu_vram_arc;  /* outer left  */
     lv_obj_t *gpu_usage_arc; /* inner left  */
@@ -61,6 +69,13 @@ typedef struct {
     lv_obj_t *os_name_lbl;
     lv_obj_t *uptime_lbl;
     lv_obj_t *disk_cont;
+    /* Persistent disk-bar row pool (spec 005 fix). Rows are created
+     * lazily up to MAX_DISPLAY_DISKS and reused across telemetry
+     * updates; extras are hidden, never deleted. This replaces a
+     * lv_obj_clean()+rebuild loop that allocated 5+ LVGL objects per
+     * disk per second per card, causing severe heap growth over time. */
+    disk_row_t disk_rows[MAX_DISPLAY_DISKS];
+    int disk_rows_built;
 } card_handles_t;
 
 /* ---- Helpers ---- */
@@ -333,67 +348,75 @@ void client_card_update_health(lv_obj_t *card, const client_info_t *c) {
 /* ---- Telemetry update (Phase 3.1) ---- */
 
 static void update_disk_bars(card_handles_t *h, const client_info_t *c) {
-    lv_obj_clean(h->disk_cont);
     int count = c->disk_count > MAX_DISPLAY_DISKS ? MAX_DISPLAY_DISKS : c->disk_count;
-    if (count == 0)
-        return;
-
-    /* Each disk bar: lv_bar with overlaid text labels */
-    /* Bar height: flex-grow fills remaining card space; use 30px as baseline */
     int32_t bar_h = 30;
 
+    /* Lazily create rows on demand; never delete them. */
+    for (int i = h->disk_rows_built; i < count; i++) {
+        disk_row_t *r = &h->disk_rows[i];
+
+        r->row = lv_obj_create(h->disk_cont);
+        lv_obj_clear_flag(r->row, LV_OBJ_FLAG_SCROLLABLE);
+        lv_obj_set_style_bg_opa(r->row, LV_OPA_TRANSP, 0);
+        lv_obj_set_style_border_width(r->row, 0, 0);
+        lv_obj_set_style_pad_all(r->row, 0, 0);
+        lv_obj_set_width(r->row, LV_PCT(100));
+        lv_obj_set_height(r->row, bar_h);
+        lv_obj_set_style_max_height(r->row, DISK_BAR_MAX_H, 0);
+        lv_obj_set_flex_grow(r->row, 1);
+
+        r->bar = lv_bar_create(r->row);
+        lv_obj_set_size(r->bar, LV_PCT(100), LV_PCT(100));
+        lv_obj_set_pos(r->bar, 0, 0);
+        lv_obj_set_style_bg_color(r->bar, COLOR_DISK_BG, LV_PART_MAIN);
+        lv_obj_set_style_radius(r->bar, 4, LV_PART_MAIN);
+        lv_obj_set_style_radius(r->bar, 4, LV_PART_INDICATOR);
+        lv_bar_set_range(r->bar, 0, 100);
+        lv_obj_clear_flag(r->bar, LV_OBJ_FLAG_SCROLLABLE);
+
+        r->used_lbl = lv_label_create(r->row);
+        lv_obj_set_style_text_color(r->used_lbl, COLOR_DISK_TEXT, 0);
+        lv_obj_set_style_text_font(r->used_lbl, &lv_font_montserrat_14, 0);
+        lv_obj_clear_flag(r->used_lbl, LV_OBJ_FLAG_SCROLLABLE);
+        lv_obj_align(r->used_lbl, LV_ALIGN_LEFT_MID, 6, 0);
+
+        r->label_lbl = lv_label_create(r->row);
+        lv_obj_set_style_text_color(r->label_lbl, COLOR_DISK_TEXT, 0);
+        lv_obj_set_style_text_font(r->label_lbl, &lv_font_montserrat_16, 0);
+        lv_obj_clear_flag(r->label_lbl, LV_OBJ_FLAG_SCROLLABLE);
+        lv_obj_align(r->label_lbl, LV_ALIGN_CENTER, 0, 0);
+
+        r->total_lbl = lv_label_create(r->row);
+        lv_obj_set_style_text_color(r->total_lbl, COLOR_DISK_TEXT, 0);
+        lv_obj_set_style_text_font(r->total_lbl, &lv_font_montserrat_14, 0);
+        lv_obj_clear_flag(r->total_lbl, LV_OBJ_FLAG_SCROLLABLE);
+        lv_obj_align(r->total_lbl, LV_ALIGN_RIGHT_MID, -6, 0);
+
+        h->disk_rows_built = i + 1;
+    }
+
+    /* Update visible rows in place. */
     for (int i = 0; i < count; i++) {
         const disk_entry_t *d = &c->disks[i];
+        disk_row_t *r = &h->disk_rows[i];
         char buf[32];
 
-        /* Container for one disk row (bar + overlaid labels) */
-        lv_obj_t *row = lv_obj_create(h->disk_cont);
-        lv_obj_clear_flag(row, LV_OBJ_FLAG_SCROLLABLE);
-        lv_obj_set_style_bg_opa(row, LV_OPA_TRANSP, 0);
-        lv_obj_set_style_border_width(row, 0, 0);
-        lv_obj_set_style_pad_all(row, 0, 0);
-        lv_obj_set_width(row, LV_PCT(100));
-        lv_obj_set_height(row, bar_h);
-        lv_obj_set_style_max_height(row, DISK_BAR_MAX_H, 0);
-        lv_obj_set_flex_grow(row, 1);
+        lv_obj_clear_flag(r->row, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_set_style_bg_color(r->bar, disk_bar_color(d->pct), LV_PART_INDICATOR);
+        lv_bar_set_value(r->bar, clamp_pct(d->pct), LV_ANIM_OFF);
 
-        /* Bar (fills entire row) */
-        lv_obj_t *bar = lv_bar_create(row);
-        lv_obj_set_size(bar, LV_PCT(100), LV_PCT(100));
-        lv_obj_set_pos(bar, 0, 0);
-        lv_obj_set_style_bg_color(bar, COLOR_DISK_BG, LV_PART_MAIN);
-        lv_obj_set_style_bg_color(bar, disk_bar_color(d->pct), LV_PART_INDICATOR);
-        lv_obj_set_style_radius(bar, 4, LV_PART_MAIN);
-        lv_obj_set_style_radius(bar, 4, LV_PART_INDICATOR);
-        lv_bar_set_range(bar, 0, 100);
-        lv_bar_set_value(bar, clamp_pct(d->pct), LV_ANIM_OFF);
-        lv_obj_clear_flag(bar, LV_OBJ_FLAG_SCROLLABLE);
-
-        /* Used amount — left justified inside bar */
         format_bytes_short(d->used_gb, buf, sizeof(buf));
-        lv_obj_t *used_lbl = lv_label_create(row);
-        lv_label_set_text(used_lbl, buf);
-        lv_obj_set_style_text_color(used_lbl, COLOR_DISK_TEXT, 0);
-        lv_obj_set_style_text_font(used_lbl, &lv_font_montserrat_14, 0);
-        lv_obj_clear_flag(used_lbl, LV_OBJ_FLAG_SCROLLABLE);
-        lv_obj_align(used_lbl, LV_ALIGN_LEFT_MID, 6, 0);
+        lv_label_set_text(r->used_lbl, buf);
 
-        /* Drive label — centered inside bar */
-        lv_obj_t *lbl = lv_label_create(row);
-        lv_label_set_text(lbl, d->label);
-        lv_obj_set_style_text_color(lbl, COLOR_DISK_TEXT, 0);
-        lv_obj_set_style_text_font(lbl, &lv_font_montserrat_16, 0);
-        lv_obj_clear_flag(lbl, LV_OBJ_FLAG_SCROLLABLE);
-        lv_obj_align(lbl, LV_ALIGN_CENTER, 0, 0);
+        lv_label_set_text(r->label_lbl, d->label);
 
-        /* Total amount — right justified inside bar */
         format_bytes_short(d->total_gb, buf, sizeof(buf));
-        lv_obj_t *total_lbl = lv_label_create(row);
-        lv_label_set_text(total_lbl, buf);
-        lv_obj_set_style_text_color(total_lbl, COLOR_DISK_TEXT, 0);
-        lv_obj_set_style_text_font(total_lbl, &lv_font_montserrat_14, 0);
-        lv_obj_clear_flag(total_lbl, LV_OBJ_FLAG_SCROLLABLE);
-        lv_obj_align(total_lbl, LV_ALIGN_RIGHT_MID, -6, 0);
+        lv_label_set_text(r->total_lbl, buf);
+    }
+
+    /* Hide any pool entries beyond the current disk count. */
+    for (int i = count; i < h->disk_rows_built; i++) {
+        lv_obj_add_flag(h->disk_rows[i].row, LV_OBJ_FLAG_HIDDEN);
     }
 }
 

@@ -30,6 +30,11 @@
     #define LV_LOG_PRINTF 1
 #endif
 
+/* Note (spec 005): memstat calls lv_mem_monitor() directly; that function
+ * is unconditionally available in lib/lvgl/src/stdlib/lv_mem.c. The
+ * LV_USE_MEM_MONITOR flag only controls the SYSMON on-screen overlay,
+ * which we do not use. */
+
 /* Fonts */
 #define LV_FONT_MONTSERRAT_14  1
 #define LV_FONT_MONTSERRAT_16  1

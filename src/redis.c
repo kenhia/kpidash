@@ -7,6 +7,7 @@
 #include <string.h>
 
 #include "fortune.h"
+#include "memstat.h"
 #include "protocol.h"
 #include "registry.h"
 #include "status.h"
@@ -466,10 +467,6 @@ static void poll_repos(const char **hostnames, int n_hosts) {
             if (!path || !json)
                 continue;
 
-            cJSON *root = cJSON_Parse(json);
-            if (!root)
-                continue;
-
             repo_entry_t *re = &g_repos[g_repo_count];
             memset(re, 0, sizeof(*re));
             strncpy(re->host, hostnames[i], HOSTNAME_LEN - 1);
@@ -672,4 +669,43 @@ void redis_write_fortune_current(const char *json) {
     redisReply *r = redisCommand(g_ctx, "SET " KPIDASH_KEY_FORTUNE_CURRENT " %s", json);
     if (r)
         freeReplyObject(r);
+}
+
+/* ---- Memory telemetry (spec 005) ---- */
+
+void redis_write_mem_sample(const mem_sample_t *s) {
+    if (!g_ctx || g_ctx->err || !s)
+        return;
+
+    cJSON *root = cJSON_CreateObject();
+    if (!root)
+        return;
+    cJSON_AddNumberToObject(root, "t", (double)s->t);
+    cJSON_AddNumberToObject(root, "uptime_s", (double)s->uptime_s);
+    cJSON_AddNumberToObject(root, "rss_bytes", (double)s->rss_bytes);
+    cJSON_AddNumberToObject(root, "vsize_bytes", (double)s->vsize_bytes);
+    cJSON_AddNumberToObject(root, "lvgl_total", (double)s->lvgl_total);
+    cJSON_AddNumberToObject(root, "lvgl_free", (double)s->lvgl_free);
+    cJSON_AddNumberToObject(root, "lvgl_used", (double)s->lvgl_used);
+    cJSON_AddNumberToObject(root, "lvgl_max_used", (double)s->lvgl_max_used);
+    cJSON_AddNumberToObject(root, "lvgl_frag_pct", (double)s->lvgl_frag_pct);
+    cJSON_AddNumberToObject(root, "lvgl_free_biggest", (double)s->lvgl_free_biggest);
+
+    char *json = cJSON_PrintUnformatted(root);
+    cJSON_Delete(root);
+    if (!json)
+        return;
+
+    redisReply *r;
+    r = redisCommand(g_ctx, "SET " KPIDASH_KEY_SYSTEM_MEM_CURRENT " %s", json);
+    if (r)
+        freeReplyObject(r);
+    r = redisCommand(g_ctx, "LPUSH " KPIDASH_KEY_SYSTEM_MEM_RING " %s", json);
+    if (r)
+        freeReplyObject(r);
+    r = redisCommand(g_ctx, "LTRIM " KPIDASH_KEY_SYSTEM_MEM_RING " 0 %d", KPIDASH_MEM_RING_MAX - 1);
+    if (r)
+        freeReplyObject(r);
+
+    free(json);
 }

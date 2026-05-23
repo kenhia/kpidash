@@ -332,8 +332,34 @@ redis-cli SET kpidash:cmd:graph '{"enabled":true,"client":"kubs0"}' EX 300
 |-----|------|-----------|---------|-----|
 | `kpidash:system:logpath` | STRING | dashboard (start) | clients | none |
 | `kpidash:system:version` | STRING | dashboard (start) | clients | none |
+| `kpidash:system:mem:current` | STRING (JSON) | dashboard | diagnostic | none |
+| `kpidash:system:mem:ring`    | LIST (JSON)   | dashboard | diagnostic | none |
 
-Plain strings (not JSON). Written once on dashboard startup.
+`logpath` and `version` are plain strings (not JSON) written once on
+dashboard startup.
+
+The `mem:current` and `mem:ring` keys are diagnostic memory-telemetry
+output written every 60 s by `src/memstat.c` (spec 005).
+`mem:current` holds the latest sample; `mem:ring` is an `LPUSH`
+ring trimmed to 1500 entries (~25 h). The JSON shape is:
+
+```json
+{
+  "t": 1737088200,
+  "uptime_s": 3600,
+  "rss_bytes": 71303168,
+  "vsize_bytes": 134217728,
+  "lvgl_total": 1048576,
+  "lvgl_free": 524288,
+  "lvgl_used": 524288,
+  "lvgl_max_used": 786432,
+  "lvgl_frag_pct": 12,
+  "lvgl_free_biggest": 262144
+}
+```
+
+These keys are optional for clients — provided for soak debugging,
+not part of the supported public API.
 
 ---
 
