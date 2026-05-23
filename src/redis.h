@@ -41,6 +41,17 @@ void redis_poll(void);
  */
 void redis_write_system_info(const char *logpath, const char *version);
 
+/* Forward decl so we don't have to include memstat.h here. */
+struct mem_sample_s;
+typedef struct mem_sample_s mem_sample_t;
+
+/**
+ * Publish a memstat sample: SET kpidash:system:mem:current,
+ * LPUSH kpidash:system:mem:ring, LTRIM ring 0 1499.
+ * Silently skips if the Redis context is null or in error state.
+ */
+void redis_write_mem_sample(const mem_sample_t *s);
+
 /**
  * Write current fortune text to kpidash:fortune:current (no TTL).
  */

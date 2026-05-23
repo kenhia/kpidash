@@ -46,3 +46,21 @@ add_executable(test_layout ${CMAKE_CURRENT_SOURCE_DIR}/test_layout.c)
 target_include_directories(test_layout PRIVATE ${CMAKE_SOURCE_DIR}/src)
 target_compile_options(test_layout PRIVATE -Wall -Wextra -Wno-unused-parameter)
 add_test(NAME test_layout COMMAND test_layout)
+
+# Spec 005 / T006: widget leak regression suite.
+# Requires LVGL, which is only built in the full (non-TESTS_ONLY) configuration.
+if(TARGET lvgl)
+    pkg_check_modules(PNG_TEST REQUIRED libpng)
+    add_executable(test_widget_leak
+        ${CMAKE_CURRENT_SOURCE_DIR}/test_widget_leak.c
+        ${CMAKE_SOURCE_DIR}/src/memstat.c
+    )
+    target_include_directories(test_widget_leak PRIVATE
+        ${CMAKE_SOURCE_DIR}
+        ${CMAKE_SOURCE_DIR}/src
+        ${PNG_TEST_INCLUDE_DIRS}
+    )
+    target_link_libraries(test_widget_leak lvgl ${PNG_TEST_LIBRARIES} pthread)
+    target_compile_options(test_widget_leak PRIVATE -Wall -Wextra -Wno-unused-parameter)
+    add_test(NAME test_widget_leak COMMAND test_widget_leak)
+endif()

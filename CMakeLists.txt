@@ -53,6 +53,7 @@ add_executable(kpidash
     src/config.c
     src/redis.c
     src/status.c
+    src/memstat.c
     src/ui.c
     src/fortune.c
     src/widgets/client_card.c

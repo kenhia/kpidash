@@ -13,6 +13,7 @@
 #include "config.h"
 #include "fortune.h"
 #include "lvgl.h"
+#include "memstat.h"
 #include "protocol.h"
 #include "redis.h"
 #include "registry.h"
@@ -35,6 +36,12 @@ static void timer_poll_cb(lv_timer_t *t) {
         return;
     redis_poll();
     ui_refresh();
+}
+
+/* ---- 60-second LVGL timer: emit memstat sample (spec 005) ---- */
+static void memstat_timer_cb(lv_timer_t *t) {
+    (void)t;
+    memstat_sample_now();
 }
 
 int main(void) {
@@ -76,6 +83,11 @@ int main(void) {
 
     /* Register 1-second poll timer */
     lv_timer_create(timer_poll_cb, 1000, NULL);
+
+    /* Memory telemetry (spec 005): one immediate sample for SC-004, then 60s cadence. */
+    memstat_init();
+    memstat_sample_now();
+    lv_timer_create(memstat_timer_cb, 60000, NULL);
 
     /* Fortune (after ui_init so widget exists) */
     fortune_init(&g_config);

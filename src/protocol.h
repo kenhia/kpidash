@@ -43,6 +43,10 @@
 #define KPIDASH_KEY_STATUS_ACK "kpidash:status:ack:%s"
 #define KPIDASH_KEY_LOGPATH "kpidash:system:logpath"
 #define KPIDASH_KEY_VERSION "kpidash:system:version"
+#define KPIDASH_KEY_SYSTEM_MEM_CURRENT "kpidash:system:mem:current"
+#define KPIDASH_KEY_SYSTEM_MEM_RING "kpidash:system:mem:ring"
+/* Ring keeps ~25h of 60s samples => 1500 entries (LTRIM 0 1499). */
+#define KPIDASH_MEM_RING_MAX 1500
 
 /* ---- Development command keys (002-exploration-sprint) ---- */
 #define KPIDASH_KEY_CMD_GRID "kpidash:cmd:grid"

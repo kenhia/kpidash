@@ -265,4 +265,32 @@ Bold fonts generated via `lv_font_conv` from Montserrat-Bold.ttf at sizes
 - **Priority eviction** (T056): `KPIDASH_PRIORITY_CLIENTS` comma list;
   priority clients never evicted when registry is full.
 
+## Memory Telemetry
+
+The dashboard self-reports process and LVGL heap usage every 60 s via
+`src/memstat.{h,c}` (spec 005-fix-memory-leaks). On startup `main.c`
+calls `memstat_init()`, takes one immediate sample, then arms an
+`lv_timer_create(memstat_timer_cb, 60000, NULL)`.
+
+Each sample:
+
+1. Reads `/proc/self/statm` for VSize and RSS in bytes
+   (multiplied by `sysconf(_SC_PAGESIZE)`).
+2. Calls `lv_mem_monitor()` for LVGL heap totals
+   (total, free, used, max_used, frag_pct, free_biggest).
+3. Logs one `memstat:` prefixed line to stdout for tail-based soak analysis.
+4. Writes the sample to Redis:
+   - `SET kpidash:system:mem:current <json>` — latest sample only.
+   - `LPUSH kpidash:system:mem:ring <json>` + `LTRIM 0, 1498`
+     — bounded ring buffer (~25 hours at 60 s cadence).
+5. If `lvgl_used > 8 MiB` (high-water threshold), emits a
+   `memstat: WARN` line to stderr and pushes a `STATUS_WARNING` to
+   the in-process status FIFO, rate-limited to one warning per 300 s.
+
+See [data-model.md](../specs/005-fix-memory-leaks/data-model.md) for
+the `mem_sample` schema and
+[contracts/redis-keys.md](../specs/005-fix-memory-leaks/contracts/redis-keys.md)
+for the on-the-wire key contract. Client CLIs may consume these keys
+diagnostically but they are not part of the supported public API.
+
 
