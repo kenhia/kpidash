@@ -252,11 +252,11 @@ samples to a per-host series in the dashboard's graph router
 
 ---
 
-## 8a. Service Status (Sprint 006)
+## 8a. Service Status (Sprint 006, schema revised in Sprint 007)
 
 | Key | Type | Written by | Read by | TTL |
 |-----|------|-----------|---------|-----|
-| `kpidash:services:{name}` | STRING (JSON) | manual / `kpidash-client service-status` | dashboard | **none** |
+| `kpidash:services:{name}:{host}` | STRING (JSON) | manual / `kpidash-client service-status` | dashboard | **none** |
 
 ```json
 {
@@ -273,19 +273,40 @@ samples to a per-host series in the dashboard's graph router
 | `ts` | float | yes | Last payload timestamp (unix seconds) |
 | `state` | string | yes | One of `ok`, `unhealthy`, `maintenance`, `down`, `unknown` |
 | `text` | string | yes | Short status text shown on the card |
-| `host` | string | no | Optional host attribution |
+| `host` | string | no | Echo of the host segment for display; the **key** is authoritative |
 | `icon` | int | no | Optional icon index into `lv_font_icons_56` |
 
-Dashboard polls `SCAN MATCH kpidash:services:*` each cycle and renders one
-status card per key in the footer strip. Card border colour reflects state
-via the truth table in `specs/006-layout-refresh-status-cards/data-model.md`:
-`DOWN`/`UNKNOWN` → GRAY (sticky for DOWN); other states → their colour iff
+**Sprint 007 schema**: the Redis key always has 4 colon-separated segments:
+`kpidash:services:<name>:<host>`. The `<host>` segment is required; clients
+that do not specify a host write the sentinel `_` (a single underscore,
+invalid as a POSIX hostname). The dashboard treats `_` as "no host" and
+hides the host line on the card. Identity is `(name, host)` — the same
+service name on two different hosts produces two separate cards. Keys not
+matching the 4-segment pattern (e.g. legacy `kpidash:services:foo` from
+sprint 006) are silently ignored.
+
+**Migration from sprint 006**: any pre-existing single-segment keys must
+be deleted:
+
+```bash
+redis-cli --scan --pattern 'kpidash:services:*' | xargs -r redis-cli DEL
+```
+
+Dashboard polls `SCAN MATCH kpidash:services:*:*` each cycle and renders one
+status card per (name, host) pair in the footer strip, sorted by name then
+host. Card border colour reflects state via the truth table in
+`specs/006-layout-refresh-status-cards/data-model.md`: `DOWN`/`UNKNOWN` →
+GRAY (sticky for DOWN); other states → their colour iff
 `(now − ts) < 60.0 s`, else RED.
 
 CLI example:
 
 ```bash
+# Per-host service
 uv run kpidash-client service-status --name api --state ok --text "API responding" --host kubs0
+
+# Non-host-scoped service (writes to kpidash:services:api:_, host line hidden)
+uv run kpidash-client service-status --name api --state ok --text "API responding"
 ```
 
 ---

@@ -199,12 +199,14 @@ typedef struct service_entry {
     lv_obj_t *border;
     lv_obj_t *icon_label;
     lv_obj_t *name_label;
+    lv_obj_t *host_label;
     lv_obj_t *text_label;
 #else
     void *container;
     void *border;
     void *icon_label;
     void *name_label;
+    void *host_label;
     void *text_label;
 #endif
 } service_entry_t;
@@ -222,14 +224,18 @@ service_color_t service_color(const service_entry_t *e, double now);
 /* ---- Service registry (T022) ---- */
 #define SERVICE_REGISTRY_MAX 32
 
-/* Find an existing service entry by name, or allocate a new slot.
- * Returns NULL if the table is full. Thread-safe. */
-service_entry_t *service_registry_find_or_create(const char *name);
+/* Find an existing service entry by (name, host), or allocate a new slot.
+ * (name, host) together form the identity. Returns NULL if the table is
+ * full or inputs are NULL/empty. Thread-safe. The `host` may be the
+ * sentinel "_" indicating a non-host-scoped service. */
+service_entry_t *service_registry_find_or_create(const char *name, const char *host);
 
 /* Apply a parsed-OK payload to an existing entry. Updates
- * last_valid_state, last_payload_ts, text, host, icon_index. Caller
- * MUST only invoke this with payloads that pass redis_parse_service_payload
- * (so the FR-022a malformed-ignore rule is preserved). */
+ * last_valid_state, last_payload_ts, text, icon_index. Identity fields
+ * (name, host) are NOT modified — they were set at create time from the
+ * Redis key segments, which are authoritative. Caller MUST only invoke
+ * this with payloads that pass redis_parse_service_payload (so the
+ * FR-022a malformed-ignore rule is preserved). */
 void service_registry_apply_payload(service_entry_t *e, const service_entry_t *parsed);
 
 /* Snapshot all current entries into out[]; returns count written. */

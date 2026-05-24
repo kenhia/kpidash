@@ -184,11 +184,12 @@ static service_entry_t g_services[SERVICE_REGISTRY_MAX];
 static int g_service_count = 0;
 static pthread_mutex_t g_service_mutex = PTHREAD_MUTEX_INITIALIZER;
 
-service_entry_t *service_registry_find_or_create(const char *name) {
-    if (!name || !*name) return NULL;
+service_entry_t *service_registry_find_or_create(const char *name, const char *host) {
+    if (!name || !*name || !host || !*host) return NULL;
     pthread_mutex_lock(&g_service_mutex);
     for (int i = 0; i < g_service_count; i++) {
-        if (strncmp(g_services[i].name, name, sizeof(g_services[i].name)) == 0) {
+        if (strncmp(g_services[i].name, name, sizeof(g_services[i].name)) == 0 &&
+            strncmp(g_services[i].host, host, sizeof(g_services[i].host)) == 0) {
             service_entry_t *r = &g_services[i];
             pthread_mutex_unlock(&g_service_mutex);
             return r;
@@ -201,6 +202,7 @@ service_entry_t *service_registry_find_or_create(const char *name) {
     service_entry_t *e = &g_services[g_service_count++];
     memset(e, 0, sizeof(*e));
     strncpy(e->name, name, sizeof(e->name) - 1);
+    strncpy(e->host, host, sizeof(e->host) - 1);
     e->icon_index = -1;
     e->last_valid_state = SERVICE_STATE_UNKNOWN;
     pthread_mutex_unlock(&g_service_mutex);
@@ -210,10 +212,11 @@ service_entry_t *service_registry_find_or_create(const char *name) {
 void service_registry_apply_payload(service_entry_t *e, const service_entry_t *parsed) {
     if (!e || !parsed) return;
     pthread_mutex_lock(&g_service_mutex);
+    /* Identity fields (name, host) intentionally not copied — they are
+     * pinned at create time from the Redis key segments. */
     e->last_valid_state = parsed->last_valid_state;
     e->last_payload_ts = parsed->last_payload_ts;
     memcpy(e->text, parsed->text, sizeof(e->text));
-    memcpy(e->host, parsed->host, sizeof(e->host));
     e->icon_index = parsed->icon_index;
     pthread_mutex_unlock(&g_service_mutex);
 }

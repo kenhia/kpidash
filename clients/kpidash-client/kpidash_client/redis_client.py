@@ -190,13 +190,19 @@ class RedisClient:
         host: str | None = None,
         icon: int | None = None,
     ) -> None:
-        """Write a kpidash:services:<name> JSON payload (no TTL)."""
+        """Write a kpidash:services:<name>:<host> JSON payload (no TTL).
+
+        Sprint 007: the Redis key always includes a host segment. When the
+        caller does not supply --host, the sentinel "_" is used; the
+        dashboard treats "_" as a no-host marker and hides the host line.
+        """
+        host_segment = host if host else "_"
         payload: dict = {"ts": time.time(), "state": state, "text": text}
-        if host is not None:
+        if host:
             payload["host"] = host
         if icon is not None:
             payload["icon"] = icon
-        self._cmd("set", f"kpidash:services:{name}", json.dumps(payload))
+        self._cmd("set", f"kpidash:services:{name}:{host_segment}", json.dumps(payload))
 
     # ---- Status / Log path ----
 

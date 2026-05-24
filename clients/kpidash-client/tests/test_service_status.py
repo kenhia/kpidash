@@ -36,7 +36,7 @@ def test_set_service_status_writes_required_fields(mock_client):
     mock_client.set_service_status(name="api", state="ok", text="all good")
     mock_client._r.set.assert_called_once()
     key, raw = mock_client._r.set.call_args[0]
-    assert key == "kpidash:services:api"
+    assert key == "kpidash:services:api:_"
     payload = json.loads(raw)
     assert payload["state"] == "ok"
     assert payload["text"] == "all good"
@@ -49,7 +49,8 @@ def test_set_service_status_includes_optional_fields(mock_client):
     mock_client.set_service_status(
         name="db", state="unhealthy", text="lag 5s", host="kai", icon=7
     )
-    raw = mock_client._r.set.call_args[0][1]
+    key, raw = mock_client._r.set.call_args[0]
+    assert key == "kpidash:services:db:kai"
     payload = json.loads(raw)
     assert payload["host"] == "kai"
     assert payload["icon"] == 7
@@ -84,7 +85,7 @@ def test_cli_service_status_minimal():
         )
     assert r.exit_code == 0, r.output
     fake.set_service_status.assert_called_once_with(
-        name="api", state="ok", text="hi", host=None, icon=None
+        name="api", state="ok", text="hi", host="_", icon=None
     )
 
 

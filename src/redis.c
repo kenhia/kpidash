@@ -803,14 +803,27 @@ void redis_poll_services(void) {
             for (size_t i = 0; i < keys->elements; i++) {
                 const char *key = keys->element[i]->str;
                 if (!key) continue;
-                const char *name = key + strlen(KPIDASH_KEY_SERVICES_PREFIX);
-                if (!*name) continue;
+                /* Split "kpidash:services:<name>:<host>" into name and host.
+                 * Reject any key that doesn't have exactly two segments
+                 * after the prefix (sprint 007 schema; AC-4). */
+                const char *after = key + strlen(KPIDASH_KEY_SERVICES_PREFIX);
+                const char *sep = strchr(after, ':');
+                if (!sep || sep == after || !*(sep + 1)) continue;
+                if (strchr(sep + 1, ':')) continue;
+                size_t name_len = (size_t)(sep - after);
+                char name[64];
+                char host[64];
+                if (name_len >= sizeof(name)) continue;
+                memcpy(name, after, name_len);
+                name[name_len] = '\0';
+                strncpy(host, sep + 1, sizeof(host) - 1);
+                host[sizeof(host) - 1] = '\0';
 
                 redisReply *gr = redisCommand(g_ctx, "GET %s", key);
                 if (gr && gr->type == REDIS_REPLY_STRING) {
                     service_entry_t parsed;
                     if (redis_parse_service_payload(gr->str, &parsed) == 0) {
-                        service_entry_t *e = service_registry_find_or_create(name);
+                        service_entry_t *e = service_registry_find_or_create(name, host);
                         if (e) service_registry_apply_payload(e, &parsed);
                     }
                     /* parse failure: FR-022a — ignore silently. */
