@@ -327,7 +327,12 @@ def daemon_stop() -> None:
     type=click.Choice(["ok", "unhealthy", "maintenance", "down"], case_sensitive=False),
 )
 @click.option("--text", required=True, help="Status text shown on the card.")
-@click.option("--host", default=None, help="Host the service runs on (optional).")
+@click.option(
+    "--host",
+    default="_",
+    show_default=True,
+    help="Host the service runs on. Use the default '_' for non-host-scoped services.",
+)
 @click.option("--icon", type=int, default=None, help="Icon index 0..15 (optional).")
 @click.pass_context
 def service_status(
@@ -335,10 +340,10 @@ def service_status(
     name: str,
     state: str,
     text: str,
-    host: str | None,
+    host: str,
     icon: int | None,
 ) -> None:
-    """Publish a service status payload to kpidash:services:<name>."""
+    """Publish a service status payload to kpidash:services:<name>:<host>."""
     cfg = _load_config(ctx.obj.get("config_path"))
     client = _make_client(cfg)
     try:
@@ -348,4 +353,4 @@ def service_status(
     except RedisClientError as e:
         click.echo(f"ERROR: {e}", err=True)
         sys.exit(1)
-    click.echo(f"OK: kpidash:services:{name} state={state.lower()}")
+    click.echo(f"OK: kpidash:services:{name}:{host} state={state.lower()}")

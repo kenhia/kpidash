@@ -133,6 +133,49 @@ static void test_parse_payload_optional_fields_absent(void) {
     CHECK(out.icon_index == -1);
 }
 
+/* Sprint 007 / T003: composite (name, host) registry identity. */
+static void test_registry_composite_key(void) {
+    service_entry_t *a = service_registry_find_or_create("svc", "alpha");
+    service_entry_t *b = service_registry_find_or_create("svc", "beta");
+    service_entry_t *a2 = service_registry_find_or_create("svc", "alpha");
+    CHECK(a != NULL);
+    CHECK(b != NULL);
+    CHECK(a != b);
+    CHECK(a == a2);
+    CHECK(strcmp(a->name, "svc") == 0);
+    CHECK(strcmp(a->host, "alpha") == 0);
+    CHECK(strcmp(b->host, "beta") == 0);
+
+    /* Sentinel host "_" is just another value at the registry layer. */
+    service_entry_t *c = service_registry_find_or_create("svc", "_");
+    CHECK(c != NULL);
+    CHECK(c != a);
+    CHECK(c != b);
+
+    /* NULL / empty host rejected. */
+    CHECK(service_registry_find_or_create("svc", NULL) == NULL);
+    CHECK(service_registry_find_or_create("svc", "") == NULL);
+}
+
+/* Sprint 007 / T005: apply_payload must NOT clobber identity (name, host). */
+static void test_registry_apply_preserves_identity(void) {
+    service_entry_t *e = service_registry_find_or_create("preserve", "h1");
+    CHECK(e != NULL);
+    service_entry_t parsed = {0};
+    parsed.last_valid_state = SERVICE_STATE_OK;
+    parsed.last_payload_ts = 12345.0;
+    strncpy(parsed.text, "hello", sizeof(parsed.text) - 1);
+    strncpy(parsed.host, "WRONG", sizeof(parsed.host) - 1);
+    strncpy(parsed.name, "WRONG", sizeof(parsed.name) - 1);
+    parsed.icon_index = 7;
+    service_registry_apply_payload(e, &parsed);
+    CHECK(strcmp(e->name, "preserve") == 0);
+    CHECK(strcmp(e->host, "h1") == 0);
+    CHECK(strcmp(e->text, "hello") == 0);
+    CHECK(e->icon_index == 7);
+    CHECK(e->last_valid_state == SERVICE_STATE_OK);
+}
+
 int main(void) {
     test_parse_state();
     test_color_truth_table();
@@ -142,6 +185,8 @@ int main(void) {
     test_parse_payload_missing_ts();
     test_parse_payload_missing_text();
     test_parse_payload_optional_fields_absent();
+    test_registry_composite_key();
+    test_registry_apply_preserves_identity();
 
     fprintf(stderr, "test_service_card: %d passed, %d failed\n", passed, failed);
     return failed == 0 ? 0 : 1;

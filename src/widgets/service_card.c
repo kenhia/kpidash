@@ -7,6 +7,8 @@
 #include "registry.h"
 #include "widgets/common.h"
 
+#include <string.h>
+
 #define SC_BORDER_THICK 6
 #define SC_RADIUS 8
 #define SC_PAD 8
@@ -57,6 +59,18 @@ lv_obj_t *service_card_create(lv_obj_t *parent, struct service_entry *e) {
     lv_obj_set_style_text_align(name, LV_TEXT_ALIGN_CENTER, 0);
     lv_label_set_text(name, e->name[0] ? e->name : "(service)");
 
+    lv_obj_t *host = lv_label_create(cont);
+    lv_obj_set_style_text_font(host, &lv_font_montserrat_bold_16, 0);
+    lv_obj_set_style_text_color(host, lv_color_hex(0xA6ADC8), 0);
+    lv_label_set_long_mode(host, LV_LABEL_LONG_DOT);
+    lv_obj_set_width(host, LV_PCT(95));
+    lv_obj_set_style_text_align(host, LV_TEXT_ALIGN_CENTER, 0);
+    if (e->host[0] && strcmp(e->host, "_") != 0) {
+        lv_label_set_text(host, e->host);
+    } else {
+        lv_obj_add_flag(host, LV_OBJ_FLAG_HIDDEN);
+    }
+
     lv_obj_t *text = lv_label_create(cont);
     lv_obj_set_style_text_font(text, &lv_font_montserrat_bold_20, 0);
     lv_obj_set_style_text_color(text, WS_COLOR_FG, 0);
@@ -69,6 +83,7 @@ lv_obj_t *service_card_create(lv_obj_t *parent, struct service_entry *e) {
     e->border = cont;
     e->icon_label = icon;
     e->name_label = name;
+    e->host_label = host;
     e->text_label = text;
     return cont;
 }
@@ -79,6 +94,14 @@ void service_card_update(struct service_entry *e, double now) {
     lv_obj_set_style_border_color(e->container, color_for(c), 0);
     if (e->text_label) lv_label_set_text(e->text_label, e->text);
     if (e->name_label) lv_label_set_text(e->name_label, e->name[0] ? e->name : "(service)");
+    if (e->host_label) {
+        if (e->host[0] && strcmp(e->host, "_") != 0) {
+            lv_label_set_text(e->host_label, e->host);
+            lv_obj_clear_flag(e->host_label, LV_OBJ_FLAG_HIDDEN);
+        } else {
+            lv_obj_add_flag(e->host_label, LV_OBJ_FLAG_HIDDEN);
+        }
+    }
     if (e->icon_label) {
         const char *glyph = icons_lookup(e->icon_index);
         if (glyph) {

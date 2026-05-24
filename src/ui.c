@@ -366,23 +366,28 @@ void ui_refresh(void) {
         if (!placed_fortune) lv_obj_add_flag(g_fortune, LV_OBJ_FLAG_HIDDEN);
     }
 
-    /* ---- Sprint 006 / T025: paint service cards into the footer strip. ---- */
+    /* ---- Sprint 006 / T025: paint service cards into the footer strip.
+     * Sprint 007 / T007: sort by (name, host) ascending. */
     {
         service_entry_t svcs[SERVICE_REGISTRY_MAX];
         int nsvc = service_registry_snapshot(svcs, SERVICE_REGISTRY_MAX);
+        for (int i = 1; i < nsvc; i++) {
+            service_entry_t tmp = svcs[i];
+            int j = i;
+            while (j > 0) {
+                int c = strncmp(svcs[j - 1].name, tmp.name, sizeof(tmp.name));
+                if (c == 0) c = strncmp(svcs[j - 1].host, tmp.host, sizeof(tmp.host));
+                if (c <= 0) break;
+                svcs[j] = svcs[j - 1];
+                j--;
+            }
+            svcs[j] = tmp;
+        }
         double now = (double)time(NULL);
         for (int i = 0; i < nsvc; i++) {
-            /* Find the live entry by name in the global registry so we can
-             * mutate its LVGL handles in place. snapshot returns a copy, so
-             * we re-fetch the live pointer to attach handles. */
-            service_entry_t *live = service_registry_find_or_create(svcs[i].name);
+            service_entry_t *live = service_registry_find_or_create(svcs[i].name, svcs[i].host);
             if (!live) continue;
             if (!live->container) {
-                /* Copy the snapshot fields into the live entry (registry
-                 * apply_payload happens in poll; here we just ensure name
-                 * is set if poll-then-create raced). */
-                if (!live->name[0])
-                    strncpy(live->name, svcs[i].name, sizeof(live->name) - 1);
                 service_card_create(g_service_strip, live);
             }
             service_card_update(live, now);
