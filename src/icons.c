@@ -4,24 +4,30 @@
 #include <stdint.h>
 
 /* Initial curated set of nerd-font glyphs for service status cards.
- * Indices are append-only — never renumber, never reuse. */
+ * Indices are append-only — never renumber, never reuse.
+ *
+ * The codepoints 0xF300..0xF30F in the bundled SymbolsNerdFont map to
+ * the nf-linux-* distro/brand block. Labels below match the actual glyph
+ * names from the font's cmap (verified via fontTools). A future
+ * "font-sprint" will add abstract service-concept glyphs from other
+ * Nerd Font ranges. */
 const icon_entry_t ICON_REGISTRY[] = {
-    {  0, 0xF300, "computer" },
-    {  1, 0xF301, "server"   },
-    {  2, 0xF302, "database" },
-    {  3, 0xF303, "queue"    },
-    {  4, 0xF304, "network"  },
-    {  5, 0xF305, "disk"     },
-    {  6, 0xF306, "lock"     },
-    {  7, 0xF307, "key"      },
-    {  8, 0xF308, "cloud"    },
-    {  9, 0xF309, "sync"     },
-    { 10, 0xF30A, "build"    },
-    { 11, 0xF30B, "log"      },
-    { 12, 0xF30C, "alert"    },
-    { 13, 0xF30D, "config"   },
-    { 14, 0xF30E, "metric"   },
-    { 15, 0xF30F, "search"   },
+    {  0, 0xF300, "alpine"           },
+    {  1, 0xF301, "aosc"             },
+    {  2, 0xF302, "apple"            },
+    {  3, 0xF303, "archlinux"        },
+    {  4, 0xF304, "centos"           },
+    {  5, 0xF305, "coreos"           },
+    {  6, 0xF306, "debian"           },
+    {  7, 0xF307, "devuan"           },
+    {  8, 0xF308, "docker"           },
+    {  9, 0xF309, "elementary"       },
+    { 10, 0xF30A, "fedora"           },
+    { 11, 0xF30B, "fedora_inverse"   },
+    { 12, 0xF30C, "freebsd"          },
+    { 13, 0xF30D, "gentoo"           },
+    { 14, 0xF30E, "linuxmint"        },
+    { 15, 0xF30F, "linuxmint_inverse"},
 };
 
 const size_t ICON_REGISTRY_COUNT = sizeof(ICON_REGISTRY) / sizeof(ICON_REGISTRY[0]);
