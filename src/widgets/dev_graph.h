@@ -1,6 +1,7 @@
 #ifndef WIDGETS_DEV_GRAPH_H
 #define WIDGETS_DEV_GRAPH_H
 
+#include <stdbool.h>
 #include <stdint.h>
 
 #include "lvgl.h"
@@ -34,5 +35,9 @@ typedef struct {
 lv_obj_t *dev_graph_create(lv_obj_t *parent, const char *hostname);
 void dev_graph_update(lv_obj_t *graph, const dev_graph_data_t *data);
 void dev_graph_destroy(lv_obj_t *graph);
+/* T030: toggle the "NO NEW DATA" overlay. */
+void dev_graph_set_stale(lv_obj_t *graph, bool stale);
+/* Update the centered hostname label after creation (sprint 006 host routing). */
+void dev_graph_set_host(lv_obj_t *graph, const char *host);
 
 #endif /* WIDGETS_DEV_GRAPH_H */

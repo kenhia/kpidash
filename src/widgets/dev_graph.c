@@ -30,11 +30,25 @@
 
 #define POINT_COUNT 300 /* 5 min at 1s interval */
 
+/* T036: GPU trace emphasis. Triple-trace offsets (in axis units) chosen so the
+ * three same-colour lines fuse into a band ~2.5× the single-line width on a
+ * ~600 px tall chart. Primary Y is 0–100 %, secondary Y is 0–vram_max MB. */
+#define GPU_PCT_OFFSET 1     /* axis units (% points) */
+#define GPU_VRAM_OFFSET_DIV 240 /* offset = vram_max / 240 MB */
+
 typedef struct {
     lv_chart_series_t *gpu_compute_ser;
+    /* T036: flanking traces for GPU compute, drawn at value±GPU_PCT_OFFSET so the
+     * three same-colour lines visually merge into a band ~2.5× the single-line
+     * width. Same trick for VRAM on secondary Y. LVGL 9 has no per-series
+     * line-width API; this is the cheap workaround. */
+    lv_chart_series_t *gpu_compute_ser_hi;
+    lv_chart_series_t *gpu_compute_ser_lo;
     lv_chart_series_t *cpu_avg_ser;
     lv_chart_series_t *cpu_top_ser;
     lv_chart_series_t *vram_ser;
+    lv_chart_series_t *vram_ser_hi;
+    lv_chart_series_t *vram_ser_lo;
     lv_chart_series_t *ram_ser;
     lv_obj_t *gpu_title;
     lv_obj_t *gpu_compute_lbl;
@@ -43,6 +57,7 @@ typedef struct {
     lv_obj_t *sys_title;
     lv_obj_t *sys_cpu_lbl;
     lv_obj_t *sys_ram_lbl;
+    lv_obj_t *stale_overlay;
     uint32_t vram_max;
     uint32_t ram_max;
 } dev_graph_priv_t;
@@ -139,29 +154,47 @@ lv_obj_t *dev_graph_create(lv_obj_t *parent, const char *hostname) {
     /* Secondary Y: MB (dynamic, default 16 GB) */
     lv_chart_set_range(chart, LV_CHART_AXIS_SECONDARY_Y, 0, 16384);
 
-    /* 5 series */
+    /* 5 logical series + 4 flanking traces for GPU emphasis (T036). The
+     * flanking traces share the parent series' colour so the band reads as a
+     * single thick line. Add flanks first so the main series renders on top. */
+    lv_chart_series_t *gpu_compute_ser_lo =
+        lv_chart_add_series(chart, COLOR_GREEN, LV_CHART_AXIS_PRIMARY_Y);
+    lv_chart_series_t *gpu_compute_ser_hi =
+        lv_chart_add_series(chart, COLOR_GREEN, LV_CHART_AXIS_PRIMARY_Y);
     lv_chart_series_t *gpu_compute_ser =
         lv_chart_add_series(chart, COLOR_GREEN, LV_CHART_AXIS_PRIMARY_Y);
     lv_chart_series_t *cpu_avg_ser =
         lv_chart_add_series(chart, COLOR_BLUE, LV_CHART_AXIS_PRIMARY_Y);
     lv_chart_series_t *cpu_top_ser =
         lv_chart_add_series(chart, COLOR_PURPLE, LV_CHART_AXIS_PRIMARY_Y);
+    lv_chart_series_t *vram_ser_lo =
+        lv_chart_add_series(chart, COLOR_ORANGE, LV_CHART_AXIS_SECONDARY_Y);
+    lv_chart_series_t *vram_ser_hi =
+        lv_chart_add_series(chart, COLOR_ORANGE, LV_CHART_AXIS_SECONDARY_Y);
     lv_chart_series_t *vram_ser =
         lv_chart_add_series(chart, COLOR_ORANGE, LV_CHART_AXIS_SECONDARY_Y);
     lv_chart_series_t *ram_ser = lv_chart_add_series(chart, COLOR_RED, LV_CHART_AXIS_SECONDARY_Y);
 
     lv_chart_set_all_value(chart, gpu_compute_ser, 0);
+    lv_chart_set_all_value(chart, gpu_compute_ser_hi, 0);
+    lv_chart_set_all_value(chart, gpu_compute_ser_lo, 0);
     lv_chart_set_all_value(chart, cpu_avg_ser, 0);
     lv_chart_set_all_value(chart, cpu_top_ser, 0);
     lv_chart_set_all_value(chart, vram_ser, 0);
+    lv_chart_set_all_value(chart, vram_ser_hi, 0);
+    lv_chart_set_all_value(chart, vram_ser_lo, 0);
     lv_chart_set_all_value(chart, ram_ser, 0);
 
     /* Private data */
     dev_graph_priv_t *priv = lv_malloc(sizeof(dev_graph_priv_t));
     priv->gpu_compute_ser = gpu_compute_ser;
+    priv->gpu_compute_ser_hi = gpu_compute_ser_hi;
+    priv->gpu_compute_ser_lo = gpu_compute_ser_lo;
     priv->cpu_avg_ser = cpu_avg_ser;
     priv->cpu_top_ser = cpu_top_ser;
     priv->vram_ser = vram_ser;
+    priv->vram_ser_hi = vram_ser_hi;
+    priv->vram_ser_lo = vram_ser_lo;
     priv->ram_ser = ram_ser;
     priv->gpu_title = gpu_title;
     priv->gpu_compute_lbl = gpu_compute_lbl;
@@ -173,6 +206,19 @@ lv_obj_t *dev_graph_create(lv_obj_t *parent, const char *hostname) {
     priv->vram_max = 16384;
     priv->ram_max = 131072; /* ~128 GB default */
     lv_obj_set_user_data(cont, priv);
+
+    /* T029: NO NEW DATA overlay, hidden by default. Centered over chart. */
+    lv_obj_t *overlay = lv_label_create(cont);
+    lv_label_set_text(overlay, "NO NEW DATA");
+    lv_obj_set_style_text_font(overlay, &lv_font_montserrat_bold_36, 0);
+    lv_obj_set_style_text_color(overlay, COLOR_RED, 0);
+    lv_obj_set_style_bg_color(overlay, lv_color_hex(0x000000), 0);
+    lv_obj_set_style_bg_opa(overlay, LV_OPA_60, 0);
+    lv_obj_set_style_pad_all(overlay, 12, 0);
+    lv_obj_set_style_radius(overlay, 8, 0);
+    lv_obj_align(overlay, LV_ALIGN_CENTER, 0, 0);
+    lv_obj_add_flag(overlay, LV_OBJ_FLAG_HIDDEN);
+    priv->stale_overlay = overlay;
 
     return cont;
 }
@@ -217,10 +263,30 @@ void dev_graph_update(lv_obj_t *graph, const dev_graph_data_t *data) {
     }
 
     /* Push data points */
-    lv_chart_set_next_value(chart, priv->gpu_compute_ser, clamp_pct(data->gpu_compute_pct));
+    int32_t gpu_pct = clamp_pct(data->gpu_compute_pct);
+    lv_chart_set_next_value(chart, priv->gpu_compute_ser, gpu_pct);
+    /* T036: flanking GPU traces at \u00b1GPU_PCT_OFFSET, clamped to axis range. */
+    int32_t gpu_hi = gpu_pct + GPU_PCT_OFFSET;
+    int32_t gpu_lo = gpu_pct - GPU_PCT_OFFSET;
+    if (gpu_hi > 100) gpu_hi = 100;
+    if (gpu_lo < 0) gpu_lo = 0;
+    lv_chart_set_next_value(chart, priv->gpu_compute_ser_hi, gpu_hi);
+    lv_chart_set_next_value(chart, priv->gpu_compute_ser_lo, gpu_lo);
+
     lv_chart_set_next_value(chart, priv->cpu_avg_ser, clamp_pct(data->cpu_pct));
     lv_chart_set_next_value(chart, priv->cpu_top_ser, clamp_pct(data->top_core_pct));
-    lv_chart_set_next_value(chart, priv->vram_ser, (int32_t)data->gpu_vram_used_mb);
+
+    int32_t vram_v = (int32_t)data->gpu_vram_used_mb;
+    lv_chart_set_next_value(chart, priv->vram_ser, vram_v);
+    int32_t vram_off = (int32_t)(priv->vram_max / GPU_VRAM_OFFSET_DIV);
+    if (vram_off < 1) vram_off = 1;
+    int32_t vram_hi = vram_v + vram_off;
+    int32_t vram_lo = vram_v - vram_off;
+    if (vram_hi > (int32_t)priv->vram_max) vram_hi = (int32_t)priv->vram_max;
+    if (vram_lo < 0) vram_lo = 0;
+    lv_chart_set_next_value(chart, priv->vram_ser_hi, vram_hi);
+    lv_chart_set_next_value(chart, priv->vram_ser_lo, vram_lo);
+
     lv_chart_set_next_value(chart, priv->ram_ser, (int32_t)data->ram_used_mb);
 
     /* Update GPU labels */
@@ -243,6 +309,18 @@ void dev_graph_update(lv_obj_t *graph, const dev_graph_data_t *data) {
     lv_chart_refresh(chart);
 }
 
+void dev_graph_set_host(lv_obj_t *graph, const char *host) {
+    if (!graph || !host)
+        return;
+    dev_graph_priv_t *priv = lv_obj_get_user_data(graph);
+    if (!priv || !priv->host_lbl)
+        return;
+    const char *cur = lv_label_get_text(priv->host_lbl);
+    if (cur && strcmp(cur, host) == 0)
+        return;
+    lv_label_set_text(priv->host_lbl, host);
+}
+
 void dev_graph_destroy(lv_obj_t *graph) {
     if (!graph)
         return;
@@ -250,4 +328,17 @@ void dev_graph_destroy(lv_obj_t *graph) {
     if (priv)
         lv_free(priv);
     lv_obj_delete(graph);
+}
+
+/* T030: show/hide the NO NEW DATA overlay. Caller decides staleness
+ * (typically via graph_host_is_stale()). When stale, the chart naturally
+ * stops scrolling because no new sample is fed in. */
+void dev_graph_set_stale(lv_obj_t *graph, bool stale) {
+    if (!graph) return;
+    dev_graph_priv_t *priv = lv_obj_get_user_data(graph);
+    if (!priv || !priv->stale_overlay) return;
+    if (stale)
+        lv_obj_clear_flag(priv->stale_overlay, LV_OBJ_FLAG_HIDDEN);
+    else
+        lv_obj_add_flag(priv->stale_overlay, LV_OBJ_FLAG_HIDDEN);
 }

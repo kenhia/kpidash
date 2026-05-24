@@ -64,6 +64,8 @@ add_executable(kpidash
     src/widgets/dev_grid.c
     src/widgets/dev_textsize.c
     src/widgets/dev_graph.c
+    src/widgets/service_card.c
+    src/icons.c
     fonts/lv_font_montserrat_bold_14.c
     fonts/lv_font_montserrat_bold_16.c
     fonts/lv_font_montserrat_bold_20.c
@@ -71,6 +73,7 @@ add_executable(kpidash
     fonts/lv_font_montserrat_bold_28.c
     fonts/lv_font_montserrat_bold_36.c
     fonts/lv_font_montserrat_bold_48.c
+    fonts/lv_font_icons_56.c
 )
 
 target_include_directories(kpidash PRIVATE
@@ -101,6 +104,7 @@ target_compile_definitions(kpidash PRIVATE
     LV_FONT_MONTSERRAT_BOLD_28=1
     LV_FONT_MONTSERRAT_BOLD_36=1
     LV_FONT_MONTSERRAT_BOLD_48=1
+    LV_FONT_ICONS_56=1
 )
 
 # Cross-linking against a Trixie sysroot (glibc 2.38) from an Ubuntu 22.04
@@ -117,6 +121,17 @@ add_custom_target(deploy
     DEPENDS kpidash
     COMMENT "Deploying kpidash to rpi53"
 )
+
+# Sprint 006 (T039/T040): native mockup binary for offline visual review.
+# Built only on native dev hosts (not cross-compile, not TESTS_ONLY).
+if(NOT CMAKE_CROSSCOMPILING)
+    add_executable(kpidash-mockup src/mockup_main.c)
+    target_include_directories(kpidash-mockup PRIVATE
+        ${CMAKE_SOURCE_DIR}
+        ${CMAKE_SOURCE_DIR}/src
+    )
+    target_compile_options(kpidash-mockup PRIVATE -Wall -Wextra -Wno-unused-parameter)
+endif()
 
 add_subdirectory(tests)
 

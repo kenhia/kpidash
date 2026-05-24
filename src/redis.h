@@ -136,4 +136,21 @@ bool redis_parse_repo_json(const char *json, repo_entry_t *re);
  */
 const dev_telemetry_t *redis_get_dev_telemetry(void);
 
+/* ---- Sprint 006: service status (T021/T023) ---- */
+
+/**
+ * Parse a service status JSON payload.
+ * Returns 0 on success (out fields populated except LVGL handles),
+ * -1 on malformed/missing required fields (FR-022a — caller must NOT update).
+ * Required: ts (number), state (string parsed via service_parse_state, not UNKNOWN), text (string).
+ * Optional: host (string), icon (integer; default -1).
+ */
+int redis_parse_service_payload(const char *json, service_entry_t *out);
+
+/**
+ * Poll all kpidash:services:* keys, parse, and update the in-memory
+ * service registry. Invoked from redis_poll(). FR-022.
+ */
+void redis_poll_services(void);
+
 #endif /* REDIS_H */

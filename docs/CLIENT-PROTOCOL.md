@@ -229,6 +229,7 @@ SET kpidash:fortune:pushed '{"text":"...","source":"pushed","pushed_by":"kubs0"}
 ```json
 {
   "hostname": "kubs0",
+  "host": "kubs0",
   "ts": 1743292800.789,
   "cpu_pct": 12.3,
   "top_core_pct": 45.6,
@@ -244,6 +245,48 @@ High-frequency telemetry stream for the dev graph widget. Written at
 `dev_interval_s` (default 1 s, configurable in `[client]` config section).
 Contains only the 5 metrics used by the graph (GPU compute, CPU avg, CPU top,
 VRAM, RAM). Dashboard reads this key only when the graph is enabled.
+
+**Sprint 006**: The `host` field (default `"(legacy)"` when absent) routes
+samples to a per-host series in the dashboard's graph router
+(`GRAPH_HOST_MAX=8`, stale after 30 s, no eviction).
+
+---
+
+## 8a. Service Status (Sprint 006)
+
+| Key | Type | Written by | Read by | TTL |
+|-----|------|-----------|---------|-----|
+| `kpidash:services:{name}` | STRING (JSON) | manual / `kpidash-client service-status` | dashboard | **none** |
+
+```json
+{
+  "ts": 1743292800.789,
+  "state": "ok",
+  "text": "API responding",
+  "host": "kubs0",
+  "icon": 3
+}
+```
+
+| Field | Type | Required | Notes |
+|-------|------|----------|-------|
+| `ts` | float | yes | Last payload timestamp (unix seconds) |
+| `state` | string | yes | One of `ok`, `unhealthy`, `maintenance`, `down`, `unknown` |
+| `text` | string | yes | Short status text shown on the card |
+| `host` | string | no | Optional host attribution |
+| `icon` | int | no | Optional icon index into `lv_font_icons_56` |
+
+Dashboard polls `SCAN MATCH kpidash:services:*` each cycle and renders one
+status card per key in the footer strip. Card border colour reflects state
+via the truth table in `specs/006-layout-refresh-status-cards/data-model.md`:
+`DOWN`/`UNKNOWN` → GRAY (sticky for DOWN); other states → their colour iff
+`(now − ts) < 60.0 s`, else RED.
+
+CLI example:
+
+```bash
+uv run kpidash-client service-status --name api --state ok --text "API responding" --host kubs0
+```
 
 ---
 
