@@ -312,3 +312,40 @@ def daemon_stop() -> None:
         click.echo("Process not found; cleaning up PID file.", err=True)
         pid_file.unlink(missing_ok=True)
         sys.exit(1)
+
+
+# ---------------------------------------------------------------------------
+# Service status — sprint 006 / T026
+# ---------------------------------------------------------------------------
+
+
+@main.command("service-status")
+@click.option("--name", required=True, help="Service name (key suffix).")
+@click.option(
+    "--state",
+    required=True,
+    type=click.Choice(["ok", "unhealthy", "maintenance", "down"], case_sensitive=False),
+)
+@click.option("--text", required=True, help="Status text shown on the card.")
+@click.option("--host", default=None, help="Host the service runs on (optional).")
+@click.option("--icon", type=int, default=None, help="Icon index 0..15 (optional).")
+@click.pass_context
+def service_status(
+    ctx: click.Context,
+    name: str,
+    state: str,
+    text: str,
+    host: str | None,
+    icon: int | None,
+) -> None:
+    """Publish a service status payload to kpidash:services:<name>."""
+    cfg = _load_config(ctx.obj.get("config_path"))
+    client = _make_client(cfg)
+    try:
+        client.set_service_status(
+            name=name, state=state.lower(), text=text, host=host, icon=icon
+        )
+    except RedisClientError as e:
+        click.echo(f"ERROR: {e}", err=True)
+        sys.exit(1)
+    click.echo(f"OK: kpidash:services:{name} state={state.lower()}")

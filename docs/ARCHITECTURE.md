@@ -265,6 +265,28 @@ Bold fonts generated via `lv_font_conv` from Montserrat-Bold.ttf at sizes
 - **Priority eviction** (T056): `KPIDASH_PRIORITY_CLIENTS` comma list;
   priority clients never evicted when registry is full.
 
+## Sprint 006 — Service Cards & Per-Host Graph Router
+
+- **Service registry** (`src/registry.c`): `g_services[SERVICE_REGISTRY_MAX=32]`
+  pthread-mutex protected. Dashboard SCANs `kpidash:services:*` each cycle,
+  parses each value (cJSON), and routes into the registry. Card border colour
+  is computed by `service_color()` per the truth table in
+  `specs/006-layout-refresh-status-cards/data-model.md`: `DOWN`/`UNKNOWN` →
+  GRAY (sticky for DOWN); other states → state colour iff
+  `(now − ts) < 60 s`, else RED.
+- **Service cards** (`src/widgets/service_card.c`): 220×240 px, 6 px coloured
+  border, optional icon (lv_font_icons_56), name + status text. Rendered into
+  the footer strip; one card per Redis key.
+- **Per-host graph router** (`src/registry.c`,
+  `src/widgets/dev_graph.c`): `dev_telemetry` samples carry a `host` field
+  (default `"(legacy)"`). `graph_host_find_or_create()` returns a stable
+  pointer; entries are touched on each sample and never evicted
+  (`GRAPH_HOST_MAX=8`). Series go stale after
+  `GRAPH_HOST_STALE_SECONDS=30.0` and the dev_graph widget overlays a
+  "NO NEW DATA" banner via `dev_graph_set_stale()`. The current UI renders a
+  single dev_graph for the most-recently-seen host; full multi-host expansion
+  (T035) is deferred to a follow-up sprint.
+
 ## Memory Telemetry
 
 The dashboard self-reports process and LVGL heap usage every 60 s via

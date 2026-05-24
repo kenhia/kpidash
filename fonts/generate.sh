@@ -36,3 +36,18 @@ for sz in "${SIZES[@]}"; do
 done
 
 echo "Done. Generated ${#SIZES[@]} font files."
+
+# Sprint 006 / T010: large icon-only font for service status cards.
+# Symbols-only (no ASCII); used by widgets/service_card.c.
+echo "Generating lv_font_icons_56.c ..."
+npx lv_font_conv \
+    --bpp "${BPP}" \
+    --size 56 \
+    --format lvgl \
+    --no-compress \
+    --no-prefilter \
+    --font "${SYMBOLS_TTF}" -r 0xF300-0xF381 \
+    --font "${SYMBOLS_TTF}" -r 0xF1D2-0xF1D3 \
+    -o "lv_font_icons_56.c" \
+    --lv-font-name "lv_font_icons_56"
+echo "Done. Generated lv_font_icons_56.c."

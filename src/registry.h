@@ -109,6 +109,7 @@ typedef struct {
 /* ---- Dev telemetry snapshot (fast GPU+CPU+RAM from dev_telemetry key) ---- */
 typedef struct {
     bool valid; /* true if key was present and parsed */
+    char host[HOSTNAME_LEN]; /* sprint 006/T034: source host; "(legacy)" if absent */
     float cpu_pct;
     float top_core_pct;
     uint32_t ram_used_mb;
@@ -163,5 +164,140 @@ void registry_set_priority_clients(const char hosts[][HOSTNAME_LEN], int count);
  * Thread-safe (reads only; list is set once at startup).
  */
 int registry_priority_index(const char *hostname);
+
+/* ============================================================
+ * Sprint 006 additions
+ * ============================================================ */
+
+/* ---- Service registry (T007/T008) ---- */
+typedef enum {
+    SERVICE_STATE_UNKNOWN = 0,
+    SERVICE_STATE_OK,
+    SERVICE_STATE_UNHEALTHY,
+    SERVICE_STATE_MAINTENANCE,
+    SERVICE_STATE_DOWN,
+} service_state_t;
+
+typedef enum {
+    SERVICE_COLOR_GRAY = 0,   /* DOWN sticky, or UNKNOWN */
+    SERVICE_COLOR_GREEN,      /* fresh OK */
+    SERVICE_COLOR_YELLOW,     /* fresh UNHEALTHY */
+    SERVICE_COLOR_BLUE,       /* fresh MAINTENANCE */
+    SERVICE_COLOR_RED,        /* stale non-DOWN (was OK/UNHEALTHY/MAINTENANCE, ts>60s old) */
+} service_color_t;
+
+typedef struct service_entry {
+    char name[64];           /* from key suffix (kpidash:services:<name>) */
+    char host[64];           /* optional, "" if absent */
+    char text[128];          /* last valid status text */
+    int  icon_index;         /* -1 if absent or unknown */
+    double last_payload_ts;  /* payload's own ts */
+    service_state_t last_valid_state;
+
+#ifndef KPIDASH_TEST_STUBS
+    lv_obj_t *container;
+    lv_obj_t *border;
+    lv_obj_t *icon_label;
+    lv_obj_t *name_label;
+    lv_obj_t *text_label;
+#else
+    void *container;
+    void *border;
+    void *icon_label;
+    void *name_label;
+    void *text_label;
+#endif
+} service_entry_t;
+
+/* Parse a service state string. Returns SERVICE_STATE_UNKNOWN for
+ * NULL, empty, or unrecognised input. */
+service_state_t service_parse_state(const char *s);
+
+/* Compute the card border colour per data-model.md §2 state table.
+ * DOWN is sticky-gray (freshness ignored). OK/UNHEALTHY/MAINTENANCE map
+ * to their colour iff (now - last_payload_ts) < 60.0, else RED. UNKNOWN
+ * returns GRAY (caller is responsible for not rendering UNKNOWN cards). */
+service_color_t service_color(const service_entry_t *e, double now);
+
+/* ---- Service registry (T022) ---- */
+#define SERVICE_REGISTRY_MAX 32
+
+/* Find an existing service entry by name, or allocate a new slot.
+ * Returns NULL if the table is full. Thread-safe. */
+service_entry_t *service_registry_find_or_create(const char *name);
+
+/* Apply a parsed-OK payload to an existing entry. Updates
+ * last_valid_state, last_payload_ts, text, host, icon_index. Caller
+ * MUST only invoke this with payloads that pass redis_parse_service_payload
+ * (so the FR-022a malformed-ignore rule is preserved). */
+void service_registry_apply_payload(service_entry_t *e, const service_entry_t *parsed);
+
+/* Snapshot all current entries into out[]; returns count written. */
+int service_registry_snapshot(service_entry_t *out, int max);
+
+/* ---- Graph host series (T006) ---- */
+#define GRAPH_HOST_MAX 8
+#define GRAPH_HOST_STALE_SECONDS 30.0
+
+typedef struct {
+    char host[64];
+    double last_sample_ts;
+#ifndef KPIDASH_TEST_STUBS
+    lv_obj_t *widget;
+#else
+    void *widget;
+#endif
+    bool stale;
+    /* T035: per-host telemetry snapshot, updated by redis_poll Step 8 each
+     * cycle so the UI can render one dev_graph per host without consulting
+     * the legacy single-host g_dev_telemetry global. */
+    dev_telemetry_t telemetry;
+} graph_host_series_t;
+
+/* Lookup an existing host series, or allocate a new slot.
+ * Returns NULL if the table is full. */
+graph_host_series_t *graph_host_find_or_create(const char *host);
+
+/* Update last_sample_ts for the named host (no-op if not present). */
+void graph_host_touch(const char *host, double ts);
+
+/* Is this series considered stale? (now - last_sample_ts >= 30.0 s) */
+bool graph_host_is_stale(const graph_host_series_t *s, double now);
+
+/* Snapshot of all currently allocated host series.
+ * Writes up to max entries into out[] and returns the count. */
+int graph_host_snapshot(graph_host_series_t *out, int max);
+
+/* ---- Layout pool (T004/T005) ---- */
+typedef enum {
+    WIDGET_GRAPH = 0,        /* highest priority; one per graph_host_series */
+    WIDGET_ACTIVITIES,
+    WIDGET_REPO_STATUS,
+    WIDGET_FORTUNE,
+} widget_kind_t;
+
+/* Sprint 006 / T003: canonical cell footprints for rows-2-3 widgets.
+ * All current widgets occupy 2 cells (UNIT_W_N(2) × UNIT_H). */
+#define WIDGET_CELLS_GRAPH       2
+#define WIDGET_CELLS_ACTIVITIES  2
+#define WIDGET_CELLS_REPO_STATUS 2
+#define WIDGET_CELLS_FORTUNE     2
+
+typedef struct {
+    widget_kind_t kind;
+    uint8_t       cells;     /* size in grid cells (currently all = 2) */
+    const void   *payload;   /* opaque, used by renderer (e.g. graph_host_series_t *) */
+} widget_request_t;
+
+#define LAYOUT_POOL_CAPACITY_CELLS 12  /* 6 cols × 2 rows */
+
+/* Place widgets in the rows-2-3 pool per data-model.md §6:
+ *  1. Stable-sort requests by kind ascending (enum order = priority).
+ *  2. Greedy fill of a 12-cell budget; drop-and-continue when a request's
+ *     cells would exceed remaining capacity.
+ * Writes up to out_cap placed requests into out_placed and returns the
+ * number written. Input array is not mutated. */
+int layout_pool_place(const widget_request_t *requests, size_t n_requests,
+                      widget_request_t *out_placed, size_t out_cap);
 
 #endif /* REGISTRY_H */

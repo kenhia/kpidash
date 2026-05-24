@@ -278,6 +278,15 @@ bool redis_parse_dev_telemetry_json(const char *json, dev_telemetry_t *dt) {
             dt->gpu_vram_total_mb = (uint32_t)o->valueint;
     }
 
+    /* Sprint 006 / T034: pick up source host; default to "(legacy)" sentinel
+     * for unupgraded clients (FR-013 edge case). */
+    o = cJSON_GetObjectItemCaseSensitive(root, "host");
+    if (cJSON_IsString(o) && o->valuestring && o->valuestring[0]) {
+        strncpy(dt->host, o->valuestring, sizeof(dt->host) - 1);
+    } else {
+        strncpy(dt->host, "(legacy)", sizeof(dt->host) - 1);
+    }
+
     cJSON_Delete(root);
     return true;
 }
@@ -597,18 +606,42 @@ void redis_poll(void) {
 
     g_dev_cmd = new_cmd;
 
-    /* Step 8: Dev telemetry (when graph is enabled, fetch fast-poll data) */
-    if (new_cmd.graph_enabled && new_cmd.graph_client[0]) {
+    /* Step 8: Dev telemetry (sprint 006 / T031: always poll, no toggle gate).
+     * Iterate all known clients and fetch their dev_telemetry key. On each
+     * successful parse, register the host with the graph-host series, touch
+     * its last_sample_ts, and store the telemetry on the series slot so the
+     * UI (T035) can render one dev_graph per host directly from the snapshot.
+     * g_dev_telemetry is kept for legacy code paths but is no longer the
+     * source of truth for graph placement. */
+    g_dev_telemetry.valid = false;
+    bool have_non_legacy = false;
+    for (int i = 0; i < n_hosts; i++) {
         char dt_key[256];
-        snprintf(dt_key, sizeof(dt_key), KPIDASH_KEY_DEV_TELEMETRY, new_cmd.graph_client);
+        snprintf(dt_key, sizeof(dt_key), KPIDASH_KEY_DEV_TELEMETRY, hostnames[i]);
         redisReply *dtr = redisCommand(g_ctx, "GET %s", dt_key);
-        redis_parse_dev_telemetry_json((dtr && dtr->type == REDIS_REPLY_STRING) ? dtr->str : NULL,
-                                       &g_dev_telemetry);
+        if (dtr && dtr->type == REDIS_REPLY_STRING) {
+            dev_telemetry_t parsed = {0};
+            if (redis_parse_dev_telemetry_json(dtr->str, &parsed) && parsed.valid) {
+                graph_host_series_t *series = graph_host_find_or_create(parsed.host);
+                if (series) {
+                    series->telemetry = parsed;
+                }
+                graph_host_touch(parsed.host, (double)time(NULL));
+                bool is_legacy = (strcmp(parsed.host, "(legacy)") == 0);
+                if (!is_legacy && !have_non_legacy) {
+                    have_non_legacy = true;
+                    g_dev_telemetry = parsed;
+                } else if (!have_non_legacy) {
+                    g_dev_telemetry = parsed;
+                }
+            }
+        }
         if (dtr)
             freeReplyObject(dtr);
-    } else {
-        g_dev_telemetry.valid = false;
     }
+
+    /* Step 9: Service status (sprint 006 / FR-022) */
+    redis_poll_services();
 
     freeReplyObject(smr);
 }
@@ -709,3 +742,85 @@ void redis_write_mem_sample(const mem_sample_t *s) {
 
     free(json);
 }
+
+/* ============================================================
+ * Sprint 006: service status polling (T021, T023)
+ * ============================================================ */
+
+int redis_parse_service_payload(const char *json, service_entry_t *out) {
+    if (!json || !out) return -1;
+    cJSON *root = cJSON_Parse(json);
+    if (!root) return -1;
+
+    cJSON *ts    = cJSON_GetObjectItemCaseSensitive(root, "ts");
+    cJSON *state = cJSON_GetObjectItemCaseSensitive(root, "state");
+    cJSON *text  = cJSON_GetObjectItemCaseSensitive(root, "text");
+    cJSON *host  = cJSON_GetObjectItemCaseSensitive(root, "host");
+    cJSON *icon  = cJSON_GetObjectItemCaseSensitive(root, "icon");
+
+    if (!cJSON_IsNumber(ts) || !cJSON_IsString(state) || !cJSON_IsString(text)) {
+        cJSON_Delete(root);
+        return -1;
+    }
+    service_state_t st = service_parse_state(state->valuestring);
+    if (st == SERVICE_STATE_UNKNOWN) {
+        cJSON_Delete(root);
+        return -1;
+    }
+
+    memset(out, 0, sizeof(*out));
+    out->last_payload_ts = ts->valuedouble;
+    out->last_valid_state = st;
+    strncpy(out->text, text->valuestring, sizeof(out->text) - 1);
+    if (cJSON_IsString(host)) {
+        strncpy(out->host, host->valuestring, sizeof(out->host) - 1);
+    }
+    out->icon_index = cJSON_IsNumber(icon) ? (int)icon->valuedouble : -1;
+
+    cJSON_Delete(root);
+    return 0;
+}
+
+#ifndef KPIDASH_TEST_STUBS
+void redis_poll_services(void) {
+    if (!g_ctx || g_ctx->err) return;
+
+    /* SCAN MATCH kpidash:services:* — paginate via cursor until 0. */
+    char cursor[32] = "0";
+    do {
+        redisReply *sr = redisCommand(g_ctx, "SCAN %s MATCH %s COUNT 100",
+                                      cursor, KPIDASH_KEY_SERVICES_PATTERN);
+        if (!sr || sr->type != REDIS_REPLY_ARRAY || sr->elements != 2) {
+            if (sr) freeReplyObject(sr);
+            return;
+        }
+        if (sr->element[0]->type == REDIS_REPLY_STRING) {
+            strncpy(cursor, sr->element[0]->str, sizeof(cursor) - 1);
+            cursor[sizeof(cursor) - 1] = '\0';
+        }
+        redisReply *keys = sr->element[1];
+        if (keys && keys->type == REDIS_REPLY_ARRAY) {
+            for (size_t i = 0; i < keys->elements; i++) {
+                const char *key = keys->element[i]->str;
+                if (!key) continue;
+                const char *name = key + strlen(KPIDASH_KEY_SERVICES_PREFIX);
+                if (!*name) continue;
+
+                redisReply *gr = redisCommand(g_ctx, "GET %s", key);
+                if (gr && gr->type == REDIS_REPLY_STRING) {
+                    service_entry_t parsed;
+                    if (redis_parse_service_payload(gr->str, &parsed) == 0) {
+                        service_entry_t *e = service_registry_find_or_create(name);
+                        if (e) service_registry_apply_payload(e, &parsed);
+                    }
+                    /* parse failure: FR-022a — ignore silently. */
+                }
+                if (gr) freeReplyObject(gr);
+            }
+        }
+        freeReplyObject(sr);
+    } while (strcmp(cursor, "0") != 0);
+}
+#else
+void redis_poll_services(void) { /* test stub */ }
+#endif

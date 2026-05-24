@@ -1,6 +1,6 @@
 # kpidash Development Guidelines
 
-Auto-generated from all feature plans. Last updated: 2026-05-16
+Auto-generated from all feature plans. Last updated: 2026-05-23
 
 ## Project Overview
 
@@ -20,6 +20,8 @@ All components communicate via a Redis server running on the Pi 5.
 - N/A (Redis read-only from UI perspective) (004-graph-row2)
 - C11 (matches existing `src/`) + LVGL 9.2.2 (vendored under `lib/lvgl/`, configured by root `lv_conf.h`), hiredis, cJSON, Linux DRM/KMS (005-fix-memory-leaks)
 - Redis (existing keys under `kpidash:*`); telemetry adds new keys under `kpidash:system:mem:*` (005-fix-memory-leaks)
+- C11 (dashboard binary), Python ≥ 3.11 (client subcommand) + LVGL 9.2.2 (vendored at `lib/lvgl/`), hiredis (Redis client), cJSON (payload parse), libdrm + libpng (Pi DRM/KMS backend), X11 (native dev backend). Client: `click`, `redis`. (006-layout-refresh-status-cards)
+- Redis 7.x — existing `kpidash:*` namespace; this sprint adds `kpidash:services:<name>` (string, JSON value; no TTL — dashboard owns freshness) and extends the existing `kpidash:client:<host>:dev_telemetry` payload with a `host` field. (006-layout-refresh-status-cards)
 
 ### Dashboard (C / LVGL)
 - C11, CMake 3.22+, LVGL 9.2.2 (DRM/KMS backend)
@@ -107,9 +109,9 @@ ruff format --check . && ruff check . && ty check && pytest -q
 - GPU support: NVIDIA only for MVP (pynvml / NVML)
 
 ## Recent Changes
+- 006-layout-refresh-status-cards: Added C11 (dashboard binary), Python ≥ 3.11 (client subcommand) + LVGL 9.2.2 (vendored at `lib/lvgl/`), hiredis (Redis client), cJSON (payload parse), libdrm + libpng (Pi DRM/KMS backend), X11 (native dev backend). Client: `click`, `redis`.
 - 005-fix-memory-leaks: Added C11 (matches existing `src/`) + LVGL 9.2.2 (vendored under `lib/lvgl/`, configured by root `lv_conf.h`), hiredis, cJSON, Linux DRM/KMS
 - 004-graph-row2: Added C11 (GCC) + LVGL v9.x (embedded GUI library)
-- 003-refinement-sprint: Added C11 + LVGL 9.2.2 (vendored), hiredis, libcjson, libdrm, libpng
 
 
 <!-- MANUAL ADDITIONS START -->

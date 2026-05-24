@@ -108,6 +108,7 @@ class RedisClient:
         """Write fast-poll GPU+CPU+RAM data to a dedicated dev key."""
         payload = dict(telemetry)
         payload["hostname"] = self._hostname
+        payload["host"] = self._hostname  # sprint 006/T037: routing key for per-host graphs
         payload["ts"] = time.time()
         self._cmd(
             "set",
@@ -178,6 +179,24 @@ class RedisClient:
             }
         )
         self._cmd("set", "kpidash:fortune:pushed", payload, ex=duration)
+
+    # ---- Service status (sprint 006 / FR-021) ----
+
+    def set_service_status(
+        self,
+        name: str,
+        state: str,
+        text: str,
+        host: str | None = None,
+        icon: int | None = None,
+    ) -> None:
+        """Write a kpidash:services:<name> JSON payload (no TTL)."""
+        payload: dict = {"ts": time.time(), "state": state, "text": text}
+        if host is not None:
+            payload["host"] = host
+        if icon is not None:
+            payload["icon"] = icon
+        self._cmd("set", f"kpidash:services:{name}", json.dumps(payload))
 
     # ---- Status / Log path ----
 

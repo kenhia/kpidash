@@ -18,6 +18,7 @@
 
 #include <stdio.h>
 #include <string.h>
+#include <time.h>
 
 #include "config.h"
 #include "fortune.h"
@@ -32,6 +33,7 @@
 #include "widgets/dev_textsize.h"
 #include "widgets/fortune.h"
 #include "widgets/repo_status.h"
+#include "widgets/service_card.h"
 #include "widgets/status_bar.h"
 
 /* ---- Layout objects ---- */
@@ -40,6 +42,7 @@ static lv_obj_t *g_card_grid = NULL;
 static lv_obj_t *g_activities = NULL;
 static lv_obj_t *g_repo_status = NULL;
 static lv_obj_t *g_fortune = NULL;
+static lv_obj_t *g_service_strip = NULL;  /* T013: footer Service-Strip container */
 static lv_obj_t *g_status_bar = NULL;
 static lv_obj_t *g_redis_err = NULL;
 
@@ -55,9 +58,9 @@ static int g_dev_grid_size = 0;        /* track pixel size so we recreate on cha
 static bool g_dev_grid_unit = false;   /* track unit mode */
 static float g_dev_grid_unit_size = 0; /* track unit size */
 
-/* Dev graph handles (Phase 6.1) */
-static lv_obj_t *g_dev_graph = NULL;
-static char g_graph_client[HOSTNAME_LEN] = {0};
+/* Dev graph handles (Phase 6.1): one widget per graph_host_series_t, stored
+ * directly in the series's `widget` slot. T035 retired the single-host
+ * globals (g_dev_graph / g_graph_client). */
 
 /* ---- Helpers ---- */
 
@@ -116,12 +119,10 @@ void ui_init(void) {
     clear_bg(g_screen);
     /* No screen-level padding — widgets positioned via cell system */
 
-    /* Footer sub-layout constants */
+    /* Footer sub-layout constants (status bar pinned at very bottom). */
     static const int32_t status_bar_h = 40;
-    static const int32_t footer_gap = 20;
-    static const int32_t fortune_h = FOOTER_H - status_bar_h - footer_gap;
 
-    /* ---- Client card grid (row 0, full width) ---- */
+    /* ---- Client card grid (Row 1, full width — FR-001) ---- */
     g_card_grid = lv_obj_create(g_screen);
     clear_bg(g_card_grid);
     lv_obj_set_size(g_card_grid, UNIT_W_N(COLS), UNIT_H);
@@ -132,25 +133,35 @@ void ui_init(void) {
     lv_obj_set_style_pad_column(g_card_grid, 0, 0);
     lv_obj_set_style_pad_row(g_card_grid, 0, 0);
 
-    /* ---- Row 1: Activities (columns 2-3) + Repo Status (columns 4-5) ---- */
-    /* Columns 0-1 reserved for dev graph when enabled */
+    /* ---- Rows 2-3 (FR-002): pool widgets created here, positioned by
+     * ui_refresh() via layout_pool_place(). They are created once and
+     * shown/hidden + repositioned each refresh. ---- */
     g_activities = activities_widget_create(g_screen);
     lv_obj_set_size(g_activities, UNIT_W_N(2), UNIT_H);
-    lv_obj_set_pos(g_activities, COL_X(2), ROW_Y(1));
     lv_obj_set_style_pad_all(g_activities, CELL_PAD, 0);
+    lv_obj_add_flag(g_activities, LV_OBJ_FLAG_HIDDEN);
 
     g_repo_status = repo_status_widget_create(g_screen);
     lv_obj_set_size(g_repo_status, UNIT_W_N(2), UNIT_H);
-    lv_obj_set_pos(g_repo_status, COL_X(4), ROW_Y(1));
     lv_obj_set_style_pad_all(g_repo_status, CELL_PAD, 0);
+    lv_obj_add_flag(g_repo_status, LV_OBJ_FLAG_HIDDEN);
 
-    /* ---- Fortune strip (top of footer area) ---- */
-    g_fortune = fortune_widget_create(g_screen);
-    lv_obj_set_size(g_fortune, UNIT_W_N(COLS), fortune_h);
-    lv_obj_set_pos(g_fortune, PAD_LEFT, ROW_Y(ROWS));
+    /* T014: Fortune as 2×1 pool widget. */
+    g_fortune = fortune_create(g_screen, 0, 0);
     fortune_set_widget(g_fortune);
+    lv_obj_add_flag(g_fortune, LV_OBJ_FLAG_HIDDEN);
 
-    /* ---- Status bar (bottom of footer, hidden initially) ---- */
+    /* ---- Footer (FR-005): Service-Strip container ---- */
+    g_service_strip = lv_obj_create(g_screen);
+    clear_bg(g_service_strip);
+    lv_obj_set_size(g_service_strip, SCR_W - 2 * PAD_LEFT, FOOTER_H);
+    lv_obj_set_pos(g_service_strip, PAD_LEFT, PAD_TOP + ROWS * UNIT_H);
+    lv_obj_set_flex_flow(g_service_strip, LV_FLEX_FLOW_ROW);
+    lv_obj_set_flex_align(g_service_strip, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER,
+                          LV_FLEX_ALIGN_CENTER);
+    lv_obj_set_style_pad_column(g_service_strip, 8, 0);
+
+    /* ---- Status bar (bottom of screen, hidden initially) (FR-006: unchanged) ---- */
     g_status_bar = status_bar_create(g_screen);
     lv_obj_set_size(g_status_bar, UNIT_W_N(COLS), status_bar_h);
     lv_obj_set_pos(g_status_bar, PAD_LEFT, SCR_H - status_bar_h);
@@ -241,7 +252,143 @@ void ui_refresh(void) {
     /* Dev command overlays (T030) */
     const dev_cmd_state_t *cmd = redis_get_dev_cmd_state();
 
-    /* Grid overlay — create on enable, recreate on size change, destroy on disable */
+    /* ---- Sprint 006 / T012,T015,T035: rows-2-3 layout pool placement ----
+     * Multi-host graphs: one WIDGET_GRAPH request per discovered host series,
+     * sorted alphabetically (T035 / FR-013) so layout_pool_place()'s stable
+     * sort preserves that order. Each request's payload is the host name. */
+    {
+        /* Snapshot host series, sort alphabetically by host. */
+        graph_host_series_t g_snap[GRAPH_HOST_MAX];
+        int n_hosts = graph_host_snapshot(g_snap, GRAPH_HOST_MAX);
+        for (int i = 1; i < n_hosts; i++) {
+            graph_host_series_t tmp = g_snap[i];
+            int j = i;
+            while (j > 0 && strcmp(g_snap[j - 1].host, tmp.host) > 0) {
+                g_snap[j] = g_snap[j - 1];
+                j--;
+            }
+            g_snap[j] = tmp;
+        }
+
+        widget_request_t reqs[GRAPH_HOST_MAX + 4];
+        int nreq = 0;
+        /* Host-name storage: payload pointers must outlive the placement
+         * call; reuse the snapshot's storage since g_snap lives on the stack
+         * through the whole placement block. */
+        for (int i = 0; i < n_hosts; i++) {
+            reqs[nreq].kind = WIDGET_GRAPH;
+            reqs[nreq].cells = WIDGET_CELLS_GRAPH;
+            reqs[nreq].payload = g_snap[i].host;
+            nreq++;
+        }
+        reqs[nreq++] = (widget_request_t){WIDGET_ACTIVITIES, WIDGET_CELLS_ACTIVITIES, NULL};
+        reqs[nreq++] = (widget_request_t){WIDGET_REPO_STATUS, WIDGET_CELLS_REPO_STATUS, NULL};
+        reqs[nreq++] = (widget_request_t){WIDGET_FORTUNE, WIDGET_CELLS_FORTUNE, NULL};
+
+        widget_request_t placed[GRAPH_HOST_MAX + 4];
+        int nplaced = layout_pool_place(reqs, (size_t)nreq, placed,
+                                        sizeof(placed) / sizeof(placed[0]));
+
+        /* Track which hosts ended up placed so we can hide widgets for hosts
+         * dropped by the pool (e.g. exceeded the 12-cell budget). */
+        bool host_placed[GRAPH_HOST_MAX] = {0};
+        bool placed_acts = false, placed_repo = false, placed_fortune = false;
+        int alloc_row = 1, alloc_col = 0;
+        double now_s = (double)time(NULL);
+        for (int i = 0; i < nplaced; i++) {
+            int cells = placed[i].cells;
+            if (alloc_col + cells > COLS) { alloc_row++; alloc_col = 0; }
+            int x = COL_X(alloc_col);
+            int y = ROW_Y(alloc_row);
+            alloc_col += cells;
+            switch (placed[i].kind) {
+                case WIDGET_GRAPH: {
+                    const char *host = (const char *)placed[i].payload;
+                    if (!host) break;
+                    graph_host_series_t *live = graph_host_find_or_create(host);
+                    if (!live) break;
+                    if (!live->widget) {
+                        live->widget = dev_graph_create(g_screen, host);
+                    }
+                    if (!live->widget) break;
+                    lv_obj_clear_flag(live->widget, LV_OBJ_FLAG_HIDDEN);
+                    lv_obj_set_pos(live->widget, x, y);
+                    if (live->telemetry.valid) {
+                        dev_graph_data_t gd = {
+                            .cpu_pct = live->telemetry.cpu_pct,
+                            .top_core_pct = live->telemetry.top_core_pct,
+                            .ram_used_mb = live->telemetry.ram_used_mb,
+                            .ram_total_mb = live->telemetry.ram_total_mb,
+                            .gpu_compute_pct = live->telemetry.gpu_compute_pct,
+                            .gpu_vram_used_mb = live->telemetry.gpu_vram_used_mb,
+                            .gpu_vram_total_mb = live->telemetry.gpu_vram_total_mb,
+                        };
+                        dev_graph_update(live->widget, &gd);
+                        dev_graph_set_host(live->widget, host);
+                    }
+                    dev_graph_set_stale(live->widget, graph_host_is_stale(live, now_s));
+                    /* Mark this snapshot slot as placed. */
+                    for (int s = 0; s < n_hosts; s++) {
+                        if (strcmp(g_snap[s].host, host) == 0) {
+                            host_placed[s] = true;
+                            break;
+                        }
+                    }
+                    break;
+                }
+                case WIDGET_ACTIVITIES:
+                    lv_obj_set_pos(g_activities, x, y);
+                    lv_obj_clear_flag(g_activities, LV_OBJ_FLAG_HIDDEN);
+                    placed_acts = true;
+                    break;
+                case WIDGET_REPO_STATUS:
+                    lv_obj_set_pos(g_repo_status, x, y);
+                    lv_obj_clear_flag(g_repo_status, LV_OBJ_FLAG_HIDDEN);
+                    placed_repo = true;
+                    break;
+                case WIDGET_FORTUNE:
+                    lv_obj_set_pos(g_fortune, x, y);
+                    lv_obj_clear_flag(g_fortune, LV_OBJ_FLAG_HIDDEN);
+                    placed_fortune = true;
+                    break;
+            }
+        }
+        /* Hide widgets for hosts that were dropped by the pool. */
+        for (int s = 0; s < n_hosts; s++) {
+            if (host_placed[s]) continue;
+            graph_host_series_t *live = graph_host_find_or_create(g_snap[s].host);
+            if (live && live->widget) {
+                lv_obj_add_flag(live->widget, LV_OBJ_FLAG_HIDDEN);
+            }
+        }
+        if (!placed_acts)    lv_obj_add_flag(g_activities, LV_OBJ_FLAG_HIDDEN);
+        if (!placed_repo)    lv_obj_add_flag(g_repo_status, LV_OBJ_FLAG_HIDDEN);
+        if (!placed_fortune) lv_obj_add_flag(g_fortune, LV_OBJ_FLAG_HIDDEN);
+    }
+
+    /* ---- Sprint 006 / T025: paint service cards into the footer strip. ---- */
+    {
+        service_entry_t svcs[SERVICE_REGISTRY_MAX];
+        int nsvc = service_registry_snapshot(svcs, SERVICE_REGISTRY_MAX);
+        double now = (double)time(NULL);
+        for (int i = 0; i < nsvc; i++) {
+            /* Find the live entry by name in the global registry so we can
+             * mutate its LVGL handles in place. snapshot returns a copy, so
+             * we re-fetch the live pointer to attach handles. */
+            service_entry_t *live = service_registry_find_or_create(svcs[i].name);
+            if (!live) continue;
+            if (!live->container) {
+                /* Copy the snapshot fields into the live entry (registry
+                 * apply_payload happens in poll; here we just ensure name
+                 * is set if poll-then-create raced). */
+                if (!live->name[0])
+                    strncpy(live->name, svcs[i].name, sizeof(live->name) - 1);
+                service_card_create(g_service_strip, live);
+            }
+            service_card_update(live, now);
+        }
+    }
+
     if (cmd->grid_enabled) {
         bool changed = !g_dev_grid || g_dev_grid_size != cmd->grid_size ||
                        g_dev_grid_unit != cmd->grid_unit ||
@@ -275,38 +422,10 @@ void ui_refresh(void) {
         }
     }
 
-    /* Dev graph in Row 1 (absolute positioned) */
-    if (cmd->graph_enabled && cmd->graph_client[0]) {
-        /* Create or recreate if target client changed */
-        if (!g_dev_graph || strncmp(g_graph_client, cmd->graph_client, HOSTNAME_LEN) != 0) {
-            dev_graph_destroy(g_dev_graph);
-            g_dev_graph = dev_graph_create(g_screen, cmd->graph_client);
-            lv_obj_set_pos(g_dev_graph, COL_X(0), ROW_Y(1));
-            strncpy(g_graph_client, cmd->graph_client, HOSTNAME_LEN - 1);
-            g_graph_client[HOSTNAME_LEN - 1] = '\0';
-        }
-
-        /* Feed data from dev telemetry (fast-poll key) */
-        const dev_telemetry_t *dt = redis_get_dev_telemetry();
-        if (dt->valid) {
-            dev_graph_data_t gd = {
-                .cpu_pct = dt->cpu_pct,
-                .top_core_pct = dt->top_core_pct,
-                .ram_used_mb = dt->ram_used_mb,
-                .ram_total_mb = dt->ram_total_mb,
-                .gpu_compute_pct = dt->gpu_compute_pct,
-                .gpu_vram_used_mb = dt->gpu_vram_used_mb,
-                .gpu_vram_total_mb = dt->gpu_vram_total_mb,
-            };
-            dev_graph_update(g_dev_graph, &gd);
-        }
-    } else {
-        if (g_dev_graph) {
-            dev_graph_destroy(g_dev_graph);
-            g_dev_graph = NULL;
-            g_graph_client[0] = '\0';
-        }
-    }
+    /* Sprint 006 / T035: per-host dev_graph widgets are created, positioned,
+     * updated, and stale-toggled by the rows-2-3 layout pool block above
+     * (one widget per graph_host_series_t slot, alphabetically ordered). The
+     * legacy single-host dev_telemetry path has been retired. */
 }
 
 void ui_show_redis_error(const char *msg) {
