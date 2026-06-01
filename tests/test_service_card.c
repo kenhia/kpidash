@@ -46,7 +46,7 @@ static void test_parse_state(void) {
 static void test_color_truth_table(void) {
     service_entry_t e = {0};
     double now = 100.0;
-    e.last_payload_ts = 99.0; /* fresh: now - ts = 1.0 < 60.0 */
+    e.last_payload_ts = 99.0; /* fresh: now - ts = 1.0 < SERVICE_FRESH_SECONDS */
 
     e.last_valid_state = SERVICE_STATE_OK;
     CHECK(service_color(&e, now) == SERVICE_COLOR_GREEN);
@@ -63,7 +63,7 @@ static void test_color_truth_table(void) {
     e.last_valid_state = SERVICE_STATE_UNKNOWN;
     CHECK(service_color(&e, now) == SERVICE_COLOR_GRAY);
 
-    /* Stale: now - ts >= 60.0 → RED for non-DOWN, GRAY for DOWN. */
+    /* Stale: now - ts >= SERVICE_FRESH_SECONDS → RED for non-DOWN, GRAY for DOWN. */
     e.last_payload_ts = 0.0;
     e.last_valid_state = SERVICE_STATE_OK;
     CHECK(service_color(&e, now) == SERVICE_COLOR_RED);
@@ -77,9 +77,13 @@ static void test_color_truth_table(void) {
     e.last_valid_state = SERVICE_STATE_DOWN;
     CHECK(service_color(&e, now) == SERVICE_COLOR_GRAY); /* DOWN sticky */
 
-    /* Just-aged-out boundary: now - ts = 60.0 → stale → RED. */
-    e.last_payload_ts = 40.0;
+    /* Freshness boundary at SERVICE_FRESH_SECONDS (75.0):
+     *   age just under  → still fresh (coloured),
+     *   age == window   → aged out (RED). */
     e.last_valid_state = SERVICE_STATE_UNHEALTHY;
+    e.last_payload_ts = 100.0 - (SERVICE_FRESH_SECONDS - 0.1); /* age 74.9 → fresh */
+    CHECK(service_color(&e, 100.0) == SERVICE_COLOR_YELLOW);
+    e.last_payload_ts = 100.0 - SERVICE_FRESH_SECONDS;         /* age 75.0 → stale */
     CHECK(service_color(&e, 100.0) == SERVICE_COLOR_RED);
 
     /* NULL → GRAY. */

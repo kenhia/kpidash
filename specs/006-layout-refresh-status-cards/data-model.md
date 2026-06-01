@@ -10,7 +10,7 @@ The JSON value stored at Redis key `kpidash:services:<name>`. Written by publish
 
 | Field | Type | Required | Notes |
 |-------|------|----------|-------|
-| `ts` | number (Unix epoch seconds, float OK) | yes | Source timestamp; used by dashboard for the 60 s freshness check. |
+| `ts` | number (Unix epoch seconds, float OK) | yes | Source timestamp; used by dashboard for the freshness check (`SERVICE_FRESH_SECONDS`, 75 s). |
 | `state` | string enum: `ok` \| `unhealthy` \| `maintenance` \| `down` | yes | Drives card border colour (with freshness). Missing or unrecognised value → payload ignored (FR-022a). |
 | `text` | string | yes | Short status text rendered on the card. |
 | `host` | string | no | Optional host annotation. Free-form (e.g. `kai`, `kdash`); no host registry. |
@@ -18,7 +18,7 @@ The JSON value stored at Redis key `kpidash:services:<name>`. Written by publish
 
 **Validation rules**:
 - `ts`, `state`, `text` are required for a payload to be considered valid.
-- A payload missing `state` OR whose `state` is not in the documented enum MUST be ignored (FR-022a). The previous valid state continues to drive the card; that previous valid state ages out of the 60 s freshness window normally. The dashboard MAY log the malformed payload but MUST NOT surface it visually.
+- A payload missing `state` OR whose `state` is not in the documented enum MUST be ignored (FR-022a). The previous valid state continues to drive the card; that previous valid state ages out of the freshness window (`SERVICE_FRESH_SECONDS`, 75 s) normally. The dashboard MAY log the malformed payload but MUST NOT surface it visually.
 - A future `ts` is accepted as-is (clock skew handling is out of scope).
 
 **Example**:
@@ -68,7 +68,14 @@ typedef struct {
 
 Inputs: `last_valid_state`, `last_payload_ts`, current wall-clock `now`.
 
-Define `fresh := (now - last_payload_ts) < 60.0`.
+Define `fresh := (now - last_payload_ts) < SERVICE_FRESH_SECONDS` (75.0 s).
+
+> **Freshness window (75 s).** This consumer-side staleness gate is deliberately
+> larger than a publisher's nominal ~60 s update cadence: 60 s nominal + 15 s
+> grace. Setting it equal to the publish interval is fragile — scheduler drift,
+> scan jitter, or a slow Redis round-trip would trip a false RED. Publishers
+> standardise on ~60 s updates and rely on this grace, so a single drifting
+> cycle no longer flickers the card red.
 
 | `last_valid_state` | `fresh` | Border colour |
 |--------------------|---------|---------------|

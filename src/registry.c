@@ -168,7 +168,7 @@ service_color_t service_color(const service_entry_t *e, double now) {
     if (!e) return SERVICE_COLOR_GRAY;
     if (e->last_valid_state == SERVICE_STATE_DOWN)    return SERVICE_COLOR_GRAY;
     if (e->last_valid_state == SERVICE_STATE_UNKNOWN) return SERVICE_COLOR_GRAY;
-    int fresh = (now - e->last_payload_ts) < 60.0;
+    int fresh = (now - e->last_payload_ts) < SERVICE_FRESH_SECONDS;
     if (!fresh) return SERVICE_COLOR_RED;
     switch (e->last_valid_state) {
         case SERVICE_STATE_OK:          return SERVICE_COLOR_GREEN;

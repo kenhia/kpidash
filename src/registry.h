@@ -183,8 +183,18 @@ typedef enum {
     SERVICE_COLOR_GREEN,      /* fresh OK */
     SERVICE_COLOR_YELLOW,     /* fresh UNHEALTHY */
     SERVICE_COLOR_BLUE,       /* fresh MAINTENANCE */
-    SERVICE_COLOR_RED,        /* stale non-DOWN (was OK/UNHEALTHY/MAINTENANCE, ts>60s old) */
+    SERVICE_COLOR_RED,        /* stale non-DOWN (was OK/UNHEALTHY/MAINTENANCE, ts older than SERVICE_FRESH_SECONDS) */
 } service_color_t;
+
+/* Freshness window for service status cards. A card stays coloured as long as
+ * its payload is younger than this; older payloads go RED (non-DOWN).
+ *
+ * This is the *consumer-side* staleness gate and is intentionally larger than a
+ * publisher's nominal update cadence (~60s) to absorb scheduler drift, scan
+ * jitter, and Redis round-trips — i.e. 60s nominal + 15s grace. Setting it equal
+ * to the publish interval is fragile: any drift trips a false RED. Publishers
+ * standardise on ~60s updates and rely on this grace. */
+#define SERVICE_FRESH_SECONDS 75.0
 
 typedef struct service_entry {
     char name[64];           /* from key suffix (kpidash:services:<name>) */
@@ -217,8 +227,9 @@ service_state_t service_parse_state(const char *s);
 
 /* Compute the card border colour per data-model.md §2 state table.
  * DOWN is sticky-gray (freshness ignored). OK/UNHEALTHY/MAINTENANCE map
- * to their colour iff (now - last_payload_ts) < 60.0, else RED. UNKNOWN
- * returns GRAY (caller is responsible for not rendering UNKNOWN cards). */
+ * to their colour iff (now - last_payload_ts) < SERVICE_FRESH_SECONDS, else
+ * RED. UNKNOWN returns GRAY (caller is responsible for not rendering UNKNOWN
+ * cards). */
 service_color_t service_color(const service_entry_t *e, double now);
 
 /* ---- Service registry (T022) ---- */
