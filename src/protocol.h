@@ -49,9 +49,10 @@
 #define KPIDASH_MEM_RING_MAX 1500
 
 /* ---- Development command keys (002-exploration-sprint) ---- */
-#define KPIDASH_KEY_CMD_GRID "kpidash:cmd:grid"
-#define KPIDASH_KEY_CMD_TEXTSIZE "kpidash:cmd:textsize"
-#define KPIDASH_KEY_CMD_GRAPH "kpidash:cmd:graph"
+#define KPIDASH_KEY_CMD_GRID         "kpidash:cmd:grid"
+#define KPIDASH_KEY_CMD_TEXTSIZE     "kpidash:cmd:textsize"
+#define KPIDASH_KEY_CMD_GRAPH        "kpidash:cmd:graph"
+#define KPIDASH_KEY_CMD_FORTUNE_DEV  "kpidash:cmd:fortune_dev"
 
 /* Sprint 006 / FR-021: service status keys (one per service). */
 #define KPIDASH_KEY_SERVICES_PATTERN "kpidash:services:*:*"
