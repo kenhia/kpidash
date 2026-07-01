@@ -3,7 +3,7 @@
  *
  * Single lv_chart with 5 series on two Y-axes:
  *   Primary Y (0-100%):  GPU compute, CPU avg, CPU top core
- *   Secondary Y (0-max MB): VRAM used, RAM used
+ *   Secondary Y (0-100%): VRAM used %, RAM used %
  *
  * 300 data points = 5 min at 1s dev telemetry interval.
  * Sized to two cell slots (UNIT_W_N(2) x UNIT_H).
@@ -32,9 +32,9 @@
 
 /* T036: GPU trace emphasis. Triple-trace offsets (in axis units) chosen so the
  * three same-colour lines fuse into a band ~2.5× the single-line width on a
- * ~600 px tall chart. Primary Y is 0–100 %, secondary Y is 0–vram_max MB. */
+ * ~600 px tall chart. Primary and secondary Y are both 0–100 %. */
 #define GPU_PCT_OFFSET 1     /* axis units (% points) */
-#define GPU_VRAM_OFFSET_DIV 240 /* offset = vram_max / 240 MB */
+#define GPU_VRAM_PCT_OFFSET 1 /* axis units (% points) */
 
 typedef struct {
     lv_chart_series_t *gpu_compute_ser;
@@ -58,8 +58,6 @@ typedef struct {
     lv_obj_t *sys_cpu_lbl;
     lv_obj_t *sys_ram_lbl;
     lv_obj_t *stale_overlay;
-    uint32_t vram_max;
-    uint32_t ram_max;
 } dev_graph_priv_t;
 
 lv_obj_t *dev_graph_create(lv_obj_t *parent, const char *hostname) {
@@ -151,8 +149,8 @@ lv_obj_t *dev_graph_create(lv_obj_t *parent, const char *hostname) {
 
     /* Primary Y: percentage (0-100) */
     lv_chart_set_range(chart, LV_CHART_AXIS_PRIMARY_Y, 0, 100);
-    /* Secondary Y: MB (dynamic, default 16 GB) */
-    lv_chart_set_range(chart, LV_CHART_AXIS_SECONDARY_Y, 0, 16384);
+    /* Secondary Y: utilization percentage (0-100). */
+    lv_chart_set_range(chart, LV_CHART_AXIS_SECONDARY_Y, 0, 100);
 
     /* 5 logical series + 4 flanking traces for GPU emphasis (T036). The
      * flanking traces share the parent series' colour so the band reads as a
@@ -203,8 +201,6 @@ lv_obj_t *dev_graph_create(lv_obj_t *parent, const char *hostname) {
     priv->sys_title = sys_title;
     priv->sys_cpu_lbl = sys_cpu_lbl;
     priv->sys_ram_lbl = sys_ram_lbl;
-    priv->vram_max = 16384;
-    priv->ram_max = 131072; /* ~128 GB default */
     lv_obj_set_user_data(cont, priv);
 
     /* T029: NO NEW DATA overlay, hidden by default. Centered over chart. */
@@ -242,6 +238,13 @@ static int32_t clamp_pct(float v) {
     return r;
 }
 
+static int32_t used_pct(uint32_t used, uint32_t total) {
+    if (total == 0)
+        return 0;
+    float pct = ((float)used * 100.0f) / (float)total;
+    return clamp_pct(pct);
+}
+
 void dev_graph_update(lv_obj_t *graph, const dev_graph_data_t *data) {
     if (!graph || !data)
         return;
@@ -251,16 +254,6 @@ void dev_graph_update(lv_obj_t *graph, const dev_graph_data_t *data) {
     lv_obj_t *chart = find_chart(graph);
     if (!chart)
         return;
-
-    /* Update secondary Y-axis range for the larger of VRAM/RAM */
-    uint32_t mb_max = data->gpu_vram_total_mb;
-    if (data->ram_total_mb > mb_max)
-        mb_max = data->ram_total_mb;
-    if (mb_max > 0 && (mb_max != priv->vram_max || mb_max != priv->ram_max)) {
-        priv->vram_max = mb_max;
-        priv->ram_max = mb_max;
-        lv_chart_set_range(chart, LV_CHART_AXIS_SECONDARY_Y, 0, (int32_t)mb_max);
-    }
 
     /* Push data points */
     int32_t gpu_pct = clamp_pct(data->gpu_compute_pct);
@@ -276,18 +269,17 @@ void dev_graph_update(lv_obj_t *graph, const dev_graph_data_t *data) {
     lv_chart_set_next_value(chart, priv->cpu_avg_ser, clamp_pct(data->cpu_pct));
     lv_chart_set_next_value(chart, priv->cpu_top_ser, clamp_pct(data->top_core_pct));
 
-    int32_t vram_v = (int32_t)data->gpu_vram_used_mb;
+    int32_t vram_v = used_pct(data->gpu_vram_used_mb, data->gpu_vram_total_mb);
     lv_chart_set_next_value(chart, priv->vram_ser, vram_v);
-    int32_t vram_off = (int32_t)(priv->vram_max / GPU_VRAM_OFFSET_DIV);
-    if (vram_off < 1) vram_off = 1;
+    int32_t vram_off = GPU_VRAM_PCT_OFFSET;
     int32_t vram_hi = vram_v + vram_off;
     int32_t vram_lo = vram_v - vram_off;
-    if (vram_hi > (int32_t)priv->vram_max) vram_hi = (int32_t)priv->vram_max;
+    if (vram_hi > 100) vram_hi = 100;
     if (vram_lo < 0) vram_lo = 0;
     lv_chart_set_next_value(chart, priv->vram_ser_hi, vram_hi);
     lv_chart_set_next_value(chart, priv->vram_ser_lo, vram_lo);
 
-    lv_chart_set_next_value(chart, priv->ram_ser, (int32_t)data->ram_used_mb);
+    lv_chart_set_next_value(chart, priv->ram_ser, used_pct(data->ram_used_mb, data->ram_total_mb));
 
     /* Update GPU labels */
     char buf[64];

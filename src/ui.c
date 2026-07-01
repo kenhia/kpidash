@@ -272,14 +272,22 @@ void ui_refresh(void) {
 
         widget_request_t reqs[GRAPH_HOST_MAX + 4];
         int nreq = 0;
+        bool show_graphs = cmd ? cmd->graph_enabled : true;
+        const char *graph_only_host =
+            (cmd && cmd->graph_client[0] != '\0') ? cmd->graph_client : NULL;
         /* Host-name storage: payload pointers must outlive the placement
          * call; reuse the snapshot's storage since g_snap lives on the stack
          * through the whole placement block. */
-        for (int i = 0; i < n_hosts; i++) {
-            reqs[nreq].kind = WIDGET_GRAPH;
-            reqs[nreq].cells = WIDGET_CELLS_GRAPH;
-            reqs[nreq].payload = g_snap[i].host;
-            nreq++;
+        if (show_graphs) {
+            for (int i = 0; i < n_hosts; i++) {
+                if (graph_only_host && strcmp(g_snap[i].host, graph_only_host) != 0) {
+                    continue;
+                }
+                reqs[nreq].kind = WIDGET_GRAPH;
+                reqs[nreq].cells = WIDGET_CELLS_GRAPH;
+                reqs[nreq].payload = g_snap[i].host;
+                nreq++;
+            }
         }
         reqs[nreq++] = (widget_request_t){WIDGET_ACTIVITIES, WIDGET_CELLS_ACTIVITIES, NULL};
         reqs[nreq++] = (widget_request_t){WIDGET_REPO_STATUS, WIDGET_CELLS_REPO_STATUS, NULL};
