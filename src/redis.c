@@ -333,7 +333,7 @@ bool redis_parse_cmd_textsize_json(const char *json, dev_cmd_state_t *state) {
 }
 
 bool redis_parse_cmd_graph_json(const char *json, dev_cmd_state_t *state) {
-    state->graph_enabled = false;
+    state->graph_enabled = true;
     state->graph_client[0] = '\0';
     if (!json)
         return true;

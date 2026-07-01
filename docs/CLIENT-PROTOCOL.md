@@ -376,8 +376,8 @@ Shows sample text at various font sizes for visual calibration.
 
 | Field | Type | Notes |
 |-------|------|-------|
-| `enabled` | bool | Show/hide graph widget |
-| `client` | string | Hostname whose dev_telemetry to graph |
+| `enabled` | bool | Show/hide graph widget(s) |
+| `client` | string | Optional: when set, show only this host's graph |
 
 Enables a 5-series time-series chart (GPU compute, CPU avg, CPU top, VRAM,
 RAM) displayed in Row 1 columns 0–1 (absolute positioned, 2×1 units). Uses
@@ -386,6 +386,12 @@ RAM) displayed in Row 1 columns 0–1 (absolute positioned, 2×1 units). Uses
 
 ```bash
 redis-cli SET kpidash:cmd:graph '{"enabled":true,"client":"kubs0"}' EX 300
+
+# Hide all graph widgets immediately
+redis-cli SET kpidash:cmd:graph '{"enabled":false}' EX 300
+
+# Re-enable all discovered hosts (default behavior)
+redis-cli DEL kpidash:cmd:graph
 ```
 
 ### 9.4 Fortune Dev Overlay

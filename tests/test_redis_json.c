@@ -278,7 +278,7 @@ int main(void) {
         dev_cmd_state_t s = {0};
         bool ok = redis_parse_cmd_graph_json(NULL, &s);  /* absent key */
         CHECK(ok);
-        CHECK(s.graph_enabled == false);
+        CHECK(s.graph_enabled == true);
         CHECK(s.graph_client[0] == '\0');
     }
     {
