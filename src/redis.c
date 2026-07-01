@@ -352,6 +352,20 @@ bool redis_parse_cmd_graph_json(const char *json, dev_cmd_state_t *state) {
     return true;
 }
 
+bool redis_parse_cmd_fortune_dev_json(const char *json, dev_cmd_state_t *state) {
+    state->fortune_dev_enabled = false;
+    if (!json)
+        return true;
+    cJSON *root = cJSON_Parse(json);
+    if (!root)
+        return false;
+    cJSON *en = cJSON_GetObjectItemCaseSensitive(root, "enabled");
+    if (cJSON_IsBool(en))
+        state->fortune_dev_enabled = cJSON_IsTrue(en);
+    cJSON_Delete(root);
+    return true;
+}
+
 /* ---- Poll helpers ---- */
 
 static void poll_activities(void) {
@@ -603,6 +617,12 @@ void redis_poll(void) {
                                &new_cmd);
     if (gpr)
         freeReplyObject(gpr);
+
+    redisReply *fdr = redisCommand(g_ctx, "GET " KPIDASH_KEY_CMD_FORTUNE_DEV);
+    redis_parse_cmd_fortune_dev_json((fdr && fdr->type == REDIS_REPLY_STRING) ? fdr->str : NULL,
+                                     &new_cmd);
+    if (fdr)
+        freeReplyObject(fdr);
 
     g_dev_cmd = new_cmd;
 

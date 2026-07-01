@@ -388,6 +388,28 @@ RAM) displayed in Row 1 columns 0–1 (absolute positioned, 2×1 units). Uses
 redis-cli SET kpidash:cmd:graph '{"enabled":true,"client":"kubs0"}' EX 300
 ```
 
+### 9.4 Fortune Dev Overlay
+
+| Key | Type | Written by | Read by | TTL |
+|-----|------|-----------|---------|-----|
+| `kpidash:cmd:fortune_dev` | STRING (JSON) | manual (redis-cli) | dashboard | 300 s |
+
+```json
+{"enabled": true}
+```
+
+When enabled, shows a small "Rejects: N  Elapsed: N ms" line at the top-left
+of the fortune widget (14 pt blue) reporting how many fortunes were rejected
+and how long the search took for the most recent rotation cycle.  Use this
+during threshold calibration alongside `kpidash:fortune:pushed` test strings.
+
+```bash
+redis-cli SET kpidash:cmd:fortune_dev '{"enabled":true}' EX 300
+```
+
+The overlay updates each time a fortune is displayed (rotation or pushed), so
+stats reflect the last fetch, not a live counter.
+
 ---
 
 ## 10. System Info

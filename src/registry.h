@@ -104,6 +104,7 @@ typedef struct {
     bool textsize_enabled;
     bool graph_enabled;
     char graph_client[HOSTNAME_LEN]; /* hostname of client to graph */
+    bool fortune_dev_enabled;        /* show reject/elapsed overlay on fortune widget */
 } dev_cmd_state_t;
 
 /* ---- Dev telemetry snapshot (fast GPU+CPU+RAM from dev_telemetry key) ---- */
