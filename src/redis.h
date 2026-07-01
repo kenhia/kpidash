@@ -106,7 +106,7 @@ bool redis_parse_cmd_textsize_json(const char *json, dev_cmd_state_t *state);
 /**
  * Parse kpidash:cmd:graph JSON into state.
  * json == NULL (key absent) → graph_enabled=true (default show).
- * JSON: {"enabled": true, "client": "hostname"}
+ * JSON: {"enabled": true}
  */
 bool redis_parse_cmd_graph_json(const char *json, dev_cmd_state_t *state);
 
