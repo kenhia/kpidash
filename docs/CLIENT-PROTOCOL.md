@@ -369,29 +369,41 @@ Shows sample text at various font sizes for visual calibration.
 | Key | Type | Written by | Read by | TTL |
 |-----|------|-----------|---------|-----|
 | `kpidash:cmd:graph` | STRING (JSON) | manual (redis-cli) | dashboard | 300 s |
+| `kpidash:cmd:graph:{host}` | STRING (JSON) | manual / client | dashboard | 300 s |
 
 ```json
-{"enabled": true, "client": "kubs0"}
+{"enabled": true}
 ```
 
 | Field | Type | Notes |
 |-------|------|-------|
-| `enabled` | bool | Show/hide graph widget(s) |
-| `client` | string | Optional: when set, show only this host's graph |
+| `enabled` | bool | For global key: show/hide all graphs. For host key: show/hide only this host's graph. |
 
 Enables a 5-series time-series chart (GPU compute, CPU avg, CPU top, VRAM,
 RAM) displayed in Row 1 columns 0–1 (absolute positioned, 2×1 units). Uses
 300 data points at 1s intervals (5 min history). Reads from
-`kpidash:client:{client}:dev_telemetry`.
+`kpidash:client:{host}:dev_telemetry`.
+
+Resolution order:
+1. If global `kpidash:cmd:graph` is `{"enabled":false}`, all graphs are hidden.
+2. Otherwise, each host is shown unless a host override key exists with `{"enabled":false}`.
 
 ```bash
-redis-cli SET kpidash:cmd:graph '{"enabled":true,"client":"kubs0"}' EX 300
+# Global on/off switch
+redis-cli SET kpidash:cmd:graph '{"enabled":true}' EX 300
 
 # Hide all graph widgets immediately
 redis-cli SET kpidash:cmd:graph '{"enabled":false}' EX 300
 
-# Re-enable all discovered hosts (default behavior)
+# Hide only kubs0 graph
+redis-cli SET kpidash:cmd:graph:kubs0 '{"enabled":false}' EX 300
+
+# Re-enable only kubs0 graph
+redis-cli SET kpidash:cmd:graph:kubs0 '{"enabled":true}' EX 300
+
+# Re-enable all discovered hosts via defaults
 redis-cli DEL kpidash:cmd:graph
+redis-cli DEL kpidash:cmd:graph:kubs0
 ```
 
 ### 9.4 Fortune Dev Overlay

@@ -52,6 +52,7 @@
 #define KPIDASH_KEY_CMD_GRID         "kpidash:cmd:grid"
 #define KPIDASH_KEY_CMD_TEXTSIZE     "kpidash:cmd:textsize"
 #define KPIDASH_KEY_CMD_GRAPH        "kpidash:cmd:graph"
+#define KPIDASH_KEY_CMD_GRAPH_HOST   "kpidash:cmd:graph:%s"
 #define KPIDASH_KEY_CMD_FORTUNE_DEV  "kpidash:cmd:fortune_dev"
 
 /* Sprint 006 / FR-021: service status keys (one per service). */
