@@ -1,0 +1,15 @@
+[Unit]
+Description=kpidash client daemon (telemetry/health reporter)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=__KPIDASH_CLIENT_USER__
+EnvironmentFile=__KPIDASH_CLIENT_ENV_FILE__
+ExecStart=__KPIDASH_CLIENT_VENV_BIN__/kpidash-client daemon start --foreground
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
