@@ -61,5 +61,9 @@
 /* Image decoders */
 #define LV_USE_LIBPNG 1
 
+/* Snapshot — render the active screen to a buffer for the device
+ * self-screenshot (see src/screenshot.c, kpidash:screenshot control key) */
+#define LV_USE_SNAPSHOT 1
+
 #endif /* LV_CONF_H */
 #endif /* Enable */

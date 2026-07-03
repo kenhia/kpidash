@@ -53,6 +53,10 @@
 #define KPIDASH_KEY_CMD_TEXTSIZE "kpidash:cmd:textsize"
 #define KPIDASH_KEY_CMD_GRAPH "kpidash:cmd:graph"
 
+/* One-shot device self-screenshot trigger. Consumed with GETDEL each poll;
+ * a value starting with '/' names the output path, else the default is used. */
+#define KPIDASH_KEY_SCREENSHOT "kpidash:screenshot"
+
 /* Sprint 006 / FR-021: service status keys (one per service). */
 #define KPIDASH_KEY_SERVICES_PATTERN "kpidash:services:*:*"
 #define KPIDASH_KEY_SERVICES_PREFIX  "kpidash:services:"

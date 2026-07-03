@@ -174,6 +174,22 @@ rsync -avz --rsync-path="sudo rsync" ken@PI_IP:/usr/lib/aarch64-linux-gnu $SYSRO
 rsync -avz ken@PI_IP:/usr/include $SYSROOT/usr/
 ```
 
+> **Gotcha (seen in sprint 008):** a sysroot that only has the runtime
+> `lib*.so.N` files but not the `-dev` bits fails at configure ("Package
+> 'libpng' not found") or link ("cjson/cJSON.h: No such file"). Each dependency
+> needs its headers, its `pkgconfig/*.pc`, **and** the bare `lib*.so` dev
+> symlink. If the bulk rsync above missed them (e.g. the sysroot was seeded by a
+> partial multiarch install), spot-fix per library from the Pi, e.g. libpng:
+> ```bash
+> L=$SYSROOT/usr/lib/aarch64-linux-gnu
+> rsync -a ken@PI_IP:/usr/include/png.h ken@PI_IP:/usr/include/pngconf.h \
+>         ken@PI_IP:/usr/include/pnglibconf.h $SYSROOT/usr/include/
+> rsync -a ken@PI_IP:/usr/lib/aarch64-linux-gnu/pkgconfig/libpng16.pc \
+>         ken@PI_IP:/usr/lib/aarch64-linux-gnu/pkgconfig/libpng.pc $L/pkgconfig/
+> rsync -a ken@PI_IP:'/usr/lib/aarch64-linux-gnu/libpng16.so*' $L/
+> ```
+> The same shape applies to zlib (pulled in by libpng), libcjson, and hiredis.
+
 ### 6.3 CMake toolchain file (`cmake/aarch64-toolchain.cmake`)
 
 ```cmake
