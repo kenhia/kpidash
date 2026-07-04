@@ -1,6 +1,6 @@
-# Sprint 008 — Device Self-Screenshot
+# Sprint 011 — Device Self-Screenshot
 
-**Branch**: `008-device-screenshot`
+**Branch**: `011-device-screenshot`
 **Status**: Implemented
 
 ## Problem
