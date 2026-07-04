@@ -10,6 +10,7 @@
 #include "memstat.h"
 #include "protocol.h"
 #include "registry.h"
+#include "screenshot.h"
 #include "status.h"
 #include "ui.h"
 
@@ -675,6 +676,18 @@ void redis_poll(void) {
 
     /* Step 9: Service status (sprint 006 / FR-022) */
     redis_poll_services();
+
+    /* Step 10: One-shot device self-screenshot. Consume kpidash:screenshot
+     * (GETDEL) and snapshot the active screen to BMP. A value starting with
+     * '/' names the output path; anything else uses the default. Runs on the
+     * UI thread — safe for lv_snapshot_take. */
+    if (g_ctx && !g_ctx->err) {
+        redisReply *ssr = redisCommand(g_ctx, "GETDEL " KPIDASH_KEY_SCREENSHOT);
+        if (ssr && ssr->type == REDIS_REPLY_STRING && ssr->len > 0)
+            screenshot_save(ssr->str[0] == '/' ? ssr->str : NULL);
+        if (ssr)
+            freeReplyObject(ssr);
+    }
 
     freeReplyObject(smr);
 }

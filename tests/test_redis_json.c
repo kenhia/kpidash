@@ -24,6 +24,7 @@ void ui_show_redis_error(const char *msg) { (void)msg; }
 void ui_hide_redis_error(void) {}
 void status_redis_check_ack(void *ctx) { (void)ctx; }
 void fortune_on_pushed(const char *json) { (void)json; }
+bool screenshot_save(const char *path) { (void)path; return false; }
 #endif
 
 static int passed = 0;

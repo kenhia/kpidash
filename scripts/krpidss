@@ -1,0 +1,55 @@
+#!/usr/bin/env bash
+# krpidss — kpidash screenshot: trigger the device self-screenshot
+# (kpidash:screenshot control key) on rpi53 and copy the result here as PNG.
+#
+# Usage: krpidss [basename]
+#   krpidss                  -> ./kpidash-YYYYmmdd-HHMMSS.png
+#   krpidss dev-graph-bug    -> ./dev-graph-bug.png
+#
+# Requires: ssh access to the dashboard Pi; python3+PIL or ffmpeg locally for
+# PNG conversion (falls back to keeping the raw BMP otherwise).
+set -euo pipefail
+
+KRP_HOST="${KRP_HOST:-ken@rpi53}"
+
+base="${1:-kpidash-$(date +%Y%m%d-%H%M%S)}"
+base="${base%.png}"
+tmp_bmp="$(mktemp --suffix=.bmp)"
+trap 'rm -f "$tmp_bmp"' EXIT
+
+# One round-trip: trigger the shot and stream it back once it is FRESH. The
+# kpidash service runs as root and overwrites its own default output file in
+# place, so freshness is judged by mtime (a stale file from a previous run must
+# not satisfy the wait). rpi53's Redis requires auth, so pull REDISCLI_AUTH
+# from the client's env file (redis-cli reads that variable automatically).
+# Wrapped in bash -s so the remote login shell's dialect doesn't matter.
+ssh "$KRP_HOST" 'bash -s' > "$tmp_bmp" <<'EOF'
+f=/tmp/kpidash-shot.bmp
+set -a; . "$HOME/.config/kpidash-client/redis-auth.env" 2>/dev/null || true; set +a
+t0=$(date +%s)
+redis-cli set kpidash:screenshot 1 > /dev/null 2>&1
+for i in $(seq 1 14); do
+    m=$(stat -c %Y "$f" 2>/dev/null || echo 0)
+    [ "$m" -ge "$t0" ] && break
+    sleep 0.5
+done
+m=$(stat -c %Y "$f" 2>/dev/null || echo 0)
+[ "$m" -ge "$t0" ] && cat "$f"
+exit 0
+EOF
+
+if [ ! -s "$tmp_bmp" ]; then
+    echo "krpidss: no screenshot produced — is kpidash running on ${KRP_HOST#*@}?" >&2
+    exit 1
+fi
+
+if python3 -c 'import PIL' 2>/dev/null; then
+    python3 -c "from PIL import Image; Image.open('$tmp_bmp').save('${base}.png')"
+elif command -v ffmpeg > /dev/null; then
+    ffmpeg -loglevel error -y -i "$tmp_bmp" "${base}.png"
+else
+    cp "$tmp_bmp" "${base}.bmp"
+    echo "krpidss: no PNG converter (PIL/ffmpeg); kept ${base}.bmp"
+    exit 0
+fi
+echo "krpidss: saved ${base}.png"

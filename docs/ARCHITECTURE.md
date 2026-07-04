@@ -129,6 +129,9 @@ LVGL/DRM/KMS with no mouse or keyboard interaction.
 8. **Dev Commands**: `kpidash:cmd:grid`, `kpidash:cmd:textsize`,
    `kpidash:cmd:graph` control developer overlay widgets. Set via redis-cli
    with 300 s TTL. Auto-expire disables the overlay.
+9. **Screenshot**: `kpidash:screenshot` (consumed via GETDEL) triggers an
+   in-process `lv_snapshot_take` → BMP at `/tmp/kpidash-shot.bmp`. Use the
+   `krpidss` CLI to fetch a PNG remotely (sprint 011).
 
 ## Source Structure
 

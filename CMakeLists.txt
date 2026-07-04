@@ -52,6 +52,8 @@ add_executable(kpidash
     src/registry.c
     src/config.c
     src/redis.c
+    src/screenshot.c
+    src/bmp_write.c
     src/status.c
     src/memstat.c
     src/ui.c
