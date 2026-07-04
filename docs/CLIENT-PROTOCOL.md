@@ -388,6 +388,34 @@ RAM) displayed in Row 1 columns 0–1 (absolute positioned, 2×1 units). Uses
 redis-cli SET kpidash:cmd:graph '{"enabled":true,"client":"kubs0"}' EX 300
 ```
 
+### 9.4 Device Screenshot (Sprint 008)
+
+| Key | Type | Written by | Read by | TTL |
+|-----|------|-----------|---------|-----|
+| `kpidash:screenshot` | STRING | manual (redis-cli) / `krpidss` | dashboard | none (consumed) |
+
+One-shot device self-screenshot. The dashboard consumes the key with `GETDEL`
+on its next 1 s poll, renders the active screen with `lv_snapshot_take`, and
+writes a 24-bit BMP. A value starting with `/` names the output path; anything
+else uses the default `/tmp/kpidash-shot.bmp`. Because rendering is DRM/KMS
+there is no external framebuffer grab — the shot is taken in-process.
+
+```bash
+# Trigger a shot to the default path (rpi53 Redis needs auth)
+redis-cli SET kpidash:screenshot 1
+```
+
+Prefer the client CLI, which triggers the shot, waits for a fresh BMP, streams
+it back over SSH, and converts to PNG:
+
+```bash
+krpidss [basename]        # -> ./kpidash-YYYYmmdd-HHMMSS.png (or ./basename.png)
+```
+
+`krpidss` lives in `scripts/` and installs to `~/.local/bin`. Host override via
+`KRP_HOST` (default `ken@rpi53`); it sources `REDISCLI_AUTH` from the client's
+`redis-auth.env`.
+
 ---
 
 ## 10. System Info
