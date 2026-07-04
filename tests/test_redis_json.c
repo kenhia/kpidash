@@ -263,24 +263,24 @@ int main(void) {
     /* T038: graph command */
     {
         dev_cmd_state_t s = {0};
-        bool ok = redis_parse_cmd_graph_json("{\"enabled\":true,\"client\":\"gpu-box\"}", &s);
+        bool ok = redis_parse_cmd_graph_json("{\"enabled\":true}", &s);
         CHECK(ok);
         CHECK(s.graph_enabled == true);
-        CHECK(strcmp(s.graph_client, "gpu-box") == 0);
+        CHECK(s.graph_host_count == 0);
     }
     {
         dev_cmd_state_t s = {0};
         bool ok = redis_parse_cmd_graph_json("{\"enabled\":false}", &s);
         CHECK(ok);
         CHECK(s.graph_enabled == false);
-        CHECK(s.graph_client[0] == '\0');
+        CHECK(s.graph_host_count == 0);
     }
     {
         dev_cmd_state_t s = {0};
         bool ok = redis_parse_cmd_graph_json(NULL, &s);  /* absent key */
         CHECK(ok);
-        CHECK(s.graph_enabled == false);
-        CHECK(s.graph_client[0] == '\0');
+        CHECK(s.graph_enabled == true);
+        CHECK(s.graph_host_count == 0);
     }
     {
         dev_cmd_state_t s = {0};
@@ -292,7 +292,7 @@ int main(void) {
         bool ok = redis_parse_cmd_graph_json("{\"enabled\":true}", &s);
         CHECK(ok);
         CHECK(s.graph_enabled == true);
-        CHECK(s.graph_client[0] == '\0');  /* no client = empty string */
+        CHECK(s.graph_host_count == 0);
     }
 
     /* ---- dev_telemetry parse tests ---- */

@@ -334,21 +334,29 @@ bool redis_parse_cmd_textsize_json(const char *json, dev_cmd_state_t *state) {
 }
 
 bool redis_parse_cmd_graph_json(const char *json, dev_cmd_state_t *state) {
-    state->graph_enabled = false;
-    state->graph_client[0] = '\0';
+    state->graph_enabled = true;
     if (!json)
         return true;
     cJSON *root = cJSON_Parse(json);
     if (!root)
         return false;
     cJSON *en = cJSON_GetObjectItemCaseSensitive(root, "enabled");
-    cJSON *cl = cJSON_GetObjectItemCaseSensitive(root, "client");
     if (cJSON_IsBool(en))
         state->graph_enabled = cJSON_IsTrue(en);
-    if (cJSON_IsString(cl) && cl->valuestring) {
-        strncpy(state->graph_client, cl->valuestring, HOSTNAME_LEN - 1);
-        state->graph_client[HOSTNAME_LEN - 1] = '\0';
-    }
+    cJSON_Delete(root);
+    return true;
+}
+
+bool redis_parse_cmd_fortune_dev_json(const char *json, dev_cmd_state_t *state) {
+    state->fortune_dev_enabled = false;
+    if (!json)
+        return true;
+    cJSON *root = cJSON_Parse(json);
+    if (!root)
+        return false;
+    cJSON *en = cJSON_GetObjectItemCaseSensitive(root, "enabled");
+    if (cJSON_IsBool(en))
+        state->fortune_dev_enabled = cJSON_IsTrue(en);
     cJSON_Delete(root);
     return true;
 }
@@ -604,6 +612,31 @@ void redis_poll(void) {
                                &new_cmd);
     if (gpr)
         freeReplyObject(gpr);
+
+    /* Optional per-host graph overrides: kpidash:cmd:graph:{host}. */
+    new_cmd.graph_host_count = 0;
+    for (int i = 0; i < n_hosts && new_cmd.graph_host_count < MAX_CLIENTS; i++) {
+        char gk[256];
+        snprintf(gk, sizeof(gk), KPIDASH_KEY_CMD_GRAPH_HOST, hostnames[i]);
+        redisReply *ghr = redisCommand(g_ctx, "GET %s", gk);
+        if (ghr && ghr->type == REDIS_REPLY_STRING) {
+            dev_cmd_state_t host_cmd = {0};
+            if (redis_parse_cmd_graph_json(ghr->str, &host_cmd)) {
+                int idx = new_cmd.graph_host_count++;
+                strncpy(new_cmd.graph_hosts[idx], hostnames[i], HOSTNAME_LEN - 1);
+                new_cmd.graph_hosts[idx][HOSTNAME_LEN - 1] = '\0';
+                new_cmd.graph_host_enabled[idx] = host_cmd.graph_enabled;
+            }
+        }
+        if (ghr)
+            freeReplyObject(ghr);
+    }
+
+    redisReply *fdr = redisCommand(g_ctx, "GET " KPIDASH_KEY_CMD_FORTUNE_DEV);
+    redis_parse_cmd_fortune_dev_json((fdr && fdr->type == REDIS_REPLY_STRING) ? fdr->str : NULL,
+                                     &new_cmd);
+    if (fdr)
+        freeReplyObject(fdr);
 
     g_dev_cmd = new_cmd;
 

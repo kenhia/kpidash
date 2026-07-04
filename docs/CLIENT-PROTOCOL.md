@@ -369,26 +369,66 @@ Shows sample text at various font sizes for visual calibration.
 | Key | Type | Written by | Read by | TTL |
 |-----|------|-----------|---------|-----|
 | `kpidash:cmd:graph` | STRING (JSON) | manual (redis-cli) | dashboard | 300 s |
+| `kpidash:cmd:graph:{host}` | STRING (JSON) | manual / client | dashboard | 300 s |
 
 ```json
-{"enabled": true, "client": "kubs0"}
+{"enabled": true}
 ```
 
 | Field | Type | Notes |
 |-------|------|-------|
-| `enabled` | bool | Show/hide graph widget |
-| `client` | string | Hostname whose dev_telemetry to graph |
+| `enabled` | bool | For global key: show/hide all graphs. For host key: show/hide only this host's graph. |
 
 Enables a 5-series time-series chart (GPU compute, CPU avg, CPU top, VRAM,
 RAM) displayed in Row 1 columns 0–1 (absolute positioned, 2×1 units). Uses
 300 data points at 1s intervals (5 min history). Reads from
-`kpidash:client:{client}:dev_telemetry`.
+`kpidash:client:{host}:dev_telemetry`.
+
+Resolution order:
+1. If global `kpidash:cmd:graph` is `{"enabled":false}`, all graphs are hidden.
+2. Otherwise, each host is shown unless a host override key exists with `{"enabled":false}`.
 
 ```bash
-redis-cli SET kpidash:cmd:graph '{"enabled":true,"client":"kubs0"}' EX 300
+# Global on/off switch
+redis-cli SET kpidash:cmd:graph '{"enabled":true}' EX 300
+
+# Hide all graph widgets immediately
+redis-cli SET kpidash:cmd:graph '{"enabled":false}' EX 300
+
+# Hide only kubs0 graph
+redis-cli SET kpidash:cmd:graph:kubs0 '{"enabled":false}' EX 300
+
+# Re-enable only kubs0 graph
+redis-cli SET kpidash:cmd:graph:kubs0 '{"enabled":true}' EX 300
+
+# Re-enable all discovered hosts via defaults
+redis-cli DEL kpidash:cmd:graph
+redis-cli DEL kpidash:cmd:graph:kubs0
 ```
 
-### 9.4 Device Screenshot (Sprint 008)
+### 9.4 Fortune Dev Overlay
+
+| Key | Type | Written by | Read by | TTL |
+|-----|------|-----------|---------|-----|
+| `kpidash:cmd:fortune_dev` | STRING (JSON) | manual (redis-cli) | dashboard | 300 s |
+
+```json
+{"enabled": true}
+```
+
+When enabled, shows a small "Rejects: N  Elapsed: N ms" line at the top-left
+of the fortune widget (14 pt blue) reporting how many fortunes were rejected
+and how long the search took for the most recent rotation cycle.  Use this
+during threshold calibration alongside `kpidash:fortune:pushed` test strings.
+
+```bash
+redis-cli SET kpidash:cmd:fortune_dev '{"enabled":true}' EX 300
+```
+
+The overlay updates each time a fortune is displayed (rotation or pushed), so
+stats reflect the last fetch, not a live counter.
+
+### 9.5 Device Screenshot (Sprint 011)
 
 | Key | Type | Written by | Read by | TTL |
 |-----|------|-----------|---------|-----|

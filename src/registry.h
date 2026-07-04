@@ -102,8 +102,11 @@ typedef struct {
     bool grid_unit;       /* unit-based grid mode */
     float grid_unit_size; /* unit multiplier (0.5, 1, 2) */
     bool textsize_enabled;
-    bool graph_enabled;
-    char graph_client[HOSTNAME_LEN]; /* hostname of client to graph */
+    bool graph_enabled; /* global switch: false hides all graphs */
+    int graph_host_count;
+    char graph_hosts[MAX_CLIENTS][HOSTNAME_LEN];
+    bool graph_host_enabled[MAX_CLIENTS];
+    bool fortune_dev_enabled;        /* show reject/elapsed overlay on fortune widget */
 } dev_cmd_state_t;
 
 /* ---- Dev telemetry snapshot (fast GPU+CPU+RAM from dev_telemetry key) ---- */
