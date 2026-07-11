@@ -311,6 +311,36 @@ uv run kpidash-client service-status --name api --state ok --text "API respondin
 
 ---
 
+## 8b. Apt-Temps Cards (Sprint 012, WI #364)
+
+| Key | Type | Written by | Read by | TTL |
+|-----|------|-----------|---------|-----|
+| `kpidash:apttemps:{zone}` | STRING (JSON) | apt-temps publisher | dashboard | **none** |
+
+One key per zone → one card per zone. `{zone}` is a lowercase slug (no spaces),
+e.g. `living`, `kitchen`, `bedroom`.
+
+```json
+{ "zone": "Living", "temp_f": 75.6, "humidity_pct": 58, "ts": 1743292800.0 }
+```
+
+| Field | Type | Required | Notes |
+|-------|------|----------|-------|
+| `zone` | string | no | Display label (proper case); the **key** slug is authoritative |
+| `temp_f` | number | yes | Temperature °F, rendered to 1 decimal |
+| `humidity_pct` | number | yes | Relative humidity, whole number |
+| `ts` | number | yes | Unix seconds; drives staleness |
+
+TTL-less — the dashboard owns freshness via `ts` (mirrors the services-card
+idiom). Dashboard polls `SCAN MATCH kpidash:apttemps:*` and renders one card per
+key (sorted by slug) in the footer strip, **to the right of the service cards**.
+Temperature colour: Blue `<65.0` · Green `65.0–75.0` · Orange `75.1–79.9` ·
+Red `>79.9`; the card goes GRAY when `(now − ts) ≥ 300 s`. Keys are published by
+the separate **apt-temps** project; the dashboard only reads them. Delete a
+key to remove its card.
+
+---
+
 ## 9. Dev Commands (Sprint 002)
 
 Command keys enable/disable developer overlay widgets. All keys use JSON

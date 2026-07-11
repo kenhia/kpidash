@@ -62,6 +62,10 @@
 /* Sprint 006 / FR-021: service status keys (one per service). */
 #define KPIDASH_KEY_SERVICES_PATTERN "kpidash:services:*:*"
 #define KPIDASH_KEY_SERVICES_PREFIX  "kpidash:services:"
+
+/* WI #364: per-zone apartment temperature cards (one key per zone). */
+#define KPIDASH_KEY_APTTEMPS_PATTERN "kpidash:apttemps:*"
+#define KPIDASH_KEY_APTTEMPS_PREFIX  "kpidash:apttemps:"
 #define CMD_TTL_S 300
 
 #endif /* PROTOCOL_H */

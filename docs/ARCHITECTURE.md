@@ -157,8 +157,10 @@ kpidash/
 │   └── widgets/
 │       ├── common.h            # Shared color palette and font constants (WS_*)
 │       ├── client_card.{h,c}   # Per-client arc gauge card (CPU/RAM/GPU/disks)
-│       ├── activities.{h,c}    # Activity table with live elapsed timers
-│       ├── repo_status.{h,c}   # Repo card grid (branch/dirty/age indicators)
+│       ├── activities.{h,c}    # Activity table (disabled — WI #365)
+│       ├── repo_status.{h,c}   # Repo card grid (disabled — WI #365)
+│       ├── service_card.{h,c}  # Service status card (footer strip)
+│       ├── apt_temps_card.{h,c}# Per-zone temp/humidity card (footer, WI #364)
 │       ├── fortune.{h,c}       # Fortune text label widget
 │       ├── status_bar.{h,c}    # Bottom status bar (warning/error)
 │       ├── dev_grid.{h,c}      # Pixel grid overlay (dev command)

@@ -27,6 +27,7 @@
 #include "redis.h"
 #include "registry.h"
 #include "widgets/activities.h"
+#include "widgets/apt_temps_card.h"
 #include "widgets/client_card.h"
 #include "widgets/dev_graph.h"
 #include "widgets/dev_grid.h"
@@ -35,6 +36,12 @@
 #include "widgets/repo_status.h"
 #include "widgets/service_card.h"
 #include "widgets/status_bar.h"
+
+/* WI #365 (sprint 012): the Activities and Repo Status widgets are turned off.
+ * Compile-time toggles — set either to 1 to restore it. Expect significant
+ * layout rework if brought back, since the pool/footer layout has moved on. */
+#define KPIDASH_WIDGET_ACTIVITIES 0
+#define KPIDASH_WIDGET_REPO_STATUS 0
 
 /* ---- Layout objects ---- */
 static lv_obj_t *g_screen = NULL;
@@ -136,15 +143,19 @@ void ui_init(void) {
     /* ---- Rows 2-3 (FR-002): pool widgets created here, positioned by
      * ui_refresh() via layout_pool_place(). They are created once and
      * shown/hidden + repositioned each refresh. ---- */
+#if KPIDASH_WIDGET_ACTIVITIES
     g_activities = activities_widget_create(g_screen);
     lv_obj_set_size(g_activities, UNIT_W_N(2), UNIT_H);
     lv_obj_set_style_pad_all(g_activities, CELL_PAD, 0);
     lv_obj_add_flag(g_activities, LV_OBJ_FLAG_HIDDEN);
+#endif
 
+#if KPIDASH_WIDGET_REPO_STATUS
     g_repo_status = repo_status_widget_create(g_screen);
     lv_obj_set_size(g_repo_status, UNIT_W_N(2), UNIT_H);
     lv_obj_set_style_pad_all(g_repo_status, CELL_PAD, 0);
     lv_obj_add_flag(g_repo_status, LV_OBJ_FLAG_HIDDEN);
+#endif
 
     /* T014: Fortune as 2×1 pool widget. */
     g_fortune = fortune_create(g_screen, 0, 0);
@@ -239,18 +250,40 @@ void ui_refresh(void) {
         client_card_update_telemetry(card, &clients[i]);
     }
 
+#if KPIDASH_WIDGET_ACTIVITIES
     /* Activities widget */
     int act_count = 0;
     const activity_t *acts = redis_get_activities(&act_count);
     activities_widget_update(g_activities, acts, act_count);
+#endif
 
+#if KPIDASH_WIDGET_REPO_STATUS
     /* Repo status widget */
     int repo_count = 0;
     const repo_entry_t *repos = redis_get_repos(&repo_count);
     repo_status_widget_update(g_repo_status, repos, repo_count);
+#endif
 
     /* Dev command overlays (T030) */
     const dev_cmd_state_t *cmd = redis_get_dev_cmd_state();
+
+    /* WI #250: evict graph host series stale beyond the grace period. Destroy
+     * the widget here (LVGL thread) before dropping the series so dead/legacy
+     * hosts don't linger as "NO NEW DATA" until a dashboard restart. */
+    {
+        graph_host_series_t ev[GRAPH_HOST_MAX];
+        int nev = graph_host_snapshot(ev, GRAPH_HOST_MAX);
+        double now_ev = (double)time(NULL);
+        for (int i = 0; i < nev; i++) {
+            if ((now_ev - ev[i].last_sample_ts) < GRAPH_HOST_EVICT_SECONDS) continue;
+            graph_host_series_t *live = graph_host_find_or_create(ev[i].host);
+            if (live && live->widget) {
+                dev_graph_destroy(live->widget);
+                live->widget = NULL;
+            }
+            graph_host_remove(ev[i].host);
+        }
+    }
 
     /* ---- Sprint 006 / T012,T015,T035: rows-2-3 layout pool placement ----
      * Multi-host graphs: one WIDGET_GRAPH request per discovered host series,
@@ -295,8 +328,12 @@ void ui_refresh(void) {
                 nreq++;
             }
         }
+#if KPIDASH_WIDGET_ACTIVITIES
         reqs[nreq++] = (widget_request_t){WIDGET_ACTIVITIES, WIDGET_CELLS_ACTIVITIES, NULL};
+#endif
+#if KPIDASH_WIDGET_REPO_STATUS
         reqs[nreq++] = (widget_request_t){WIDGET_REPO_STATUS, WIDGET_CELLS_REPO_STATUS, NULL};
+#endif
         reqs[nreq++] = (widget_request_t){WIDGET_FORTUNE, WIDGET_CELLS_FORTUNE, NULL};
 
         widget_request_t placed[GRAPH_HOST_MAX + 4];
@@ -375,8 +412,8 @@ void ui_refresh(void) {
                 lv_obj_add_flag(live->widget, LV_OBJ_FLAG_HIDDEN);
             }
         }
-        if (!placed_acts)    lv_obj_add_flag(g_activities, LV_OBJ_FLAG_HIDDEN);
-        if (!placed_repo)    lv_obj_add_flag(g_repo_status, LV_OBJ_FLAG_HIDDEN);
+        if (!placed_acts && g_activities)  lv_obj_add_flag(g_activities, LV_OBJ_FLAG_HIDDEN);
+        if (!placed_repo && g_repo_status) lv_obj_add_flag(g_repo_status, LV_OBJ_FLAG_HIDDEN);
         if (!placed_fortune) lv_obj_add_flag(g_fortune, LV_OBJ_FLAG_HIDDEN);
     }
 
@@ -405,6 +442,32 @@ void ui_refresh(void) {
                 service_card_create(g_service_strip, live);
             }
             service_card_update(live, now);
+        }
+    }
+
+    /* ---- WI #364: Apt-Temps per-zone cards, painted into the footer strip
+     * after (to the right of) the service cards. ---- */
+    {
+        apttemps_entry_t ats[APTTEMPS_REGISTRY_MAX];
+        int nat = apttemps_registry_snapshot(ats, APTTEMPS_REGISTRY_MAX);
+        /* Stable order by slug ascending. */
+        for (int i = 1; i < nat; i++) {
+            apttemps_entry_t tmp = ats[i];
+            int j = i;
+            while (j > 0 && strncmp(ats[j - 1].slug, tmp.slug, sizeof(tmp.slug)) > 0) {
+                ats[j] = ats[j - 1];
+                j--;
+            }
+            ats[j] = tmp;
+        }
+        double now = (double)time(NULL);
+        for (int i = 0; i < nat; i++) {
+            apttemps_entry_t *live = apttemps_registry_find_or_create(ats[i].slug);
+            if (!live) continue;
+            if (!live->container) {
+                apt_temps_card_create(g_service_strip, live);
+            }
+            apt_temps_card_update(live, now);
         }
     }
 

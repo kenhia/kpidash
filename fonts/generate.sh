@@ -13,7 +13,8 @@ cd "$(dirname "$0")"
 BOLD_TTF="ttf/Montserrat-Bold.ttf"
 SYMBOLS_TTF="ttf/SymbolsNerdFont-Regular.ttf"
 BPP=4
-RANGE="0x20-0x7E"
+# 0x20-0x7E: ASCII printable. 0xB0: ° DEGREE SIGN (temp cards, WI #363).
+RANGE="0x20-0x7E,0xB0"
 
 # Sizes to generate (match built-in Montserrat Regular sizes + extras)
 SIZES=(14 16 20 24 28 36 48)

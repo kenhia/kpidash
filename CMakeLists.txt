@@ -85,6 +85,7 @@ add_executable(kpidash
     src/widgets/dev_textsize.c
     src/widgets/dev_graph.c
     src/widgets/service_card.c
+    src/widgets/apt_temps_card.c
     src/icons.c
     fonts/lv_font_montserrat_bold_14.c
     fonts/lv_font_montserrat_bold_16.c

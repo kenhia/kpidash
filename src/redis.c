@@ -5,6 +5,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 
 #include "fortune.h"
 #include "memstat.h"
@@ -19,6 +20,7 @@ static redisContext *g_ctx = NULL;
 static char g_host[128] = "127.0.0.1";
 static int g_port = 6379;
 static char g_auth[256] = {0};
+static char g_self_version[80] = "unknown"; /* WI #369: shown on the self card */
 
 /* ---- Internal helpers ---- */
 
@@ -676,6 +678,10 @@ void redis_poll(void) {
 
     /* Step 9: Service status (sprint 006 / FR-022) */
     redis_poll_services();
+    /* Apt-Temps per-zone cards (WI #364) */
+    redis_poll_apttemps();
+    /* Self service card (WI #369) */
+    redis_publish_self_service();
 
     /* Step 10: One-shot device self-screenshot. Consume kpidash:screenshot
      * (GETDEL) and snapshot the active screen to BMP. A value starting with
@@ -738,6 +744,46 @@ void redis_write_system_info(const char *logpath, const char *version) {
     r = redisCommand(g_ctx, "SET " KPIDASH_KEY_VERSION " %s", version);
     if (r)
         freeReplyObject(r);
+    strncpy(g_self_version, version ? version : "unknown", sizeof(g_self_version) - 1);
+    g_self_version[sizeof(g_self_version) - 1] = '\0';
+}
+
+/* WI #369: the dashboard self-publishes a service card so the board shows its
+ * own liveness + running version. Throttled to stay fresh without writing every
+ * 1s poll. Key: kpidash:services:rpidash:<hostname>. */
+void redis_publish_self_service(void) {
+    if (!g_ctx || g_ctx->err)
+        return;
+    static double last = 0.0;
+    double now = (double)time(NULL);
+    if (now - last < 15.0)
+        return;
+    last = now;
+
+    char host[64];
+    if (gethostname(host, sizeof(host)) != 0)
+        strncpy(host, "dashboard", sizeof(host) - 1);
+    host[sizeof(host) - 1] = '\0';
+    char *dot = strchr(host, '.');
+    if (dot)
+        *dot = '\0';
+
+    cJSON *o = cJSON_CreateObject();
+    if (!o)
+        return;
+    cJSON_AddNumberToObject(o, "ts", now);
+    cJSON_AddStringToObject(o, "state", "ok");
+    cJSON_AddStringToObject(o, "text", g_self_version);
+    cJSON_AddStringToObject(o, "host", host);
+    char *json = cJSON_PrintUnformatted(o);
+    cJSON_Delete(o);
+    if (!json)
+        return;
+
+    redisReply *r = redisCommand(g_ctx, "SET kpidash:services:rpidash:%s %s", host, json);
+    if (r)
+        freeReplyObject(r);
+    free(json);
 }
 
 /* ---- Fortune ---- */
@@ -882,4 +928,82 @@ void redis_poll_services(void) {
 }
 #else
 void redis_poll_services(void) { /* test stub */ }
+#endif
+
+/* ============================================================
+ * WI #364: Apt-Temps per-zone card polling
+ * ============================================================ */
+
+int redis_parse_apttemps_payload(const char *json, apttemps_entry_t *out) {
+    if (!json || !out) return -1;
+    cJSON *root = cJSON_Parse(json);
+    if (!root) return -1;
+
+    cJSON *ts   = cJSON_GetObjectItemCaseSensitive(root, "ts");
+    cJSON *tf   = cJSON_GetObjectItemCaseSensitive(root, "temp_f");
+    cJSON *hum  = cJSON_GetObjectItemCaseSensitive(root, "humidity_pct");
+    cJSON *zone = cJSON_GetObjectItemCaseSensitive(root, "zone");
+
+    if (!cJSON_IsNumber(ts) || !cJSON_IsNumber(tf) || !cJSON_IsNumber(hum)) {
+        cJSON_Delete(root);
+        return -1;
+    }
+
+    memset(out, 0, sizeof(*out));
+    out->last_payload_ts = ts->valuedouble;
+    out->temp_f = (float)tf->valuedouble;
+    out->humidity_pct = (int)hum->valuedouble;
+    out->valid = true;
+    if (cJSON_IsString(zone) && zone->valuestring) {
+        strncpy(out->zone, zone->valuestring, sizeof(out->zone) - 1);
+    }
+
+    cJSON_Delete(root);
+    return 0;
+}
+
+#ifndef KPIDASH_TEST_STUBS
+void redis_poll_apttemps(void) {
+    if (!g_ctx || g_ctx->err) return;
+
+    char cursor[32] = "0";
+    do {
+        redisReply *sr = redisCommand(g_ctx, "SCAN %s MATCH %s COUNT 100",
+                                      cursor, KPIDASH_KEY_APTTEMPS_PATTERN);
+        if (!sr || sr->type != REDIS_REPLY_ARRAY || sr->elements != 2) {
+            if (sr) freeReplyObject(sr);
+            return;
+        }
+        if (sr->element[0]->type == REDIS_REPLY_STRING) {
+            strncpy(cursor, sr->element[0]->str, sizeof(cursor) - 1);
+            cursor[sizeof(cursor) - 1] = '\0';
+        }
+        redisReply *keys = sr->element[1];
+        if (keys && keys->type == REDIS_REPLY_ARRAY) {
+            for (size_t i = 0; i < keys->elements; i++) {
+                const char *key = keys->element[i]->str;
+                if (!key) continue;
+                /* kpidash:apttemps:<slug> — exactly one segment after prefix. */
+                const char *after = key + strlen(KPIDASH_KEY_APTTEMPS_PREFIX);
+                if (!*after || strchr(after, ':')) continue;
+                char slug[64];
+                strncpy(slug, after, sizeof(slug) - 1);
+                slug[sizeof(slug) - 1] = '\0';
+
+                redisReply *gr = redisCommand(g_ctx, "GET %s", key);
+                if (gr && gr->type == REDIS_REPLY_STRING) {
+                    apttemps_entry_t parsed;
+                    if (redis_parse_apttemps_payload(gr->str, &parsed) == 0) {
+                        apttemps_entry_t *e = apttemps_registry_find_or_create(slug);
+                        if (e) apttemps_registry_apply_payload(e, &parsed);
+                    }
+                }
+                if (gr) freeReplyObject(gr);
+            }
+        }
+        freeReplyObject(sr);
+    } while (strcmp(cursor, "0") != 0);
+}
+#else
+void redis_poll_apttemps(void) { /* test stub */ }
 #endif
