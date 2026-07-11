@@ -255,6 +255,49 @@ void service_registry_apply_payload(service_entry_t *e, const service_entry_t *p
 /* Snapshot all current entries into out[]; returns count written. */
 int service_registry_snapshot(service_entry_t *out, int max);
 
+/* ---- Apt-Temps registry (WI #364) ---- */
+#define APTTEMPS_REGISTRY_MAX 16
+/* Payloads older than this render GRAY (stale); the publisher owns freshness. */
+#define APTTEMPS_FRESH_SECONDS 300.0
+
+typedef enum {
+    APTTEMPS_COLOR_GRAY = 0,  /* stale or invalid */
+    APTTEMPS_COLOR_BLUE,      /* temp_f < 65.0 */
+    APTTEMPS_COLOR_GREEN,     /* 65.0 - 75.0 */
+    APTTEMPS_COLOR_ORANGE,    /* 75.1 - 79.9 */
+    APTTEMPS_COLOR_RED,       /* > 79.9 */
+} apttemps_color_t;
+
+typedef struct apttemps_entry {
+    char slug[64];          /* key suffix (lowercase) — identity */
+    char zone[64];          /* display label from payload "zone" */
+    float temp_f;
+    int  humidity_pct;
+    double last_payload_ts;
+    bool valid;
+#ifndef KPIDASH_TEST_STUBS
+    lv_obj_t *container;
+    lv_obj_t *zone_label;
+    lv_obj_t *temp_label;
+    lv_obj_t *humidity_label;
+#else
+    void *container;
+    void *zone_label;
+    void *temp_label;
+    void *humidity_label;
+#endif
+} apttemps_entry_t;
+
+/* Temperature-band colour; GRAY when stale (>APTTEMPS_FRESH_SECONDS) or invalid. */
+apttemps_color_t apttemps_color(const apttemps_entry_t *e, double now);
+
+/* Find by slug or allocate a new slot. Returns NULL if full/empty. Thread-safe. */
+apttemps_entry_t *apttemps_registry_find_or_create(const char *slug);
+/* Apply a parsed payload (temp/humidity/ts/zone); identity slug is pinned. */
+void apttemps_registry_apply_payload(apttemps_entry_t *e, const apttemps_entry_t *parsed);
+/* Snapshot all entries into out[]; returns count written. */
+int apttemps_registry_snapshot(apttemps_entry_t *out, int max);
+
 /* ---- Graph host series (T006) ---- */
 #define GRAPH_HOST_MAX 8
 #define GRAPH_HOST_STALE_SECONDS 30.0

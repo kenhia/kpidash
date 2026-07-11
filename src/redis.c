@@ -883,3 +883,81 @@ void redis_poll_services(void) {
 #else
 void redis_poll_services(void) { /* test stub */ }
 #endif
+
+/* ============================================================
+ * WI #364: Apt-Temps per-zone card polling
+ * ============================================================ */
+
+int redis_parse_apttemps_payload(const char *json, apttemps_entry_t *out) {
+    if (!json || !out) return -1;
+    cJSON *root = cJSON_Parse(json);
+    if (!root) return -1;
+
+    cJSON *ts   = cJSON_GetObjectItemCaseSensitive(root, "ts");
+    cJSON *tf   = cJSON_GetObjectItemCaseSensitive(root, "temp_f");
+    cJSON *hum  = cJSON_GetObjectItemCaseSensitive(root, "humidity_pct");
+    cJSON *zone = cJSON_GetObjectItemCaseSensitive(root, "zone");
+
+    if (!cJSON_IsNumber(ts) || !cJSON_IsNumber(tf) || !cJSON_IsNumber(hum)) {
+        cJSON_Delete(root);
+        return -1;
+    }
+
+    memset(out, 0, sizeof(*out));
+    out->last_payload_ts = ts->valuedouble;
+    out->temp_f = (float)tf->valuedouble;
+    out->humidity_pct = (int)hum->valuedouble;
+    out->valid = true;
+    if (cJSON_IsString(zone) && zone->valuestring) {
+        strncpy(out->zone, zone->valuestring, sizeof(out->zone) - 1);
+    }
+
+    cJSON_Delete(root);
+    return 0;
+}
+
+#ifndef KPIDASH_TEST_STUBS
+void redis_poll_apttemps(void) {
+    if (!g_ctx || g_ctx->err) return;
+
+    char cursor[32] = "0";
+    do {
+        redisReply *sr = redisCommand(g_ctx, "SCAN %s MATCH %s COUNT 100",
+                                      cursor, KPIDASH_KEY_APTTEMPS_PATTERN);
+        if (!sr || sr->type != REDIS_REPLY_ARRAY || sr->elements != 2) {
+            if (sr) freeReplyObject(sr);
+            return;
+        }
+        if (sr->element[0]->type == REDIS_REPLY_STRING) {
+            strncpy(cursor, sr->element[0]->str, sizeof(cursor) - 1);
+            cursor[sizeof(cursor) - 1] = '\0';
+        }
+        redisReply *keys = sr->element[1];
+        if (keys && keys->type == REDIS_REPLY_ARRAY) {
+            for (size_t i = 0; i < keys->elements; i++) {
+                const char *key = keys->element[i]->str;
+                if (!key) continue;
+                /* kpidash:apttemps:<slug> — exactly one segment after prefix. */
+                const char *after = key + strlen(KPIDASH_KEY_APTTEMPS_PREFIX);
+                if (!*after || strchr(after, ':')) continue;
+                char slug[64];
+                strncpy(slug, after, sizeof(slug) - 1);
+                slug[sizeof(slug) - 1] = '\0';
+
+                redisReply *gr = redisCommand(g_ctx, "GET %s", key);
+                if (gr && gr->type == REDIS_REPLY_STRING) {
+                    apttemps_entry_t parsed;
+                    if (redis_parse_apttemps_payload(gr->str, &parsed) == 0) {
+                        apttemps_entry_t *e = apttemps_registry_find_or_create(slug);
+                        if (e) apttemps_registry_apply_payload(e, &parsed);
+                    }
+                }
+                if (gr) freeReplyObject(gr);
+            }
+        }
+        freeReplyObject(sr);
+    } while (strcmp(cursor, "0") != 0);
+}
+#else
+void redis_poll_apttemps(void) { /* test stub */ }
+#endif

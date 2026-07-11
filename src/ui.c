@@ -27,6 +27,7 @@
 #include "redis.h"
 #include "registry.h"
 #include "widgets/activities.h"
+#include "widgets/apt_temps_card.h"
 #include "widgets/client_card.h"
 #include "widgets/dev_graph.h"
 #include "widgets/dev_grid.h"
@@ -423,6 +424,32 @@ void ui_refresh(void) {
                 service_card_create(g_service_strip, live);
             }
             service_card_update(live, now);
+        }
+    }
+
+    /* ---- WI #364: Apt-Temps per-zone cards, painted into the footer strip
+     * after (to the right of) the service cards. ---- */
+    {
+        apttemps_entry_t ats[APTTEMPS_REGISTRY_MAX];
+        int nat = apttemps_registry_snapshot(ats, APTTEMPS_REGISTRY_MAX);
+        /* Stable order by slug ascending. */
+        for (int i = 1; i < nat; i++) {
+            apttemps_entry_t tmp = ats[i];
+            int j = i;
+            while (j > 0 && strncmp(ats[j - 1].slug, tmp.slug, sizeof(tmp.slug)) > 0) {
+                ats[j] = ats[j - 1];
+                j--;
+            }
+            ats[j] = tmp;
+        }
+        double now = (double)time(NULL);
+        for (int i = 0; i < nat; i++) {
+            apttemps_entry_t *live = apttemps_registry_find_or_create(ats[i].slug);
+            if (!live) continue;
+            if (!live->container) {
+                apt_temps_card_create(g_service_strip, live);
+            }
+            apt_temps_card_update(live, now);
         }
     }
 

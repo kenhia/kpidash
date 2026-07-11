@@ -160,4 +160,12 @@ int redis_parse_service_payload(const char *json, service_entry_t *out);
  */
 void redis_poll_services(void);
 
+/* ---- WI #364: Apt-Temps per-zone cards ---- */
+/* Parse a kpidash:apttemps:<zone> payload {zone, temp_f, humidity_pct, ts}.
+ * Required: ts, temp_f, humidity_pct (numbers). Returns 0 on success, -1 on
+ * malformed. */
+int redis_parse_apttemps_payload(const char *json, apttemps_entry_t *out);
+/* Poll all kpidash:apttemps:* keys and update the in-memory registry. */
+void redis_poll_apttemps(void);
+
 #endif /* REDIS_H */

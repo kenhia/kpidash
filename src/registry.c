@@ -229,6 +229,62 @@ int service_registry_snapshot(service_entry_t *out, int max) {
     return n;
 }
 
+/* ---- apt-temps registry (WI #364) ---- */
+
+apttemps_color_t apttemps_color(const apttemps_entry_t *e, double now) {
+    if (!e || !e->valid) return APTTEMPS_COLOR_GRAY;
+    if ((now - e->last_payload_ts) >= APTTEMPS_FRESH_SECONDS) return APTTEMPS_COLOR_GRAY;
+    float t = e->temp_f;
+    if (t < 65.0f)  return APTTEMPS_COLOR_BLUE;
+    if (t <= 75.0f) return APTTEMPS_COLOR_GREEN;
+    if (t < 80.0f)  return APTTEMPS_COLOR_ORANGE; /* 75.1 - 79.9 */
+    return APTTEMPS_COLOR_RED;
+}
+
+static apttemps_entry_t g_apttemps[APTTEMPS_REGISTRY_MAX];
+static int g_apttemps_count = 0;
+static pthread_mutex_t g_apttemps_mutex = PTHREAD_MUTEX_INITIALIZER;
+
+apttemps_entry_t *apttemps_registry_find_or_create(const char *slug) {
+    if (!slug || !*slug) return NULL;
+    pthread_mutex_lock(&g_apttemps_mutex);
+    for (int i = 0; i < g_apttemps_count; i++) {
+        if (strncmp(g_apttemps[i].slug, slug, sizeof(g_apttemps[i].slug)) == 0) {
+            apttemps_entry_t *r = &g_apttemps[i];
+            pthread_mutex_unlock(&g_apttemps_mutex);
+            return r;
+        }
+    }
+    if (g_apttemps_count >= APTTEMPS_REGISTRY_MAX) {
+        pthread_mutex_unlock(&g_apttemps_mutex);
+        return NULL;
+    }
+    apttemps_entry_t *e = &g_apttemps[g_apttemps_count++];
+    memset(e, 0, sizeof(*e));
+    strncpy(e->slug, slug, sizeof(e->slug) - 1);
+    pthread_mutex_unlock(&g_apttemps_mutex);
+    return e;
+}
+
+void apttemps_registry_apply_payload(apttemps_entry_t *e, const apttemps_entry_t *parsed) {
+    if (!e || !parsed) return;
+    pthread_mutex_lock(&g_apttemps_mutex);
+    e->temp_f = parsed->temp_f;
+    e->humidity_pct = parsed->humidity_pct;
+    e->last_payload_ts = parsed->last_payload_ts;
+    e->valid = true;
+    memcpy(e->zone, parsed->zone, sizeof(e->zone));
+    pthread_mutex_unlock(&g_apttemps_mutex);
+}
+
+int apttemps_registry_snapshot(apttemps_entry_t *out, int max) {
+    pthread_mutex_lock(&g_apttemps_mutex);
+    int n = g_apttemps_count < max ? g_apttemps_count : max;
+    memcpy(out, g_apttemps, (size_t)n * sizeof(apttemps_entry_t));
+    pthread_mutex_unlock(&g_apttemps_mutex);
+    return n;
+}
+
 /* ---- graph host series (T006) ---- */
 
 static graph_host_series_t g_graph_hosts[GRAPH_HOST_MAX];
