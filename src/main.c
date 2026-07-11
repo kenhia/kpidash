@@ -12,6 +12,7 @@
 
 #include "config.h"
 #include "fortune.h"
+#include "kpidash_version.h"
 #include "lvgl.h"
 #include "memstat.h"
 #include "protocol.h"
@@ -77,7 +78,7 @@ int main(void) {
         fprintf(stderr, "kpidash: Redis connection failed, will retry\n");
     } else {
         /* T050: Publish log path and version on startup */
-        redis_write_system_info(g_config.log_file, KPIDASH_VERSION);
+        redis_write_system_info(g_config.log_file, KPIDASH_BUILD_VERSION);
         redis_roundtrip_check();
     }
 

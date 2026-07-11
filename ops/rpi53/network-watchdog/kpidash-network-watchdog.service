@@ -1,0 +1,7 @@
+[Unit]
+Description=kpidash network watchdog (check gateway reachability, self-heal or reboot)
+After=network.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/kpidash-network-watchdog.sh

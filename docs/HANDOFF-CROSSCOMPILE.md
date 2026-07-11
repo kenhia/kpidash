@@ -224,9 +224,28 @@ file kpidash
 
 ### 6.5 Deploy to Pi
 
+Use the safe deploy script — it builds, stages via `/tmp`, installs atomically
+with a rolling backup (`~/kpidash.prev`), restarts `kpidash.service`, and
+health-checks (service active, `NRestarts`, and reads back the version the
+running binary self-reports):
+
 ```bash
-scp build-pi5/kpidash ken@PI_IP:~/kpidash
+scripts/deploy.sh --host rpi53      # build + deploy + verify (default host: rpi53)
+scripts/deploy.sh --no-build        # deploy the existing build-pi/kpidash
+scripts/deploy.sh --rollback        # restore ~/kpidash.prev and restart
 ```
+
+The binary embeds `git describe --always --dirty` + build date at build time
+(see `cmake/gen_version.cmake`) and publishes it to `kpidash:system:version`,
+so you can confirm exactly what is running and catch deploy drift:
+
+```bash
+redis-cli GET kpidash:system:version    # e.g. "1a2b3c4 (2026-07-11)"
+```
+
+> The bare `scp build-pi/kpidash ken@rpi53:~/kpidash` one-liner (and the
+> `~/kpidash.new && mv` variant) are **deprecated** — they had no post-deploy
+> verification and could silently ship a stale binary.
 
 ### 6.6 Native build + tests (x86_64)
 
