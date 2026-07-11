@@ -36,6 +36,12 @@
 #include "widgets/service_card.h"
 #include "widgets/status_bar.h"
 
+/* WI #365 (sprint 012): the Activities and Repo Status widgets are turned off.
+ * Compile-time toggles — set either to 1 to restore it. Expect significant
+ * layout rework if brought back, since the pool/footer layout has moved on. */
+#define KPIDASH_WIDGET_ACTIVITIES 0
+#define KPIDASH_WIDGET_REPO_STATUS 0
+
 /* ---- Layout objects ---- */
 static lv_obj_t *g_screen = NULL;
 static lv_obj_t *g_card_grid = NULL;
@@ -136,15 +142,19 @@ void ui_init(void) {
     /* ---- Rows 2-3 (FR-002): pool widgets created here, positioned by
      * ui_refresh() via layout_pool_place(). They are created once and
      * shown/hidden + repositioned each refresh. ---- */
+#if KPIDASH_WIDGET_ACTIVITIES
     g_activities = activities_widget_create(g_screen);
     lv_obj_set_size(g_activities, UNIT_W_N(2), UNIT_H);
     lv_obj_set_style_pad_all(g_activities, CELL_PAD, 0);
     lv_obj_add_flag(g_activities, LV_OBJ_FLAG_HIDDEN);
+#endif
 
+#if KPIDASH_WIDGET_REPO_STATUS
     g_repo_status = repo_status_widget_create(g_screen);
     lv_obj_set_size(g_repo_status, UNIT_W_N(2), UNIT_H);
     lv_obj_set_style_pad_all(g_repo_status, CELL_PAD, 0);
     lv_obj_add_flag(g_repo_status, LV_OBJ_FLAG_HIDDEN);
+#endif
 
     /* T014: Fortune as 2×1 pool widget. */
     g_fortune = fortune_create(g_screen, 0, 0);
@@ -239,15 +249,19 @@ void ui_refresh(void) {
         client_card_update_telemetry(card, &clients[i]);
     }
 
+#if KPIDASH_WIDGET_ACTIVITIES
     /* Activities widget */
     int act_count = 0;
     const activity_t *acts = redis_get_activities(&act_count);
     activities_widget_update(g_activities, acts, act_count);
+#endif
 
+#if KPIDASH_WIDGET_REPO_STATUS
     /* Repo status widget */
     int repo_count = 0;
     const repo_entry_t *repos = redis_get_repos(&repo_count);
     repo_status_widget_update(g_repo_status, repos, repo_count);
+#endif
 
     /* Dev command overlays (T030) */
     const dev_cmd_state_t *cmd = redis_get_dev_cmd_state();
@@ -295,8 +309,12 @@ void ui_refresh(void) {
                 nreq++;
             }
         }
+#if KPIDASH_WIDGET_ACTIVITIES
         reqs[nreq++] = (widget_request_t){WIDGET_ACTIVITIES, WIDGET_CELLS_ACTIVITIES, NULL};
+#endif
+#if KPIDASH_WIDGET_REPO_STATUS
         reqs[nreq++] = (widget_request_t){WIDGET_REPO_STATUS, WIDGET_CELLS_REPO_STATUS, NULL};
+#endif
         reqs[nreq++] = (widget_request_t){WIDGET_FORTUNE, WIDGET_CELLS_FORTUNE, NULL};
 
         widget_request_t placed[GRAPH_HOST_MAX + 4];
@@ -375,8 +393,8 @@ void ui_refresh(void) {
                 lv_obj_add_flag(live->widget, LV_OBJ_FLAG_HIDDEN);
             }
         }
-        if (!placed_acts)    lv_obj_add_flag(g_activities, LV_OBJ_FLAG_HIDDEN);
-        if (!placed_repo)    lv_obj_add_flag(g_repo_status, LV_OBJ_FLAG_HIDDEN);
+        if (!placed_acts && g_activities)  lv_obj_add_flag(g_activities, LV_OBJ_FLAG_HIDDEN);
+        if (!placed_repo && g_repo_status) lv_obj_add_flag(g_repo_status, LV_OBJ_FLAG_HIDDEN);
         if (!placed_fortune) lv_obj_add_flag(g_fortune, LV_OBJ_FLAG_HIDDEN);
     }
 
