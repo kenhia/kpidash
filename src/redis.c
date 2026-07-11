@@ -5,6 +5,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 
 #include "fortune.h"
 #include "memstat.h"
@@ -19,6 +20,7 @@ static redisContext *g_ctx = NULL;
 static char g_host[128] = "127.0.0.1";
 static int g_port = 6379;
 static char g_auth[256] = {0};
+static char g_self_version[80] = "unknown"; /* WI #369: shown on the self card */
 
 /* ---- Internal helpers ---- */
 
@@ -676,6 +678,10 @@ void redis_poll(void) {
 
     /* Step 9: Service status (sprint 006 / FR-022) */
     redis_poll_services();
+    /* Apt-Temps per-zone cards (WI #364) */
+    redis_poll_apttemps();
+    /* Self service card (WI #369) */
+    redis_publish_self_service();
 
     /* Step 10: One-shot device self-screenshot. Consume kpidash:screenshot
      * (GETDEL) and snapshot the active screen to BMP. A value starting with
@@ -738,6 +744,46 @@ void redis_write_system_info(const char *logpath, const char *version) {
     r = redisCommand(g_ctx, "SET " KPIDASH_KEY_VERSION " %s", version);
     if (r)
         freeReplyObject(r);
+    strncpy(g_self_version, version ? version : "unknown", sizeof(g_self_version) - 1);
+    g_self_version[sizeof(g_self_version) - 1] = '\0';
+}
+
+/* WI #369: the dashboard self-publishes a service card so the board shows its
+ * own liveness + running version. Throttled to stay fresh without writing every
+ * 1s poll. Key: kpidash:services:rpidash:<hostname>. */
+void redis_publish_self_service(void) {
+    if (!g_ctx || g_ctx->err)
+        return;
+    static double last = 0.0;
+    double now = (double)time(NULL);
+    if (now - last < 15.0)
+        return;
+    last = now;
+
+    char host[64];
+    if (gethostname(host, sizeof(host)) != 0)
+        strncpy(host, "dashboard", sizeof(host) - 1);
+    host[sizeof(host) - 1] = '\0';
+    char *dot = strchr(host, '.');
+    if (dot)
+        *dot = '\0';
+
+    cJSON *o = cJSON_CreateObject();
+    if (!o)
+        return;
+    cJSON_AddNumberToObject(o, "ts", now);
+    cJSON_AddStringToObject(o, "state", "ok");
+    cJSON_AddStringToObject(o, "text", g_self_version);
+    cJSON_AddStringToObject(o, "host", host);
+    char *json = cJSON_PrintUnformatted(o);
+    cJSON_Delete(o);
+    if (!json)
+        return;
+
+    redisReply *r = redisCommand(g_ctx, "SET kpidash:services:rpidash:%s %s", host, json);
+    if (r)
+        freeReplyObject(r);
+    free(json);
 }
 
 /* ---- Fortune ---- */

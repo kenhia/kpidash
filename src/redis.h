@@ -41,6 +41,11 @@ void redis_poll(void);
  */
 void redis_write_system_info(const char *logpath, const char *version);
 
+/* WI #369: publish the dashboard's own service card
+ * (kpidash:services:rpidash:<host>) with state ok + the running version.
+ * Throttled internally; safe to call every poll. */
+void redis_publish_self_service(void);
+
 /* Forward decl so we don't have to include memstat.h here. */
 struct mem_sample_s;
 typedef struct mem_sample_s mem_sample_t;
