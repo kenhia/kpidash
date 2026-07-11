@@ -267,6 +267,24 @@ void ui_refresh(void) {
     /* Dev command overlays (T030) */
     const dev_cmd_state_t *cmd = redis_get_dev_cmd_state();
 
+    /* WI #250: evict graph host series stale beyond the grace period. Destroy
+     * the widget here (LVGL thread) before dropping the series so dead/legacy
+     * hosts don't linger as "NO NEW DATA" until a dashboard restart. */
+    {
+        graph_host_series_t ev[GRAPH_HOST_MAX];
+        int nev = graph_host_snapshot(ev, GRAPH_HOST_MAX);
+        double now_ev = (double)time(NULL);
+        for (int i = 0; i < nev; i++) {
+            if ((now_ev - ev[i].last_sample_ts) < GRAPH_HOST_EVICT_SECONDS) continue;
+            graph_host_series_t *live = graph_host_find_or_create(ev[i].host);
+            if (live && live->widget) {
+                dev_graph_destroy(live->widget);
+                live->widget = NULL;
+            }
+            graph_host_remove(ev[i].host);
+        }
+    }
+
     /* ---- Sprint 006 / T012,T015,T035: rows-2-3 layout pool placement ----
      * Multi-host graphs: one WIDGET_GRAPH request per discovered host series,
      * sorted alphabetically (T035 / FR-013) so layout_pool_place()'s stable

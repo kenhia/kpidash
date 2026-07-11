@@ -338,6 +338,23 @@ int graph_host_snapshot(graph_host_series_t *out, int max) {
     return n;
 }
 
+bool graph_host_remove(const char *host) {
+    if (!host || !*host) return false;
+    pthread_mutex_lock(&g_graph_mutex);
+    for (int i = 0; i < g_graph_host_count; i++) {
+        if (strncmp(g_graph_hosts[i].host, host, sizeof(g_graph_hosts[i].host)) == 0) {
+            for (int k = i; k < g_graph_host_count - 1; k++) {
+                g_graph_hosts[k] = g_graph_hosts[k + 1];
+            }
+            g_graph_host_count--;
+            pthread_mutex_unlock(&g_graph_mutex);
+            return true;
+        }
+    }
+    pthread_mutex_unlock(&g_graph_mutex);
+    return false;
+}
+
 /* ---- layout pool (T005) ---- */
 
 static int cmp_widget_request_stable(const void *a, const void *b) {

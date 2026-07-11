@@ -301,6 +301,9 @@ int apttemps_registry_snapshot(apttemps_entry_t *out, int max);
 /* ---- Graph host series (T006) ---- */
 #define GRAPH_HOST_MAX 8
 #define GRAPH_HOST_STALE_SECONDS 30.0
+/* WI #250: a series stale beyond this is evicted entirely (widget destroyed)
+ * so dead/legacy hosts stop lingering as "NO NEW DATA" until a restart. */
+#define GRAPH_HOST_EVICT_SECONDS 300.0
 
 typedef struct {
     char host[64];
@@ -330,6 +333,10 @@ bool graph_host_is_stale(const graph_host_series_t *s, double now);
 /* Snapshot of all currently allocated host series.
  * Writes up to max entries into out[] and returns the count. */
 int graph_host_snapshot(graph_host_series_t *out, int max);
+
+/* WI #250: remove a host series by name (compacts the array). Returns true if
+ * one was removed. The caller MUST destroy the series's `widget` first. */
+bool graph_host_remove(const char *host);
 
 /* ---- Layout pool (T004/T005) ---- */
 typedef enum {
