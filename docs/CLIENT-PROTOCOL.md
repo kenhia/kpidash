@@ -486,6 +486,40 @@ krpidss [basename]        # -> ./kpidash-YYYYmmdd-HHMMSS.png (or ./basename.png)
 `KRP_HOST` (default `ken@rpi53`); it sources `REDISCLI_AUTH` from the client's
 `redis-auth.env`.
 
+### 9.6 Service-Card Evict (Sprint 013, WI #374)
+
+| Key | Type | Written by | Read by | TTL |
+|-----|------|-----------|---------|-----|
+| `kpidash:cmd:services:evict` | STRING (JSON array) | `kpidash-cards` / manual | dashboard | none (consumed) |
+
+Drops one or more cards from the dashboard's **in-memory** registries without a
+restart. The dashboard consumes the key with `GETDEL` each 1 s poll and, on the
+LVGL thread, destroys each matching card and removes it from `g_services[]` /
+`g_apttemps[]`. This exists because the service/apt-temps registries do **not**
+auto-evict — a `DEL`eted key's card otherwise lingers until restart.
+
+Value is a JSON array of targets:
+
+```json
+[
+  {"kind": "service",  "name": "ufw",    "host": "kubs0"},
+  {"kind": "apttemps", "name": "office", "host": ""}
+]
+```
+
+`kind` defaults to `"service"` if absent; for `apttemps`, `name` is the zone
+slug and `host` is ignored. Pruning a card is **two steps** — `DEL` the data key
+*and* publish this evict command:
+
+```bash
+redis-cli DEL kpidash:services:ufw:kubs0
+redis-cli SET kpidash:cmd:services:evict '[{"kind":"service","name":"ufw","host":"kubs0"}]' EX 60
+```
+
+The `scripts/kpidash-cards` helper does both (list cards with age; prune
+interactively or via `--service NAME[:HOST]` / `--zone SLUG`). Eviction is
+manual by design — a stopped service may stay as a reminder.
+
 ---
 
 ## 10. System Info
