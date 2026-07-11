@@ -21,6 +21,10 @@ static char g_host[128] = "127.0.0.1";
 static int g_port = 6379;
 static char g_auth[256] = {0};
 static char g_self_version[80] = "unknown"; /* WI #369: shown on the self card */
+#ifndef KPIDASH_TEST_STUBS
+static evict_target_t g_evict[EVICT_TARGETS_MAX]; /* WI #374: pending card evicts */
+static int g_evict_count = 0;
+#endif
 
 /* ---- Internal helpers ---- */
 
@@ -680,6 +684,8 @@ void redis_poll(void) {
     redis_poll_services();
     /* Apt-Temps per-zone cards (WI #364) */
     redis_poll_apttemps();
+    /* Card eviction command (WI #374) */
+    redis_poll_evict();
     /* Self service card (WI #369) */
     redis_publish_self_service();
 
@@ -775,6 +781,7 @@ void redis_publish_self_service(void) {
     cJSON_AddStringToObject(o, "state", "ok");
     cJSON_AddStringToObject(o, "text", g_self_version);
     cJSON_AddStringToObject(o, "host", host);
+    cJSON_AddNumberToObject(o, "icon", 20); /* icons.c index 20 = monitor_dashboard (WI #375) */
     char *json = cJSON_PrintUnformatted(o);
     cJSON_Delete(o);
     if (!json)
@@ -1006,4 +1013,55 @@ void redis_poll_apttemps(void) {
 }
 #else
 void redis_poll_apttemps(void) { /* test stub */ }
+#endif
+
+/* ============================================================
+ * WI #374: card eviction command (GETDEL a JSON array of targets)
+ * ============================================================ */
+#ifndef KPIDASH_TEST_STUBS
+void redis_poll_evict(void) {
+    if (!g_ctx || g_ctx->err) return;
+    redisReply *r = redisCommand(g_ctx, "GETDEL " KPIDASH_KEY_CMD_SERVICES_EVICT);
+    if (!r || r->type != REDIS_REPLY_STRING) {
+        if (r) freeReplyObject(r);
+        return;
+    }
+    cJSON *root = cJSON_Parse(r->str);
+    freeReplyObject(r);
+    if (!root) return;
+    if (cJSON_IsArray(root)) {
+        int n = cJSON_GetArraySize(root);
+        for (int i = 0; i < n && g_evict_count < EVICT_TARGETS_MAX; i++) {
+            cJSON *o = cJSON_GetArrayItem(root, i);
+            if (!cJSON_IsObject(o)) continue;
+            cJSON *kind = cJSON_GetObjectItemCaseSensitive(o, "kind");
+            cJSON *name = cJSON_GetObjectItemCaseSensitive(o, "name");
+            cJSON *host = cJSON_GetObjectItemCaseSensitive(o, "host");
+            if (!cJSON_IsString(name) || !name->valuestring[0]) continue;
+            evict_target_t *t = &g_evict[g_evict_count++];
+            memset(t, 0, sizeof(*t));
+            strncpy(t->kind,
+                    (cJSON_IsString(kind) && kind->valuestring) ? kind->valuestring : "service",
+                    sizeof(t->kind) - 1);
+            strncpy(t->name, name->valuestring, sizeof(t->name) - 1);
+            if (cJSON_IsString(host) && host->valuestring)
+                strncpy(t->host, host->valuestring, sizeof(t->host) - 1);
+        }
+    }
+    cJSON_Delete(root);
+}
+
+int redis_take_evict_targets(evict_target_t *out, int max) {
+    int n = g_evict_count < max ? g_evict_count : max;
+    for (int i = 0; i < n; i++) out[i] = g_evict[i];
+    g_evict_count = 0;
+    return n;
+}
+#else
+void redis_poll_evict(void) { /* test stub */ }
+int redis_take_evict_targets(evict_target_t *out, int max) {
+    (void)out;
+    (void)max;
+    return 0;
+}
 #endif

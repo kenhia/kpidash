@@ -32,15 +32,22 @@ int main(void) {
     CHECK(strlen(g0) >= 1 && strlen(g0) <= 4);
     CHECK(icons_codepoint(0) == ICON_REGISTRY[0].codepoint);
 
-    /* All registry entries are resolvable; codepoints in 0xF300+ encode to 3-byte UTF-8. */
+    /* All registry entries are resolvable; each encodes to valid UTF-8 whose
+     * length matches its codepoint (3-byte for U+0800..U+FFFF, 4-byte above). */
     for (size_t i = 0; i < ICON_REGISTRY_COUNT; i++) {
         int idx = ICON_REGISTRY[i].index;
         const char *g = icons_lookup(idx);
         CHECK(g != NULL);
         if (g) {
             size_t len = strlen(g);
-            CHECK(len == 3);
-            CHECK(((unsigned char)g[0] & 0xF0) == 0xE0);
+            uint32_t cp = ICON_REGISTRY[i].codepoint;
+            if (cp < 0x10000) {
+                CHECK(len == 3);
+                CHECK(((unsigned char)g[0] & 0xF0) == 0xE0);
+            } else {
+                CHECK(len == 4);
+                CHECK(((unsigned char)g[0] & 0xF8) == 0xF0);
+            }
         }
         CHECK(icons_codepoint(idx) == ICON_REGISTRY[i].codepoint);
     }

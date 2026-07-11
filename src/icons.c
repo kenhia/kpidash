@@ -32,6 +32,7 @@ const icon_entry_t ICON_REGISTRY[] = {
     { 17, 0xF323, "ferris"           },
     { 18, 0xF315, "raspberry_pi"     },
     { 19, 0xF31B, "ubuntu"           },
+    { 20, 0xF0A07, "monitor_dashboard"}, /* WI #375: nf-md-monitor_dashboard, self-card */
 };
 
 const size_t ICON_REGISTRY_COUNT = sizeof(ICON_REGISTRY) / sizeof(ICON_REGISTRY[0]);

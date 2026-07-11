@@ -285,6 +285,43 @@ int apttemps_registry_snapshot(apttemps_entry_t *out, int max) {
     return n;
 }
 
+/* ---- WI #374: remove-by-identity (returns the card container to destroy) ---- */
+
+void *service_registry_remove(const char *name, const char *host) {
+    if (!name || !host) return NULL;
+    void *container = NULL;
+    pthread_mutex_lock(&g_service_mutex);
+    for (int i = 0; i < g_service_count; i++) {
+        if (strncmp(g_services[i].name, name, sizeof(g_services[i].name)) == 0 &&
+            strncmp(g_services[i].host, host, sizeof(g_services[i].host)) == 0) {
+            container = g_services[i].container;
+            for (int k = i; k < g_service_count - 1; k++)
+                g_services[k] = g_services[k + 1];
+            g_service_count--;
+            break;
+        }
+    }
+    pthread_mutex_unlock(&g_service_mutex);
+    return container;
+}
+
+void *apttemps_registry_remove(const char *slug) {
+    if (!slug) return NULL;
+    void *container = NULL;
+    pthread_mutex_lock(&g_apttemps_mutex);
+    for (int i = 0; i < g_apttemps_count; i++) {
+        if (strncmp(g_apttemps[i].slug, slug, sizeof(g_apttemps[i].slug)) == 0) {
+            container = g_apttemps[i].container;
+            for (int k = i; k < g_apttemps_count - 1; k++)
+                g_apttemps[k] = g_apttemps[k + 1];
+            g_apttemps_count--;
+            break;
+        }
+    }
+    pthread_mutex_unlock(&g_apttemps_mutex);
+    return container;
+}
+
 /* ---- graph host series (T006) ---- */
 
 static graph_host_series_t g_graph_hosts[GRAPH_HOST_MAX];

@@ -173,4 +173,16 @@ int redis_parse_apttemps_payload(const char *json, apttemps_entry_t *out);
 /* Poll all kpidash:apttemps:* keys and update the in-memory registry. */
 void redis_poll_apttemps(void);
 
+/* ---- WI #374: card eviction command ---- */
+typedef struct {
+    char kind[16]; /* "service" or "apttemps" */
+    char name[64]; /* service name, or apttemps slug */
+    char host[64]; /* service host (unused for apttemps) */
+} evict_target_t;
+#define EVICT_TARGETS_MAX 16
+/* GETDEL kpidash:cmd:services:evict and stash any targets for the UI to apply. */
+void redis_poll_evict(void);
+/* Copy pending evict targets into out[] (up to max) and clear them; returns count. */
+int redis_take_evict_targets(evict_target_t *out, int max);
+
 #endif /* REDIS_H */

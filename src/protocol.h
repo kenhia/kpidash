@@ -55,6 +55,11 @@
 #define KPIDASH_KEY_CMD_GRAPH_HOST   "kpidash:cmd:graph:%s"
 #define KPIDASH_KEY_CMD_FORTUNE_DEV  "kpidash:cmd:fortune_dev"
 
+/* WI #374: card eviction command — dashboard GETDELs this each poll and drops
+ * the named cards from its in-memory registries. Value: JSON array of targets
+ * [{"kind":"service","name":..,"host":..}, {"kind":"apttemps","name":<slug>}]. */
+#define KPIDASH_KEY_CMD_SERVICES_EVICT "kpidash:cmd:services:evict"
+
 /* One-shot device self-screenshot trigger. Consumed with GETDEL each poll;
  * a value starting with '/' names the output path, else the default is used. */
 #define KPIDASH_KEY_SCREENSHOT "kpidash:screenshot"

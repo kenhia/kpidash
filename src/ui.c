@@ -417,6 +417,20 @@ void ui_refresh(void) {
         if (!placed_fortune) lv_obj_add_flag(g_fortune, LV_OBJ_FLAG_HIDDEN);
     }
 
+    /* WI #374: apply pending card-evict commands — destroy the card on the
+     * LVGL thread, then drop the entry from its registry. Runs before the paint
+     * loops so a removed entry is never repainted from a dangling pointer. */
+    {
+        evict_target_t ev[EVICT_TARGETS_MAX];
+        int nev = redis_take_evict_targets(ev, EVICT_TARGETS_MAX);
+        for (int i = 0; i < nev; i++) {
+            void *c = (strcmp(ev[i].kind, "apttemps") == 0)
+                          ? apttemps_registry_remove(ev[i].name)
+                          : service_registry_remove(ev[i].name, ev[i].host);
+            if (c) lv_obj_delete((lv_obj_t *)c);
+        }
+    }
+
     /* ---- Sprint 006 / T025: paint service cards into the footer strip.
      * Sprint 007 / T007: sort by (name, host) ascending. */
     {

@@ -298,6 +298,12 @@ void apttemps_registry_apply_payload(apttemps_entry_t *e, const apttemps_entry_t
 /* Snapshot all entries into out[]; returns count written. */
 int apttemps_registry_snapshot(apttemps_entry_t *out, int max);
 
+/* WI #374: remove a card entry by identity and return its card container
+ * (for the caller to destroy on the LVGL thread), or NULL if not found.
+ * Returned as void* so registry.h stays LVGL-agnostic under test stubs. */
+void *service_registry_remove(const char *name, const char *host);
+void *apttemps_registry_remove(const char *slug);
+
 /* ---- Graph host series (T006) ---- */
 #define GRAPH_HOST_MAX 8
 #define GRAPH_HOST_STALE_SECONDS 30.0
