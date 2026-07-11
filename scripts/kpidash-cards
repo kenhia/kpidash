@@ -1,0 +1,123 @@
+#!/usr/bin/env bash
+# kpidash-cards — list and selectively prune kpidash service / apt-temps cards.
+#
+# Cards live in Redis (kpidash:services:<name>:<host>, kpidash:apttemps:<slug>)
+# and are mirrored in the dashboard's in-memory registry. Pruning DELs the key
+# AND publishes kpidash:cmd:services:evict so the dashboard drops the card
+# without a restart (WI #374). Manual by design — a stopped service can stay as
+# a reminder; nothing is auto-evicted.
+#
+# Usage:
+#   kpidash-cards [list]                          list all cards with age
+#   kpidash-cards prune                           interactive: pick numbers
+#   kpidash-cards prune --service NAME[:HOST] ... prune specific service card(s)
+#   kpidash-cards prune --zone SLUG ...           prune specific apt-temps card(s)
+#
+# Env: KPIDASH_REDIS_HOST (default rpi53). REDISCLI_AUTH is auto-sourced from
+#      ~/.config/kpidash-client/redis-auth.env if present. Needs redis-cli + jq.
+set -euo pipefail
+
+REDIS_HOST="${KPIDASH_REDIS_HOST:-rpi53}"
+EVICT_KEY="kpidash:cmd:services:evict"
+
+[ -f "$HOME/.config/kpidash-client/redis-auth.env" ] && { set -a; . "$HOME/.config/kpidash-client/redis-auth.env"; set +a; }
+command -v jq >/dev/null || { echo "kpidash-cards: needs jq" >&2; exit 1; }
+R() { redis-cli -h "$REDIS_HOST" "$@"; }
+
+now=$(date +%s)
+
+# Emit one TSV row per card: kind \t name \t host \t state \t age_seconds
+collect() {
+    R --scan --pattern 'kpidash:services:*:*' | while read -r k; do
+        [ -n "$k" ] || continue
+        rest=${k#kpidash:services:}
+        name=${rest%:*}; host=${rest##*:}
+        v=$(R GET "$k" 2>/dev/null) || continue
+        ts=$(printf '%s' "$v" | jq -r '.ts // 0' 2>/dev/null || echo 0)
+        st=$(printf '%s' "$v" | jq -r '.state // "?"' 2>/dev/null || echo '?')
+        printf 'service\t%s\t%s\t%s\t%s\n' "$name" "$host" "$st" "$(( now - ${ts%.*} ))"
+    done
+    R --scan --pattern 'kpidash:apttemps:*' | while read -r k; do
+        [ -n "$k" ] || continue
+        slug=${k#kpidash:apttemps:}
+        v=$(R GET "$k" 2>/dev/null) || continue
+        ts=$(printf '%s' "$v" | jq -r '.ts // 0' 2>/dev/null || echo 0)
+        printf 'apttemps\t%s\t%s\t%s\t%s\n' "$slug" "-" "live" "$(( now - ${ts%.*} ))"
+    done
+}
+
+fmt_age() {
+    local s=$1
+    if   [ "$s" -lt 0 ];      then echo "future"
+    elif [ "$s" -lt 90 ];     then echo "${s}s"
+    elif [ "$s" -lt 5400 ];   then echo "$(( s/60 ))m"
+    elif [ "$s" -lt 129600 ]; then echo "$(( s/3600 ))h"
+    else                            echo "$(( s/86400 ))d"; fi
+}
+
+print_list() { # numbered; rows on stdin
+    local i=0 kind name host state age id
+    printf '  #  KIND      NAME[@HOST]                     STATE       AGE\n'
+    while IFS=$'\t' read -r kind name host state age; do
+        i=$((i+1)); id="$name"; [ "$host" != "-" ] && [ "$host" != "_" ] && id="$name@$host"
+        printf '%3d  %-8s  %-30s  %-10s  %s\n' "$i" "$kind" "$id" "$state" "$(fmt_age "$age")"
+    done
+    [ "$i" -eq 0 ] && echo "  (no cards)"
+}
+
+# DEL a card's key and emit its evict-target JSON object (one line)
+prune_row() { # kind name host
+    if [ "$1" = "apttemps" ]; then
+        R DEL "kpidash:apttemps:$2" >/dev/null
+        jq -cn --arg n "$2" '{kind:"apttemps",name:$n,host:""}'
+    else
+        R DEL "kpidash:services:$2:$3" >/dev/null
+        jq -cn --arg n "$2" --arg h "$3" '{kind:"service",name:$n,host:$h}'
+    fi
+}
+
+send_evict() { # evict-target objects on stdin -> one array on the evict key
+    local targets; targets=$(jq -cs '.')
+    [ "$targets" = "[]" ] && { echo "nothing pruned"; return; }
+    R SET "$EVICT_KEY" "$targets" EX 60 >/dev/null
+    echo "pruned $(printf '%s' "$targets" | jq 'length') card(s); dashboard drops them within ~1s"
+}
+
+case "${1:-list}" in
+    list|"")
+        collect | print_list
+        ;;
+    prune)
+        shift || true
+        rows=()
+        if [ $# -gt 0 ]; then
+            while [ $# -gt 0 ]; do
+                case "$1" in
+                    --service) name=${2%%:*}; host=${2#*:}; [ "$host" = "$2" ] && host=_
+                               rows+=("service"$'\t'"$name"$'\t'"$host"); shift 2 ;;
+                    --zone)    rows+=("apttemps"$'\t'"$2"$'\t'"-"); shift 2 ;;
+                    *) echo "unknown arg: $1 (try --help)" >&2; exit 1 ;;
+                esac
+            done
+        else
+            mapfile -t all < <(collect)
+            printf '%s\n' "${all[@]}" | print_list
+            [ ${#all[@]} -eq 0 ] && exit 0
+            printf 'prune which? (space-separated numbers, or q): '
+            read -r picks
+            [ "${picks:-q}" = "q" ] && exit 0
+            for p in $picks; do
+                idx=$((p-1))
+                [ "$idx" -ge 0 ] && [ "$idx" -lt ${#all[@]} ] && rows+=("${all[$idx]}")
+            done
+        fi
+        [ ${#rows[@]} -eq 0 ] && { echo "nothing selected"; exit 0; }
+        { for row in "${rows[@]}"; do
+              IFS=$'\t' read -r kind name host <<<"$row"
+              prune_row "$kind" "$name" "$host"
+          done
+        } | send_evict
+        ;;
+    -h|--help) sed -n '2,22p' "$0" ;;
+    *) echo "unknown command: ${1} (try --help)" >&2; exit 1 ;;
+esac
