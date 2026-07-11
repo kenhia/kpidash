@@ -49,6 +49,7 @@ npx lv_font_conv \
     --no-prefilter \
     --font "${SYMBOLS_TTF}" -r 0xF300-0xF381 \
     --font "${SYMBOLS_TTF}" -r 0xF1D2-0xF1D3 \
+    --font "${SYMBOLS_TTF}" -r 0xF0A07 \
     -o "lv_font_icons_56.c" \
     --lv-font-name "lv_font_icons_56"
 echo "Done. Generated lv_font_icons_56.c."

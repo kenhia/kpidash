@@ -775,6 +775,7 @@ void redis_publish_self_service(void) {
     cJSON_AddStringToObject(o, "state", "ok");
     cJSON_AddStringToObject(o, "text", g_self_version);
     cJSON_AddStringToObject(o, "host", host);
+    cJSON_AddNumberToObject(o, "icon", 20); /* icons.c index 20 = monitor_dashboard (WI #375) */
     char *json = cJSON_PrintUnformatted(o);
     cJSON_Delete(o);
     if (!json)
