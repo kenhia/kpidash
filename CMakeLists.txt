@@ -47,6 +47,24 @@ include_directories(${DRM_INCLUDE_DIRS} ${PNG_INCLUDE_DIRS})
 
 add_subdirectory(lib/lvgl)
 
+# Build-time version header: embeds `git describe` + build date so the running
+# binary self-reports what it was built from (deploy-drift visibility, WI #119).
+# Generated once at configure time (so it exists for IDEs / first build) and
+# regenerated on every build via the kpidash_version target below.
+set(KPIDASH_VERSION_HEADER ${CMAKE_BINARY_DIR}/generated/kpidash_version.h)
+execute_process(COMMAND ${CMAKE_COMMAND}
+    -DSRC_DIR=${CMAKE_SOURCE_DIR}
+    -DOUT=${KPIDASH_VERSION_HEADER}
+    -P ${CMAKE_SOURCE_DIR}/cmake/gen_version.cmake)
+add_custom_target(kpidash_version
+    BYPRODUCTS ${KPIDASH_VERSION_HEADER}
+    COMMAND ${CMAKE_COMMAND}
+        -DSRC_DIR=${CMAKE_SOURCE_DIR}
+        -DOUT=${KPIDASH_VERSION_HEADER}
+        -P ${CMAKE_SOURCE_DIR}/cmake/gen_version.cmake
+    COMMENT "Generating kpidash_version.h"
+    VERBATIM)
+
 add_executable(kpidash
     src/main.c
     src/registry.c
@@ -80,9 +98,13 @@ target_include_directories(kpidash PRIVATE
     ${CMAKE_SOURCE_DIR}
     ${CMAKE_SOURCE_DIR}/src
     ${CMAKE_SOURCE_DIR}/fonts
+    ${CMAKE_BINARY_DIR}/generated
     ${DRM_INCLUDE_DIRS}
     ${CJSON_INCLUDE_DIRS}
 )
+
+# Regenerate the version header before each kpidash build.
+add_dependencies(kpidash kpidash_version)
 
 target_link_libraries(kpidash
     lvgl

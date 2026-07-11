@@ -31,3 +31,6 @@ dist/
 .mypy_cache/
 .pytest_cache/
 
+
+# local korg sprint marker (never commit)
+.korg-sprint-proposal
