@@ -1,6 +1,19 @@
 _default:
     @just --list
 
+# TESTS_ONLY=ON skips the dashboard binary and its LVGL/DRM deps (see
+# CMakeLists.txt), so this runs on any x86_64 dev host with no Pi, no sysroot
+# and no submodule checkout. The Pi build is cross-compiled and cannot be
+# gated here — see CLAUDE.md for that path.
+
+# Gate: configure, build and run the native unit tests
+check:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    cmake -S . -B build-tests -DTESTS_ONLY=ON
+    cmake --build build-tests
+    ctest --test-dir build-tests --output-on-failure
+
 # Build and publish kpidash-client to the homelab package store
 # (see k-homelab docs/deploying.md). kpkg refuses an already-published
 # version — bump clients/kpidash-client/pyproject.toml first.

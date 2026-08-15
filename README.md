@@ -91,11 +91,19 @@ See [clients/kpidash-client/README.md](clients/kpidash-client/README.md) for con
 ## Native unit tests (no hardware required)
 
 ```bash
+just check
+```
+
+Equivalent to, and the project's CI gate:
+
+```bash
 cmake -B build-tests -DTESTS_ONLY=ON
 cmake --build build-tests
-ctest --test-dir build-tests -V
-# 133 tests: config env-var parsing + Redis JSON parsing
+ctest --test-dir build-tests --output-on-failure
 ```
+
+`TESTS_ONLY=ON` skips the dashboard binary and its LVGL/DRM dependencies, so
+this needs no Pi, no sysroot and no submodule checkout.
 
 ---
 
@@ -151,9 +159,10 @@ kpidash/
 │   └── load_test.py            # 8-client concurrent write stress test
 ├── lib/
 │   └── lvgl/                   # LVGL v9.2.2 (git submodule)
-├── specs/
-│   ├── 001-mvp-dashboard/      # Spec, plan, tasks, contracts, data model
-│   └── 002-exploration-sprint/ # Spec, plan, tasks (widget redesign, dev tools)
+├── sprints/                    # One record per PR-sized unit of work
+│   ├── 001-mvp-dashboard/      # Early sprints: spec, plan, tasks, contracts
+│   ├── 013-service-card-polish.md  # Later sprints: one narrative file
+│   └── planning/roadmap.md     # Now / Next / Later
 └── docs/
     ├── ARCHITECTURE.md         # System design and component diagram
     ├── CLIENT-PROTOCOL.md      # Redis key/value schema reference
