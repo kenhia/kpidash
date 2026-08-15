@@ -276,7 +276,7 @@ Bold fonts generated via `lv_font_conv` from Montserrat-Bold.ttf at sizes
   pthread-mutex protected. Dashboard SCANs `kpidash:services:*` each cycle,
   parses each value (cJSON), and routes into the registry. Card border colour
   is computed by `service_color()` per the truth table in
-  `specs/006-layout-refresh-status-cards/data-model.md`: `DOWN`/`UNKNOWN` →
+  `sprints/006-layout-refresh-status-cards/data-model.md`: `DOWN`/`UNKNOWN` →
   GRAY (sticky for DOWN); other states → state colour iff
   `(now − ts) < 60 s`, else RED.
 - **Service cards** (`src/widgets/service_card.c`): 220×240 px, 6 px coloured
@@ -314,9 +314,9 @@ Each sample:
    `memstat: WARN` line to stderr and pushes a `STATUS_WARNING` to
    the in-process status FIFO, rate-limited to one warning per 300 s.
 
-See [data-model.md](../specs/005-fix-memory-leaks/data-model.md) for
+See [data-model.md](../sprints/005-fix-memory-leaks/data-model.md) for
 the `mem_sample` schema and
-[contracts/redis-keys.md](../specs/005-fix-memory-leaks/contracts/redis-keys.md)
+[contracts/redis-keys.md](../sprints/005-fix-memory-leaks/contracts/redis-keys.md)
 for the on-the-wire key contract. Client CLIs may consume these keys
 diagnostically but they are not part of the supported public API.
 

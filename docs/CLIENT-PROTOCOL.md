@@ -8,7 +8,7 @@
 This document is the canonical reference for all Redis key names, value
 formats, TTLs, and access patterns for the kpidash system. All components
 (dashboard C binary, Python client daemons, MCP server) MUST conform to this
-schema. See also `specs/001-mvp-dashboard/contracts/redis-schema.md` for the
+schema. See also `sprints/001-mvp-dashboard/contracts/redis-schema.md` for the
 authoritative source during development.
 
 ---
@@ -295,7 +295,7 @@ redis-cli --scan --pattern 'kpidash:services:*' | xargs -r redis-cli DEL
 Dashboard polls `SCAN MATCH kpidash:services:*:*` each cycle and renders one
 status card per (name, host) pair in the footer strip, sorted by name then
 host. Card border colour reflects state via the truth table in
-`specs/006-layout-refresh-status-cards/data-model.md`: `DOWN`/`UNKNOWN` →
+`sprints/006-layout-refresh-status-cards/data-model.md`: `DOWN`/`UNKNOWN` →
 GRAY (sticky for DOWN); other states → their colour iff
 `(now − ts) < 60.0 s`, else RED.
 

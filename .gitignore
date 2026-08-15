@@ -34,3 +34,4 @@ dist/
 
 # local korg sprint marker (never commit)
 .korg-sprint-proposal
+.env
