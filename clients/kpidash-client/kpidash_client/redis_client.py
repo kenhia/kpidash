@@ -3,6 +3,10 @@ redis_client.py — RedisClient wrapping redis.Redis (T012)
 
 All Redis I/O for kpidash-client lives here. Password is read
 exclusively from the REDISCLI_AUTH environment variable.
+
+The endpoint is resolved on every connect (see endpoint.py) rather than
+read once at startup, so a reconnect after a failed write re-asks khlenv
+and picks Redis up at its new address if it moved.
 """
 
 from __future__ import annotations
@@ -16,6 +20,7 @@ import uuid
 import redis
 
 from .config import ClientConfig
+from .endpoint import EndpointError, resolve_redis_endpoint
 
 ACTIVITY_ZSET_TRIM = 20  # keep 2× display max in sorted set
 
@@ -29,15 +34,30 @@ class RedisClient:
         self._config = config
         self._r: redis.Redis | None = None
         self._hostname = config.hostname or socket.gethostname().split(".")[0].lower()
+        self._endpoint: tuple[str, int] | None = None
 
     # ---- Connection ----
+
+    @property
+    def endpoint(self) -> str:
+        """The endpoint the last connect resolved, for logs and messages."""
+        if self._endpoint is None:
+            return "(unresolved)"
+        host, port = self._endpoint
+        return f"{host}:{port}"
 
     def connect(self) -> None:
         auth = os.environ.get("REDISCLI_AUTH")
         try:
+            host, port = resolve_redis_endpoint(self._config)
+        except EndpointError as e:
+            self._r = None
+            raise RedisClientError(f"Cannot determine the Redis endpoint: {e}") from e
+        self._endpoint = (host, port)
+        try:
             self._r = redis.Redis(
-                host=self._config.redis_host,
-                port=self._config.redis_port,
+                host=host,
+                port=port,
                 password=auth,
                 decode_responses=True,
                 socket_connect_timeout=5,
@@ -46,8 +66,7 @@ class RedisClient:
             self._r.ping()
         except redis.RedisError as e:
             self._r = None
-            host_port = f"{self._config.redis_host}:{self._config.redis_port}"
-            raise RedisClientError(f"Cannot connect to Redis at {host_port}: {e}") from e
+            raise RedisClientError(f"Cannot connect to Redis at {host}:{port}: {e}") from e
 
     def disconnect(self) -> None:
         if self._r:

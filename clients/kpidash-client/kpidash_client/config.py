@@ -8,6 +8,7 @@ Config file location:
 
 from __future__ import annotations
 
+import logging
 import platform
 import tomllib
 from dataclasses import dataclass, field
@@ -44,10 +45,13 @@ class RepoConfig:
 
 @dataclass
 class ClientConfig:
-    # Required
-    redis_host: str
+    # Redis endpoint. Both are an explicit LOCAL OVERRIDE: leave `[redis]
+    # host` out of config.toml and the endpoint is resolved through khlenv
+    # instead (see endpoint.py), which is how Redis moves with one store
+    # edit rather than a config edit on every host.
+    redis_host: str | None = None
+    redis_port: int | None = None
     # Optional with defaults
-    redis_port: int = 6379
     hostname: str | None = None  # overrides socket hostname
     telemetry_interval_s: int = 5  # A1: configurable telemetry interval
     dev_interval_s: int | None = None  # fast GPU+CPU+RAM interval (default: telemetry_interval_s)
@@ -70,11 +74,20 @@ class ClientConfig:
         except tomllib.TOMLDecodeError as e:
             raise ConfigError(f"Config parse error in {p}: {e}") from e
 
+        # `[redis] host` is optional: absent means "resolve through khlenv".
+        # Present, it overrides khlenv entirely, port included.
         redis_section = data.get("redis", {})
-        if "host" not in redis_section:
-            raise ConfigError(
-                f"[redis] host is required in {p}\nExample: [redis]\\nhost = '192.168.1.100'"
-            )
+        redis_host = redis_section.get("host")
+        if redis_host is None:
+            redis_port = None
+            if "port" in redis_section:
+                logging.getLogger(__name__).warning(
+                    "[redis] port in %s is ignored without [redis] host — the endpoint "
+                    "is being resolved through khlenv, port and all.",
+                    p,
+                )
+        else:
+            redis_port = int(redis_section.get("port", 6379))
 
         # Parse disks
         disks = []
@@ -102,8 +115,8 @@ class ClientConfig:
         client_section = data.get("client", {})
 
         return cls(
-            redis_host=redis_section["host"],
-            redis_port=int(redis_section.get("port", 6379)),
+            redis_host=redis_host,
+            redis_port=redis_port,
             hostname=client_section.get("hostname"),
             telemetry_interval_s=int(client_section.get("telemetry_interval_s", 5)),
             dev_interval_s=int(client_section["dev_interval_s"])

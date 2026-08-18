@@ -160,3 +160,33 @@ def test_reconnect_on_failure(tmp_path, monkeypatch):
         # It will try to reconnect and also fail (mock_r.ping still raises)
         # but should not throw — returns bool
         assert isinstance(result, bool)
+
+
+def test_every_connect_re_resolves_the_endpoint(tmp_path, monkeypatch):
+    """The propagation path: Redis moves, the write fails, the daemon
+    reconnects, and the reconnect asks khlenv again rather than retrying
+    the address that just stopped answering."""
+    monkeypatch.delenv("REDISCLI_AUTH", raising=False)
+    cfg_file = tmp_path / "config.toml"
+    cfg_file.write_text("[client]\nhostname = 'testhost'\n")  # no override: khlenv resolves
+    cfg = ClientConfig.load(cfg_file)
+    client = RedisClient(cfg)
+
+    mock_r = MagicMock()
+    mock_r.ping.return_value = True
+
+    with (
+        patch("kpidash_client.redis_client.redis.Redis", return_value=mock_r) as redis_ctor,
+        patch(
+            "kpidash_client.redis_client.resolve_redis_endpoint",
+            side_effect=[("rpi53", 6379), ("kubsdb", 6390)],
+        ),
+    ):
+        client.connect()
+        assert client.endpoint == "rpi53:6379"
+        client.connect()
+        assert client.endpoint == "kubsdb:6390"
+
+    assert redis_ctor.call_args_list[0].kwargs["host"] == "rpi53"
+    assert redis_ctor.call_args_list[1].kwargs["host"] == "kubsdb"
+    assert redis_ctor.call_args_list[1].kwargs["port"] == 6390

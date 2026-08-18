@@ -1,9 +1,10 @@
 [project]
 name = "kpidash-client"
-version = "1.0.0"
+version = "1.1.0"
 description = "kpidash client daemon and CLI for Linux and Windows"
 requires-python = ">=3.11"
 dependencies = [
+    "khlenv>=0.1.0",
     "psutil>=6",
     "pynvml>=11",
     "redis>=5",
@@ -19,6 +20,11 @@ dev = [
 
 [project.scripts]
 kpidash-client = "kpidash_client.cli:main"
+
+# khlenv is published to the homelab package store, not PyPI.
+[[tool.uv.index]]
+name = "homelab"
+url = "https://kubsdb.encke-wahoo.ts.net:4880/simple/"
 
 [build-system]
 requires = ["hatchling"]

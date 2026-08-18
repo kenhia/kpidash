@@ -66,12 +66,21 @@ wheels = [
 ]
 
 [[package]]
+name = "khlenv"
+version = "0.1.0"
+source = { registry = "https://kubsdb.encke-wahoo.ts.net:4880/simple/" }
+wheels = [
+    { url = "https://kubsdb.encke-wahoo.ts.net:4880/simple/khlenv/khlenv-0.1.0-py3-none-any.whl", hash = "sha256:7e4a03ad28b92ce8a13a50dd2de3e84ac5c788301f1fe9a26c97ac5aad3dcb2c" },
+]
+
+[[package]]
 name = "kpidash-client"
-version = "1.0.0"
+version = "1.1.0"
 source = { editable = "." }
 dependencies = [
     { name = "click" },
     { name = "gitpython" },
+    { name = "khlenv" },
     { name = "psutil" },
     { name = "pynvml" },
     { name = "redis" },
@@ -87,6 +96,7 @@ dev = [
 requires-dist = [
     { name = "click", specifier = ">=8" },
     { name = "gitpython", specifier = ">=3.1" },
+    { name = "khlenv", specifier = ">=0.1.0" },
     { name = "psutil", specifier = ">=6" },
     { name = "pynvml", specifier = ">=11" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=8" },

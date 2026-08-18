@@ -87,7 +87,12 @@ def _repo_loop(rc: RedisClient, config: ClientConfig) -> None:
 def run_daemon(config: ClientConfig) -> None:
     """Block until SIGTERM/SIGINT or _stop_event is set."""
     _stop_event.clear()
-    logger.info("kpidash-client daemon starting (host=%s:%d)", config.redis_host, config.redis_port)
+    logger.info(
+        "kpidash-client daemon starting (redis=%s)",
+        f"{config.redis_host}:{config.redis_port or 6379} (config.toml)"
+        if config.redis_host
+        else "resolved through khlenv",
+    )
 
     rc = RedisClient(config)
     try:

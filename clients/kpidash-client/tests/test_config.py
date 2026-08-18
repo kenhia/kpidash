@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import logging
+
 import pytest
 
 from kpidash_client.config import ClientConfig, ConfigError
@@ -60,11 +62,27 @@ def test_minimal_load(tmp_path):
     assert cfg.repos.explicit == []
 
 
-def test_missing_redis_host(tmp_path):
+def test_absent_redis_host_means_resolve_through_khlenv(tmp_path):
+    """No `[redis] host` is not an error any more -- it hands the endpoint
+    to khlenv, which is the whole point of the wiring."""
     cfg_file = tmp_path / "config.toml"
-    cfg_file.write_text("[redis]\nport = 6379\n")
-    with pytest.raises(ConfigError, match="host is required"):
-        ClientConfig.load(cfg_file)
+    cfg_file.write_text("[client]\nhostname = 'kubs0'\n")
+    cfg = ClientConfig.load(cfg_file)
+
+    assert cfg.redis_host is None
+    assert cfg.redis_port is None
+    assert cfg.hostname == "kubs0"
+
+
+def test_a_port_without_a_host_is_ignored_and_warned_about(tmp_path, caplog):
+    cfg_file = tmp_path / "config.toml"
+    cfg_file.write_text("[redis]\nport = 6380\n")
+    with caplog.at_level(logging.WARNING):
+        cfg = ClientConfig.load(cfg_file)
+
+    assert cfg.redis_host is None
+    assert cfg.redis_port is None
+    assert "ignored" in "\n".join(record.getMessage() for record in caplog.records)
 
 
 def test_file_not_found(tmp_path):
