@@ -26,11 +26,31 @@ uv run kpidash-client --help   # verify
 
 ## Configuration
 
+### Where Redis is
+
+On the homelab tailnet the Redis endpoint comes from
+[khlenv](https://github.com/kenhia/khlenv), the config resolver: leave
+`[redis]` out of `config.toml` entirely and the client asks khlenv for
+`KPIDASH_REDIS` on every connect. Moving Redis is then one edit to the
+khlenv store, not a config edit on every reporting host — and a reconnect
+after a failed write re-asks, so the move propagates by itself.
+
+khlenv resolves the **endpoint only**. The password stays in
+`REDISCLI_AUTH`; khlenv never holds secrets.
+
+If khlenv is unreachable the client uses its last cached answer (with a
+loud warning naming the cache age), and failing that a compiled-in
+`rpi53:6379`. Off the tailnet — or anywhere you want to pin the endpoint —
+keep `[redis] host` in `config.toml`: it is an explicit override and wins
+outright, port included.
+
 ### Linux / macOS
 
 Create `~/.config/kpidash-client/config.toml`:
 
 ```toml
+# [redis] is optional on the homelab tailnet — omit it to resolve the
+# endpoint through khlenv. Set it to pin the endpoint locally instead.
 [redis]
 host = "192.168.1.50"   # Pi 5 IP address
 port = 6379             # default
