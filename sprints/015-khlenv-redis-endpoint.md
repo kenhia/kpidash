@@ -57,4 +57,33 @@ KPIDASH_REDIS: "rpi53:6379"
 
 ## Deployed
 
-_(appended after the deploy — see below.)_
+- **What**: `kpidash-client` **1.1.0**, published to the homelab package
+  store (`kpkg add`), pulling `khlenv` 0.1.0 from the same store.
+  `[redis]` removed from `~/.config/kpidash-client/config.toml` on kubs0
+  (previous file kept as `config.toml.pre-khlenv`), so the endpoint is
+  genuinely resolved rather than shadowed by a local override.
+- **Where**: kubs0 only — `uv tool upgrade kpidash-client`, user unit
+  `kpidash-client.service` restarted. kai / kubsdb / rpi53 still run
+  1.0.0 with their own `[redis] host`, untouched and unaffected (#1417).
+- **When**: 2026-08-18.
+- **Verified live**:
+  - khlenv's query log recorded the real resolve —
+    `{"host":"kubs0","app":"kpidash-client","key":"KPIDASH_REDIS",`
+    `"result":"hit","stem":"KPIDASH_REDIS"}` — with `host` derived by
+    whois from the source address, not self-declared.
+  - `~/.cache/khlenv/kpidash-client.json` written in the D6 shape.
+  - `kpidash:client:kubs0:health` refreshing on its 5 s TTL; host card
+    live.
+  - **The propagation path, end to end and without a restart.** Added
+    `KPIDASH_REDIS.kubs0: "127.0.0.1:6399"` to the store; the daemon took
+    the moved address (`Cannot connect to Redis at 127.0.0.1:6399`) with
+    no config edit anywhere, proving the store is the source of truth.
+    Removing the stem again healed it **by itself** — the failing writes
+    drove `reconnect_on_failure()`, the reconnect re-asked khlenv, and the
+    card came back without the service being touched. Store restored;
+    total outage on one host card, ~40 s.
+  - Note on scope of that test: the break-then-heal direction is the one
+    exercised live. Killing an established connection is *not* enough to
+    trigger it — redis-py's pool reconnects transparently, so no
+    application-level write failure occurs; the re-resolve fires when the
+    address stops accepting connections, which is the real move scenario.
