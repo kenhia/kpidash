@@ -44,6 +44,14 @@ loud warning naming the cache age), and failing that a compiled-in
 keep `[redis] host` in `config.toml`: it is an explicit override and wins
 outright, port included.
 
+**Prerequisite: the host must resolve tailnet names.** khlenv's built-in
+endpoint is the MagicDNS name `kubs0.encke-wahoo.ts.net`, so a host with
+Tailscale DNS off (`CorpDNS: false` in `tailscale debug prefs`) cannot
+reach it — and cannot reach the homelab package index that ships the
+`khlenv` wheel either. Fix it at the source with
+`sudo tailscale set --accept-dns=true`; the per-machine escape hatch is an
+endpoint override in `/etc/khlenv/endpoint`.
+
 ### Linux / macOS
 
 Create `~/.config/kpidash-client/config.toml`:
