@@ -173,6 +173,43 @@ int redis_parse_apttemps_payload(const char *json, apttemps_entry_t *out);
 /* Poll all kpidash:apttemps:* keys and update the in-memory registry. */
 void redis_poll_apttemps(void);
 
+/* ---- WI #1903: host staleness cards (kdash:stale:<host>:<deployer>) ---- */
+
+/* Split a staleness key into its host and deployer segments.
+ * Returns 0 with both written, -1 if the key is not a staleness key or names
+ * no host at all (the one unrecoverable case — there is nothing to raise).
+ *
+ * An off-contract key still returns 0: the deployer segment being missing or
+ * over-long yields STALE_DEPLOYER_UNKNOWN rather than a rejection, because the
+ * key's presence is the flag and dropping it would render as all-clear. The
+ * kdash-pub wrappers police namespace and token charset but NOT segment count,
+ * so such keys are reachable in production. */
+int redis_parse_stale_key(const char *key, char *host, size_t host_n, char *deployer,
+                          size_t deployer_n);
+
+/* Read `since` (Unix seconds, a bare JSON number) out of a staleness payload.
+ * Returns 0 on success, -1 if the payload is absent, unparseable, not an
+ * object, or carries a `since` that is not a number — notably an ISO-8601
+ * string, which nothing upstream validates against.
+ *
+ * A -1 here means the DETAIL is lost, never that the flag is clear: the caller
+ * must still raise the host (kdashdata CD-18). The `stale` field is
+ * deliberately not consulted — it is pinned const:true by the schema, so a
+ * writer publishing `stale:false` is off-contract and, having left the key
+ * standing, has not cleared anything. */
+int redis_parse_stale_payload(const char *json, double *since);
+
+/* Fold one observed key into the open cycle. `payload` is the GET result, or
+ * NULL when it could not be read. Returns 0 if the host was raised, -1 if the
+ * key named no host. Separate from redis_poll_stale so the "an unreadable
+ * record still raises its host" rule is reachable without a live Redis. */
+int redis_stale_apply_record(const char *key, const char *payload);
+
+/* SCAN kdash:stale:* and rebuild the staleness registry. Runs inside the same
+ * once-a-second poll as redis_poll_services(). A scan that does not complete
+ * aborts the cycle, leaving the previous cards up. */
+void redis_poll_stale(void);
+
 /* ---- WI #374: card eviction command ---- */
 typedef struct {
     char kind[16]; /* "service" or "apttemps" */

@@ -322,6 +322,235 @@ void *apttemps_registry_remove(const char *slug) {
     return container;
 }
 
+/* ---- host staleness registry (WI #1903) ----
+ *
+ * Rebuilt from the feed each poll, because the feed is presence-owned: a key
+ * that stops existing is the only all-clear. Observations land in a PENDING
+ * set and only replace the live set on commit, so a scan that dies half way
+ * can abort and leave the cards standing. Committing a partial scan would
+ * take down cards nothing had cleared, and a host with no card reads as
+ * healthy — the one wrong answer this feed exists to prevent (kdashdata
+ * CD-18).
+ *
+ * The pending set carries no LVGL handles: those belong to the live entries
+ * and must survive every cycle in which their host stays stale. */
+
+typedef struct {
+    char host[64];
+    stale_deployer_t deployers[STALE_DEPLOYERS_MAX];
+    int deployer_count;
+} stale_pending_t;
+
+static stale_entry_t g_stale[STALE_REGISTRY_MAX];
+static int g_stale_count = 0;
+static stale_pending_t g_stale_pending[STALE_REGISTRY_MAX];
+static int g_stale_pending_count = 0;
+static pthread_mutex_t g_stale_mutex = PTHREAD_MUTEX_INITIALIZER;
+
+void stale_registry_begin_cycle(void) {
+    pthread_mutex_lock(&g_stale_mutex);
+    g_stale_pending_count = 0;
+    pthread_mutex_unlock(&g_stale_mutex);
+}
+
+void stale_registry_abort_cycle(void) {
+    /* Discard the pending set and leave the live one exactly as it was. */
+    pthread_mutex_lock(&g_stale_mutex);
+    g_stale_pending_count = 0;
+    pthread_mutex_unlock(&g_stale_mutex);
+}
+
+void stale_registry_observe(const char *host, const char *deployer, double since,
+                            bool since_known) {
+    if (!host || !*host) return;
+    /* The panel's own host: if rpi53 is behind there is no dashboard. */
+    if (strcmp(host, STALE_EXCLUDED_HOST) == 0) return;
+    if (!deployer || !*deployer) deployer = STALE_DEPLOYER_UNKNOWN;
+
+    pthread_mutex_lock(&g_stale_mutex);
+    stale_pending_t *p = NULL;
+    for (int i = 0; i < g_stale_pending_count; i++) {
+        if (strncmp(g_stale_pending[i].host, host, sizeof(g_stale_pending[i].host)) == 0) {
+            p = &g_stale_pending[i];
+            break;
+        }
+    }
+    if (!p) {
+        if (g_stale_pending_count >= STALE_REGISTRY_MAX) {
+            pthread_mutex_unlock(&g_stale_mutex);
+            return;
+        }
+        p = &g_stale_pending[g_stale_pending_count++];
+        memset(p, 0, sizeof(*p));
+        strncpy(p->host, host, sizeof(p->host) - 1);
+    }
+    /* SCAN may return the same key on two cursor pages — list it once. */
+    for (int i = 0; i < p->deployer_count; i++) {
+        if (strncmp(p->deployers[i].name, deployer, sizeof(p->deployers[i].name)) == 0) {
+            pthread_mutex_unlock(&g_stale_mutex);
+            return;
+        }
+    }
+    if (p->deployer_count >= STALE_DEPLOYERS_MAX) {
+        pthread_mutex_unlock(&g_stale_mutex);
+        return;
+    }
+    stale_deployer_t *d = &p->deployers[p->deployer_count++];
+    memset(d, 0, sizeof(*d));
+    strncpy(d->name, deployer, sizeof(d->name) - 1);
+    d->since = since;
+    d->since_known = since_known;
+    pthread_mutex_unlock(&g_stale_mutex);
+}
+
+/* Oldest `since` first (WI #1903). A deployer whose payload could not be read
+ * carries no ordering information, so it sorts after every known one rather
+ * than claiming to be the oldest; equal keys break by name so the card body
+ * does not reshuffle between polls. */
+static int stale_deployer_cmp(const stale_deployer_t *a, const stale_deployer_t *b) {
+    if (a->since_known != b->since_known) return a->since_known ? -1 : 1;
+    if (a->since_known) {
+        if (a->since < b->since) return -1;
+        if (a->since > b->since) return 1;
+    }
+    return strncmp(a->name, b->name, sizeof(a->name));
+}
+
+static void stale_sort_deployers(stale_deployer_t *d, int n) {
+    for (int i = 1; i < n; i++) {
+        stale_deployer_t tmp = d[i];
+        int j = i;
+        while (j > 0 && stale_deployer_cmp(&d[j - 1], &tmp) > 0) {
+            d[j] = d[j - 1];
+            j--;
+        }
+        d[j] = tmp;
+    }
+}
+
+void stale_registry_commit_cycle(void) {
+    pthread_mutex_lock(&g_stale_mutex);
+
+    /* Stable, name-ascending host order so the snapshot (and the cards built
+     * from it) do not depend on SCAN order. */
+    for (int i = 1; i < g_stale_pending_count; i++) {
+        stale_pending_t tmp = g_stale_pending[i];
+        int j = i;
+        while (j > 0 && strncmp(g_stale_pending[j - 1].host, tmp.host, sizeof(tmp.host)) > 0) {
+            g_stale_pending[j] = g_stale_pending[j - 1];
+            j--;
+        }
+        g_stale_pending[j] = tmp;
+    }
+    for (int i = 0; i < g_stale_pending_count; i++)
+        stale_sort_deployers(g_stale_pending[i].deployers, g_stale_pending[i].deployer_count);
+
+    /* Existing hosts: adopt the pending deployer list, or empty it if the
+     * host was not seen. An emptied entry keeps its LVGL handles until
+     * stale_registry_reap hands them back for destruction on the LVGL
+     * thread — registry.c must never touch LVGL itself. */
+    for (int i = 0; i < g_stale_count; i++) {
+        const stale_pending_t *p = NULL;
+        for (int k = 0; k < g_stale_pending_count; k++) {
+            if (strncmp(g_stale_pending[k].host, g_stale[i].host, sizeof(g_stale[i].host)) == 0) {
+                p = &g_stale_pending[k];
+                break;
+            }
+        }
+        if (p) {
+            memcpy(g_stale[i].deployers, p->deployers, sizeof(g_stale[i].deployers));
+            g_stale[i].deployer_count = p->deployer_count;
+        } else {
+            memset(g_stale[i].deployers, 0, sizeof(g_stale[i].deployers));
+            g_stale[i].deployer_count = 0;
+        }
+    }
+
+    /* Hosts that are newly stale. */
+    for (int k = 0; k < g_stale_pending_count; k++) {
+        bool known = false;
+        for (int i = 0; i < g_stale_count; i++) {
+            if (strncmp(g_stale[i].host, g_stale_pending[k].host, sizeof(g_stale[i].host)) == 0) {
+                known = true;
+                break;
+            }
+        }
+        if (known) continue;
+        if (g_stale_count >= STALE_REGISTRY_MAX) break;
+        stale_entry_t *e = &g_stale[g_stale_count++];
+        memset(e, 0, sizeof(*e));
+        /* Both are char[64] and the pending host was NUL-terminated on the way
+         * in, so this is an exact copy — strncpy here trips
+         * -Wstringop-truncation under -O2, which the release build treats as
+         * noise it should not have to read. */
+        memcpy(e->host, g_stale_pending[k].host, sizeof(e->host));
+        memcpy(e->deployers, g_stale_pending[k].deployers, sizeof(e->deployers));
+        e->deployer_count = g_stale_pending[k].deployer_count;
+    }
+
+    g_stale_pending_count = 0;
+    pthread_mutex_unlock(&g_stale_mutex);
+}
+
+int stale_registry_snapshot(stale_entry_t *out, int max) {
+    if (!out || max <= 0) return 0;
+    pthread_mutex_lock(&g_stale_mutex);
+    int n = g_stale_count < max ? g_stale_count : max;
+    memcpy(out, g_stale, (size_t)n * sizeof(stale_entry_t));
+    pthread_mutex_unlock(&g_stale_mutex);
+    return n;
+}
+
+stale_entry_t *stale_registry_find(const char *host) {
+    if (!host || !*host) return NULL;
+    pthread_mutex_lock(&g_stale_mutex);
+    stale_entry_t *r = NULL;
+    for (int i = 0; i < g_stale_count; i++) {
+        if (strncmp(g_stale[i].host, host, sizeof(g_stale[i].host)) == 0) {
+            r = &g_stale[i];
+            break;
+        }
+    }
+    pthread_mutex_unlock(&g_stale_mutex);
+    return r;
+}
+
+int stale_registry_reap(void **out_containers, int max) {
+    if (!out_containers || max <= 0) return 0;
+    int n = 0;
+    pthread_mutex_lock(&g_stale_mutex);
+    for (int i = 0; i < g_stale_count;) {
+        if (g_stale[i].deployer_count == 0 && n < max) {
+            out_containers[n++] = g_stale[i].container;
+            for (int k = i; k < g_stale_count - 1; k++) g_stale[k] = g_stale[k + 1];
+            g_stale_count--;
+            continue;
+        }
+        i++;
+    }
+    pthread_mutex_unlock(&g_stale_mutex);
+    return n;
+}
+
+void stale_format_title(const stale_entry_t *e, char *buf, size_t n) {
+    if (!buf || n == 0) return;
+    buf[0] = '\0';
+    if (!e) return;
+    snprintf(buf, n, "%s stale", e->host);
+}
+
+void stale_format_body(const stale_entry_t *e, char *buf, size_t n) {
+    if (!buf || n == 0) return;
+    buf[0] = '\0';
+    if (!e) return;
+    size_t used = 0;
+    for (int i = 0; i < e->deployer_count; i++) {
+        int w = snprintf(buf + used, n - used, "%s%s", i ? "\n" : "", e->deployers[i].name);
+        if (w < 0 || (size_t)w >= n - used) break;
+        used += (size_t)w;
+    }
+}
+
 /* ---- graph host series (T006) ---- */
 
 static graph_host_series_t g_graph_hosts[GRAPH_HOST_MAX];

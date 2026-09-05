@@ -132,6 +132,12 @@ LVGL/DRM/KMS with no mouse or keyboard interaction.
 9. **Screenshot**: `kpidash:screenshot` (consumed via GETDEL) triggers an
    in-process `lv_snapshot_take` → BMP at `/tmp/kpidash-shot.bmp`. Use the
    `krpidss` CLI to fetch a PNG remotely (sprint 011).
+10. **Host staleness**: the fleet deployers write `kdash:stale:{host}:{deployer}`
+    (JSON, **no TTL**) when they skip an unreachable host, and `DEL` it after a
+    verified sync. Dashboard SCANs `kdash:stale:*` in the same cycle as the
+    services scan and renders one footer card per stale host. This is the only
+    feed kpidash reads that it does not own — it is registered in kdashdata
+    (CD-18) and shared with other consumers (sprint 017).
 
 ## Source Structure
 
@@ -159,17 +165,23 @@ kpidash/
 │       ├── client_card.{h,c}   # Per-client arc gauge card (CPU/RAM/GPU/disks)
 │       ├── activities.{h,c}    # Activity table (disabled — WI #365)
 │       ├── repo_status.{h,c}   # Repo card grid (disabled — WI #365)
-│       ├── service_card.{h,c}  # Service status card (footer strip)
+│       ├── service_card.{h,c}  # Service status card + host staleness card
 │       ├── apt_temps_card.{h,c}# Per-zone temp/humidity card (footer, WI #364)
 │       ├── fortune.{h,c}       # Fortune text label widget
 │       ├── status_bar.{h,c}    # Bottom status bar (warning/error)
 │       ├── dev_grid.{h,c}      # Pixel grid overlay (dev command)
 │       ├── dev_textsize.{h,c}  # Font size reference panel (dev command)
 │       └── dev_graph.{h,c}     # 5-series time-series chart (dev command)
-├── tests/
-│   ├── test_config.c           # Config env var parsing (ctest, no hardware)
-│   ├── test_redis_json.c       # cJSON parsing helpers (ctest, no hardware)
-│   └── test_layout.c           # Unit system macro arithmetic (ctest, no hardware)
+├── tests/                      # all ctest, no hardware unless noted
+│   ├── test_config.c           # Config env var parsing
+│   ├── test_redis_json.c       # cJSON parsing helpers
+│   ├── test_layout.c           # Unit system macro arithmetic
+│   ├── test_layout_pool.c      # Rows-2-3 widget placement
+│   ├── test_graph_router.c     # Per-host graph series routing
+│   ├── test_icon_registry.c    # Nerd-font glyph lookup
+│   ├── test_service_card.c     # Service state/colour + payload parsing
+│   ├── test_stale_card.c       # Host staleness feed reader (sprint 017)
+│   └── test_widget_leak.c      # Widget leak regression (needs LVGL)
 ├── clients/
 │   ├── kpidash-client/         # Python 3.13+ daemon + CLI (psutil, pynvml)
 │   └── kpidash-mcp/            # Python 3.13+ MCP server (mcp>=1)
@@ -291,6 +303,35 @@ Bold fonts generated via `lv_font_conv` from Montserrat-Bold.ttf at sizes
   "NO NEW DATA" banner via `dev_graph_set_stale()`. The current UI renders a
   single dev_graph for the most-recently-seen host; full multi-host expansion
   (T035) is deferred to a follow-up sprint.
+
+## Sprint 017 — Host Staleness Cards
+
+- **Staleness registry** (`src/registry.c`): `g_stale[STALE_REGISTRY_MAX=8]`,
+  one entry per stale *host*, each holding up to `STALE_DEPLOYERS_MAX=8`
+  deployer names. Unlike the service and apt-temps registries it is **rebuilt
+  from the feed every poll**, because the feed is presence-owned: an entry not
+  observed must go. Observations land in a pending set and only replace the
+  live set on commit, so a scan that fails part-way can `abort` and leave the
+  cards standing.
+- **The unparseable-record rule is inverted here, deliberately.** Every other
+  reader in `redis.c` drops a record it cannot parse. For this feed the *key*
+  asserts staleness and the payload only describes it, so dropping a record
+  would erase the flag — and a host with no card reads as healthy. An
+  unreadable payload, an ISO-8601 `since`, or an off-contract key all still
+  raise the host; only a key naming no host at all is ignored, and only a key
+  deleted between the SCAN and the GET counts as cleared. See kdashdata CD-18
+  and `docs/CLIENT-PROTOCOL.md` §8c.
+- **Staleness cards** (`src/widgets/service_card.c`): built in the same module
+  as the service card so the 220×240 footprint and the warn colour band are
+  shared by construction rather than by a second set of constants. No icon, a
+  wrapping title (the panel has no input devices, so an elided title can never
+  be revealed), and a fixed warn border — there is no freshness computation to
+  do, which is why `stale_card_update()` takes no `now`.
+- **Footer strip order** is `[services][stale, host-sorted][apt-temps,
+  slug-sorted]`, per Ken's ruling from the panel. Because the strip is a flex
+  row whose child order is *creation* order, each of the two trailing groups
+  walks its sorted snapshot moving every card to last — otherwise a host going
+  stale long after boot would append at the end of the row.
 
 ## Memory Telemetry
 

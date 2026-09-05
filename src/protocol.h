@@ -71,6 +71,35 @@
 /* WI #364: per-zone apartment temperature cards (one key per zone). */
 #define KPIDASH_KEY_APTTEMPS_PATTERN "kpidash:apttemps:*"
 #define KPIDASH_KEY_APTTEMPS_PREFIX  "kpidash:apttemps:"
+
+/* WI #1903: per-deployer host staleness flags, written by the fleet deployers
+ * (agent-skills' fleet-deploy, k-homelab's apply/audit) through kdash-pub.
+ *
+ * Key: kdash:stale:<host>:<deployer>   Value: {"stale":true,"since":<unix s>,
+ *                                              "reason":"<one line>","ts":<unix s>}
+ *
+ * The feed is PRESENCE-OWNED (kdashdata CD-18): there is no TTL and no
+ * staleness window — the key existing IS the flag, and its absence is the only
+ * all-clear. A deployer that never runs again correctly leaves the flag up.
+ * The payload only ENRICHES a signal the key has already given, which inverts
+ * this codebase's usual skip-the-unparseable-record rule: dropping an
+ * unreadable staleness record would render as all-clear. See redis_poll_stale.
+ *
+ * The pattern is deliberately one segment looser than the key contract so a
+ * malformed key still reaches the reader and still raises its host; the shape
+ * is sorted out in redis_parse_stale_key. */
+#define KDASH_KEY_STALE_PATTERN "kdash:stale:*"
+#define KDASH_KEY_STALE_PREFIX  "kdash:stale:"
+
+/* The dashboard's own host is excluded: if rpi53 is behind there is no
+ * dashboard to say so, and a card about the panel you are looking at is noise
+ * (WI #1903). */
+#define STALE_EXCLUDED_HOST "rpi53"
+
+/* Shown in place of a deployer name when the key is off-contract (no deployer
+ * segment, or too many). The host is still raised — see CD-18 above. */
+#define STALE_DEPLOYER_UNKNOWN "(unknown)"
+
 #define CMD_TTL_S 300
 
 #endif /* PROTOCOL_H */

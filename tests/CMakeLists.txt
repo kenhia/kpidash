@@ -85,6 +85,14 @@ add_kpidash_test(test_service_card
 )
 target_compile_definitions(test_service_card PRIVATE KPIDASH_TEST_STUBS=1)
 
+# WI #1903: host staleness feed reader (kdash:stale:<host>:<deployer>).
+add_kpidash_test(test_stale_card
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_stale_card.c
+    ${CMAKE_SOURCE_DIR}/src/registry.c
+    ${CMAKE_SOURCE_DIR}/src/redis.c
+)
+target_compile_definitions(test_stale_card PRIVATE KPIDASH_TEST_STUBS=1)
+
 # Spec 005 / T006: widget leak regression suite.
 # Requires LVGL, which is only built in the full (non-TESTS_ONLY) configuration.
 if(TARGET lvgl)

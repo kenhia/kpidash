@@ -7,6 +7,7 @@
 #include "registry.h"
 #include "widgets/common.h"
 
+#include <stdio.h>
 #include <string.h>
 
 #define SC_BORDER_THICK 6
@@ -110,5 +111,79 @@ void service_card_update(struct service_entry *e, double now) {
         } else {
             lv_obj_add_flag(e->icon_label, LV_OBJ_FLAG_HIDDEN);
         }
+    }
+}
+
+/* ---- WI #1903: host staleness card ----
+ *
+ * Deliberately built from the same constants and the same colour_for() as the
+ * service card above: WI #1903 asks for "one card per stale host in the
+ * service row, same size as the other service cards", and the surest way to
+ * keep that true is for there to be one definition of the size.
+ *
+ * Differences from the service card, and why:
+ *  - No icon. Nothing in the feed names one, and the space buys another line
+ *    of deployer names.
+ *  - The title WRAPS rather than eliding. "komarchy stale" is close to the
+ *    card's width at this font, and the panel has no input devices — a title
+ *    that elides to "komarchy sta..." cannot be revealed by any means.
+ *  - The border is fixed at the warn band. There is no freshness computation
+ *    to do: the key's presence is the whole signal.
+ */
+
+/* Body sized for STALE_DEPLOYERS_MAX names plus separators. */
+#define STALE_BODY_BUF 512
+
+lv_obj_t *stale_card_create(lv_obj_t *parent, struct stale_entry *e) {
+    if (!parent || !e) return NULL;
+
+    lv_obj_t *cont = lv_obj_create(parent);
+    lv_obj_clear_flag(cont, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_size(cont, SC_WIDTH, SC_HEIGHT);
+    lv_obj_set_style_bg_color(cont, lv_color_hex(0x181825), 0);
+    lv_obj_set_style_radius(cont, SC_RADIUS, 0);
+    lv_obj_set_style_border_color(cont, color_for(SERVICE_COLOR_YELLOW), 0);
+    lv_obj_set_style_border_width(cont, SC_BORDER_THICK, 0);
+    lv_obj_set_style_pad_all(cont, SC_PAD, 0);
+    lv_obj_set_flex_flow(cont, LV_FLEX_FLOW_COLUMN);
+    lv_obj_set_flex_align(cont, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER,
+                          LV_FLEX_ALIGN_CENTER);
+
+    char buf[STALE_BODY_BUF];
+
+    lv_obj_t *title = lv_label_create(cont);
+    lv_obj_set_style_text_font(title, &lv_font_montserrat_bold_24, 0);
+    lv_obj_set_style_text_color(title, WS_COLOR_FG, 0);
+    lv_label_set_long_mode(title, LV_LABEL_LONG_WRAP);
+    lv_obj_set_width(title, LV_PCT(100));
+    lv_obj_set_style_text_align(title, LV_TEXT_ALIGN_CENTER, 0);
+    stale_format_title(e, buf, sizeof(buf));
+    lv_label_set_text(title, buf);
+
+    lv_obj_t *body = lv_label_create(cont);
+    lv_obj_set_style_text_font(body, &lv_font_montserrat_bold_20, 0);
+    lv_obj_set_style_text_color(body, lv_color_hex(0xA6ADC8), 0);
+    lv_label_set_long_mode(body, LV_LABEL_LONG_WRAP);
+    lv_obj_set_width(body, LV_PCT(100));
+    lv_obj_set_style_text_align(body, LV_TEXT_ALIGN_CENTER, 0);
+    stale_format_body(e, buf, sizeof(buf));
+    lv_label_set_text(body, buf);
+
+    e->container = cont;
+    e->title_label = title;
+    e->body_label = body;
+    return cont;
+}
+
+void stale_card_update(struct stale_entry *e) {
+    if (!e || !e->container) return;
+    char buf[STALE_BODY_BUF];
+    if (e->title_label) {
+        stale_format_title(e, buf, sizeof(buf));
+        lv_label_set_text(e->title_label, buf);
+    }
+    if (e->body_label) {
+        stale_format_body(e, buf, sizeof(buf));
+        lv_label_set_text(e->body_label, buf);
     }
 }
