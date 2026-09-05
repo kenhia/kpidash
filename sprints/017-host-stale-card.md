@@ -108,6 +108,31 @@ as a lost *name*, not a lost flag. This goes one step past the literal
 contract, which describes only well-formed keys; it is the same inversion
 CD-18 applies to payloads, applied to key shape.
 
+**Card placement came from the glass, not from a diff.** Built rightmost —
+after the service *and* apt-temps cards — matching how apt-temps had been
+added to the strip. Ken looked at the panel and ruled:
+
+> "After service cards, before apt-temps."
+
+Neither of the two options that had been put to him. Recorded verbatim
+because it is the only decision in this program that came from someone
+looking at the physical panel rather than reading a diff, and a paraphrase
+would lose which side of apt-temps he meant.
+
+Implementing it needed more than swapping the paint order. The strip is a
+flex row, so child order is *creation* order, and a host that goes stale an
+hour after boot has its card appended at the end no matter which group it
+belongs to. So each of the two trailing groups now walks its own sorted
+snapshot moving every card to last — stale first, then apt-temps — and the
+strip settles as `[services…][stale, host-sorted][apt-temps, slug-sorted]`
+regardless of when any card was created.
+
+That is also why the group is placed by moving the cards *after* it rather
+than by moving each new stale card to index 0: index 0 would have reversed
+multiple stale hosts against each other, which was the standing objection to
+the leftmost option and survives this ruling untouched (Ken did not ask for
+leftmost).
+
 **Deployers with an unknown `since` sort last**, not first. They carry no
 ordering information, so putting them at the top would have them claim to
 be the oldest. Ties break by name so the body does not reshuffle between
@@ -142,13 +167,31 @@ takes the payload as a string and is callable from the gate; the poll is
 now the loop around it. Six unreadable payload shapes, including `NULL`
 and the ISO trap, are asserted to raise the host.
 
-**And my own live check went green for the wrong reason**, on the first
-probe of the sprint: I parsed `kdash-pub endpoint`'s output as a URL when
-it prints bare `host:port`, so the "no credentials must fail" control
-failed with `Name or service not known` — a DNS error, not an auth error.
-It looked exactly like the control passing. Re-run against the right
-host, both controls behaved. Same family as the four above, and the
-fourth instance of it in three days.
+**And a broken control — which is a different animal, not a fifth tally
+mark.** On the first probe of the sprint I parsed `kdash-pub endpoint`'s
+output as a URL when it prints bare `host:port`, so the "no credentials must
+fail" control failed with `Name or service not known` — a DNS error, not an
+auth error. It looked exactly like the control passing.
+
+The overseer's refinement, and the right way to file it: the four entries in
+the program's pattern table are *assertions* that went green for a reason
+unrelated to their claim. This was a **control** — the check whose whole job
+is to validate the other checks — failing for the wrong reason and thereby
+looking indistinguishable from a control that passed.
+
+That is strictly more dangerous. A bad assertion is one false claim. A bad
+control silently confers false confidence on *everything measured through
+it*: had I not re-run it, every Redis reading in this sprint would have been
+taken on the authority of a control that never actually demonstrated
+anything. The failure does not stay where it happened — it propagates to all
+downstream evidence, undetected, because the downstream checks are all
+behaving correctly.
+
+Slice 4's rule was that an empty result and a suppressed failure are
+indistinguishable unless you assert the connection separately. This is the
+next turn of that screw: **the separate assertion has to be checked for
+failing the right way, or it is not a control at all.** Mine failed on DNS
+while claiming to prove something about auth.
 
 **Nine planted defects, all caught**:
 
@@ -181,13 +224,25 @@ fourth instance of it in three days.
 - `docs/CLIENT-PROTOCOL.md` — §8c, and a note on the one key family not
   under the `kpidash:` prefix.
 
+## Rulings taken during the sprint
+
+- **Placement**: Ken, from the panel — *"After service cards, before
+  apt-temps."* Implemented as described above. Settled, not a follow-up.
+- **The off-contract-key extension is upheld and promoted.** Raising a host
+  from a key with a missing or over-long deployer segment went past WI 1903's
+  literal contract, so the overseer filed it as a contract amendment —
+  **kdashdata WI 1935** — putting it in CD-18 itself rather than leaving the
+  knowledge only in this reader. kmon WI 1921 is the next consumer of this
+  feed and would otherwise have re-derived it or missed it.
+- **The "same pass" reading is upheld**, and the imprecision was the
+  proposal's: it meant *protect the LVGL thread's one-second cycle*, and the
+  literal one-SCAN reading would have loaded that thread more, not less. No
+  change.
+- **The two Release-only warnings are kpidash WI 1934**, not this branch —
+  neither is in code this sprint touched.
+
 ## Follow-ups
 
-- The strip paints stale cards **after** the service and apt-temps cards
-  (creation order in the flex row), matching how apt-temps was added. An
-  alert arguably belongs leftmost; deliberately not done, because moving
-  each new card to index 0 reverses the host order and the row is one
-  glance wide either way. Worth Ken's eye during the live check.
 - `reason` is carried by both writers, is one human-facing line by
   contract, and is not rendered. If the card ever grows a detail view,
   that is what belongs in it.

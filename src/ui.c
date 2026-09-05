@@ -459,8 +459,54 @@ void ui_refresh(void) {
         }
     }
 
+    /* ---- WI #1903: host staleness cards.
+     *
+     * Ken, after looking at the panel (2026-09-05): "After service cards,
+     * before apt-temps." Hence this block sitting between the two.
+     *
+     * Paint order alone will not hold that, though. The strip is a flex row,
+     * so child order is creation order, and a card created on a *later* poll
+     * — a host that goes stale an hour from now — is appended at the end
+     * whatever group it belongs to. So each of the two trailing groups walks
+     * its own sorted snapshot moving every card to last: stale first, then
+     * apt-temps. Whatever order the service cards ended up in, the strip
+     * settles as [services…][stale, host-sorted][apt-temps, slug-sorted].
+     *
+     * This is also what keeps several stale hosts ordered among themselves
+     * rather than in the order they happened to go stale, and it is why the
+     * group is placed by moving the ones after it rather than by moving each
+     * new card to index 0 — that would reverse the hosts against each other.
+     *
+     * Cost is a reorder within one parent's child array for a strip holding a
+     * handful of cards, on a loop that already repaints all of them.
+     *
+     * The reap runs before the paint loop, like the evict block above, so a
+     * host whose last key vanished has its card destroyed rather than
+     * repainted from a dangling pointer. redis_poll_stale has already
+     * committed (or aborted) this second's cycle by the time we get here. ---- */
+    {
+        void *dead[STALE_REGISTRY_MAX];
+        int ndead = stale_registry_reap(dead, STALE_REGISTRY_MAX);
+        for (int i = 0; i < ndead; i++)
+            if (dead[i]) lv_obj_delete((lv_obj_t *)dead[i]);
+
+        /* Snapshot is already host-sorted by stale_registry_commit_cycle. */
+        stale_entry_t st[STALE_REGISTRY_MAX];
+        int nst = stale_registry_snapshot(st, STALE_REGISTRY_MAX);
+        for (int i = 0; i < nst; i++) {
+            stale_entry_t *live = stale_registry_find(st[i].host);
+            if (!live) continue;
+            if (!live->container) {
+                stale_card_create(g_service_strip, live);
+            }
+            stale_card_update(live);
+            lv_obj_move_to_index(live->container,
+                                 (int32_t)lv_obj_get_child_count(g_service_strip) - 1);
+        }
+    }
+
     /* ---- WI #364: Apt-Temps per-zone cards, painted into the footer strip
-     * after (to the right of) the service cards. ---- */
+     * last — after the service cards and after any staleness cards. ---- */
     {
         apttemps_entry_t ats[APTTEMPS_REGISTRY_MAX];
         int nat = apttemps_registry_snapshot(ats, APTTEMPS_REGISTRY_MAX);
@@ -482,31 +528,8 @@ void ui_refresh(void) {
                 apt_temps_card_create(g_service_strip, live);
             }
             apt_temps_card_update(live, now);
-        }
-    }
-
-    /* ---- WI #1903: host staleness cards, painted into the footer strip
-     * after the service and apt-temps cards.
-     *
-     * The reap runs before the paint loop, like the evict block above, so a
-     * host whose last key vanished has its card destroyed rather than
-     * repainted from a dangling pointer. redis_poll_stale has already
-     * committed (or aborted) this second's cycle by the time we get here. ---- */
-    {
-        void *dead[STALE_REGISTRY_MAX];
-        int ndead = stale_registry_reap(dead, STALE_REGISTRY_MAX);
-        for (int i = 0; i < ndead; i++)
-            if (dead[i]) lv_obj_delete((lv_obj_t *)dead[i]);
-
-        stale_entry_t st[STALE_REGISTRY_MAX];
-        int nst = stale_registry_snapshot(st, STALE_REGISTRY_MAX);
-        for (int i = 0; i < nst; i++) {
-            stale_entry_t *live = stale_registry_find(st[i].host);
-            if (!live) continue;
-            if (!live->container) {
-                stale_card_create(g_service_strip, live);
-            }
-            stale_card_update(live);
+            lv_obj_move_to_index(live->container,
+                                 (int32_t)lv_obj_get_child_count(g_service_strip) - 1);
         }
     }
 
