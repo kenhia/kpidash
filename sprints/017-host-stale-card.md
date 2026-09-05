@@ -224,6 +224,110 @@ while claiming to prove something about auth.
 - `docs/CLIENT-PROTOCOL.md` — §8c, and a note on the one key family not
   under the `kpidash:` prefix.
 
+## The live check — both halves, on the real panel
+
+The only claim in this sprint no test can make. Both halves ran against a
+genuinely stale komarchy (slice 4's flags, raised by two deployers actually
+failing to reach a sleeping laptop) rather than anything hand-written.
+
+### Step 1 — lid closed: the card appears
+
+Inherited state read live before anything else, with both controls:
+
+```
+no-auth PING : NOAUTH Authentication required.
+auth PING    : PONG
+
+kdash:stale:komarchy:k-homelab     since 1788594159   audit skipped: unreachable        ttl -1
+kdash:stale:komarchy:agent-skills  since 1788594170   fleet-deploy skipped: unreachable ttl -1
+```
+
+k-homelab older by 11 s, matching handoff korg:1933 §1 exactly. Read, not
+hard-coded — the sort assertion is written against what was actually in Redis.
+
+The panel, via the repo's own device self-screenshot (`kpidash:screenshot`,
+sprint 011), so the card was seen rather than assumed:
+
+```
+komarchy stale
+  k-homelab        <- since …159, oldest first
+  agent-skills     <- since …170
+```
+
+Warn/orange band, 220×240, title on one line. After Ken's placement ruling it
+sits third of six: klams, rpidash, **komarchy stale**, Bedroom, Kitchen,
+Living. Rightmost drawn pixel 1383 of 3840 — 2457 px clear, room for ~10 more
+cards, nothing near the edge.
+
+### Step 2 — lid open: the card goes
+
+Control first, because a DEL against already-absent keys produces an identical
+reading afterwards and proves nothing (slice 4's lesson):
+
+```
+EXISTS kdash:stale:komarchy:k-homelab    = 1
+EXISTS kdash:stale:komarchy:agent-skills = 1     <- both standing before the clear
+```
+
+Then the two real deployers, from kubs0:
+
+```
+$ bin/fleet-deploy --host komarchy
+host komarchy: 15 skills, all current
+host komarchy: CLAUDE.md current
+  flag     : kdash:stale:komarchy:agent-skills cleared -- verified sync
+
+$ bin/apply komarchy timezone
+Applying timezone on komarchy...
+ok
+Flag kdash:stale:komarchy:k-homelab is up — checking komarchy is fully conformant before clearing it...
+flag: kdash:stale:komarchy:k-homelab cleared — verified sync, 1 recipe(s) conformant
+```
+
+Read back, with a positive control so that "absent" cannot be confused with
+"unreadable":
+
+```
+control A  no-auth PING          : NOAUTH Authentication required.
+control B  auth PING             : PONG
+control C  DBSIZE                : 102
+kdash:stale:* count              : 0
+EXISTS …:k-homelab               : 0
+EXISTS …:agent-skills            : 0
+control D  EXISTS kpidash:services:klams:_ : 1     <- the connection still reads
+```
+
+And the panel: **five cards, the stale card gone, the row reflowed with no gap
+left behind** — apt-temps closed up into the space. Rightmost pixel 1155,
+down from 1383, which is one 220 px card plus its gap.
+
+So both directions are live-verified end to end: from two deployers failing to
+reach a closed lid, through Redis, to a card on the glass; and from the lid
+opening, through two verified syncs, to the card disappearing.
+
+### Two more controls that lied, both caught
+
+The write-up above of "a broken control is worse than a broken assertion"
+earned itself back twice within the hour.
+
+**The clipping measurement.** My first pass reported the rightmost drawn pixel
+as 3839 — the very edge of the panel, which would have meant something *was*
+clipped. The background constant was wrong: the strip's background is
+`(17,17,27)`, not the palette base `(30,30,46)` I compared against, so every
+empty pixel counted as drawn. Corrected, the answer is 1383 with 2457 px
+spare. This one failed *safe* — a false alarm rather than false confidence —
+but it is the same defect.
+
+**The lid probe.** Checking whether komarchy was awake, `ssh komarchy true`
+from kai returned `Host key verification failed`, rc 255. Read carelessly that
+is "unreachable", i.e. lid still shut — and it is nothing of the kind: kai
+simply has no host key for komarchy. The deployers run on **kubs0**, which
+does; probed from there, rc 0, the lid was already open. Had I taken the 255
+at face value I would have paused the sprint waiting for a lid that was
+already up, on the authority of a control that had not tested what it claimed.
+Exactly the shape written up two hours earlier, which is the only reason it
+was spotted.
+
 ## Rulings taken during the sprint
 
 - **Placement**: Ken, from the panel — *"After service cards, before
