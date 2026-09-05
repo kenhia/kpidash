@@ -479,7 +479,11 @@ void stale_registry_commit_cycle(void) {
         if (g_stale_count >= STALE_REGISTRY_MAX) break;
         stale_entry_t *e = &g_stale[g_stale_count++];
         memset(e, 0, sizeof(*e));
-        strncpy(e->host, g_stale_pending[k].host, sizeof(e->host) - 1);
+        /* Both are char[64] and the pending host was NUL-terminated on the way
+         * in, so this is an exact copy — strncpy here trips
+         * -Wstringop-truncation under -O2, which the release build treats as
+         * noise it should not have to read. */
+        memcpy(e->host, g_stale_pending[k].host, sizeof(e->host));
         memcpy(e->deployers, g_stale_pending[k].deployers, sizeof(e->deployers));
         e->deployer_count = g_stale_pending[k].deployer_count;
     }
