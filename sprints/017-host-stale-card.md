@@ -350,3 +350,25 @@ was spotted.
 - `reason` is carried by both writers, is one human-facing line by
   contract, and is not rendered. If the card ever grows a detail view,
   that is what belongs in it.
+
+## Deployed
+
+**2026-09-05, rpi53** — `scripts/deploy.sh` from merged `main` (`0dc5bca`).
+Cross-built x86_64 → aarch64, staged through `/tmp`, installed atomically,
+service restarted; the running binary self-reports `0dc5bca (2026-09-05)` and
+`systemctl is-active` returns `active` with `NRestarts=0`.
+
+kpidash declares no `.sprint-deploy`, so `sprint-ship` Phase 7 did not run —
+this deploy was invoked directly, as the proposal's readiness pass specified.
+
+It is the third of the sprint, and the reason for it is worth stating: the
+panel had been running `d61fac6`, the last commit on the feature branch. The
+squash merge means production was already running exactly `main`'s code, so
+this changed no behaviour at all — but the dashboard's self-card publishes the
+commit it is running, `deploy.sh` verifies against that string, and it named a
+commit that is not on `main`. Redeploying costs two minutes and keeps the one
+signal the deploy path actually checks worth reading.
+
+The feed is empty at time of deploy (`kdash:stale:*` → 0 keys), so no
+staleness card is showing — komarchy is awake and both deployers have verified
+it. That is the correct resting state, not a missing card.
