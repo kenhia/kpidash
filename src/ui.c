@@ -485,6 +485,31 @@ void ui_refresh(void) {
         }
     }
 
+    /* ---- WI #1903: host staleness cards, painted into the footer strip
+     * after the service and apt-temps cards.
+     *
+     * The reap runs before the paint loop, like the evict block above, so a
+     * host whose last key vanished has its card destroyed rather than
+     * repainted from a dangling pointer. redis_poll_stale has already
+     * committed (or aborted) this second's cycle by the time we get here. ---- */
+    {
+        void *dead[STALE_REGISTRY_MAX];
+        int ndead = stale_registry_reap(dead, STALE_REGISTRY_MAX);
+        for (int i = 0; i < ndead; i++)
+            if (dead[i]) lv_obj_delete((lv_obj_t *)dead[i]);
+
+        stale_entry_t st[STALE_REGISTRY_MAX];
+        int nst = stale_registry_snapshot(st, STALE_REGISTRY_MAX);
+        for (int i = 0; i < nst; i++) {
+            stale_entry_t *live = stale_registry_find(st[i].host);
+            if (!live) continue;
+            if (!live->container) {
+                stale_card_create(g_service_strip, live);
+            }
+            stale_card_update(live);
+        }
+    }
+
     if (cmd->grid_enabled) {
         bool changed = !g_dev_grid || g_dev_grid_size != cmd->grid_size ||
                        g_dev_grid_unit != cmd->grid_unit ||

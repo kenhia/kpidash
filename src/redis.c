@@ -684,6 +684,8 @@ void redis_poll(void) {
     redis_poll_services();
     /* Apt-Temps per-zone cards (WI #364) */
     redis_poll_apttemps();
+    /* Host staleness cards (WI #1903) */
+    redis_poll_stale();
     /* Card eviction command (WI #374) */
     redis_poll_evict();
     /* Self service card (WI #369) */
@@ -1013,6 +1015,151 @@ void redis_poll_apttemps(void) {
 }
 #else
 void redis_poll_apttemps(void) { /* test stub */ }
+#endif
+
+/* ============================================================
+ * WI #1903: host staleness cards (kdash:stale:<host>:<deployer>)
+ * ============================================================
+ *
+ * This reader inverts the rule the two above it follow. redis_poll_services
+ * and redis_poll_apttemps drop an unparseable record and move on, which is
+ * right when a record is the only thing asserting its own existence. Here the
+ * KEY asserts staleness and the payload merely describes it, so dropping an
+ * unreadable record would erase the flag and render as all-clear — reporting
+ * a three-week outage as healthy. Every failure path below therefore falls
+ * back to "still stale, detail unknown", never to "clear" (kdashdata CD-18).
+ */
+
+int redis_parse_stale_key(const char *key, char *host, size_t host_n, char *deployer,
+                          size_t deployer_n) {
+    if (!key || !host || !deployer || host_n == 0 || deployer_n == 0) return -1;
+    const size_t plen = strlen(KDASH_KEY_STALE_PREFIX);
+    if (strncmp(key, KDASH_KEY_STALE_PREFIX, plen) != 0) return -1;
+
+    const char *after = key + plen;
+    const char *sep = strchr(after, ':');
+    size_t host_len = sep ? (size_t)(sep - after) : strlen(after);
+    /* No host means nothing to attribute the flag to — the only key shape
+     * this reader cannot honour. */
+    if (host_len == 0) return -1;
+    if (host_len >= host_n) return -1; /* truncating would invent a hostname */
+
+    const char *dep = STALE_DEPLOYER_UNKNOWN;
+    if (sep) {
+        const char *rest = sep + 1;
+        /* Exactly one more segment is the contract; a missing or over-long
+         * tail costs the deployer's name, not the host's flag. */
+        if (*rest && !strchr(rest, ':')) dep = rest;
+    }
+    if (strlen(dep) >= deployer_n) return -1;
+
+    memcpy(host, after, host_len);
+    host[host_len] = '\0';
+    strncpy(deployer, dep, deployer_n - 1);
+    deployer[deployer_n - 1] = '\0';
+    return 0;
+}
+
+int redis_parse_stale_payload(const char *json, double *since) {
+    if (!json || !*json || !since) return -1;
+    cJSON *root = cJSON_Parse(json);
+    if (!root) return -1;
+    if (!cJSON_IsObject(root)) {
+        cJSON_Delete(root);
+        return -1;
+    }
+    /* `since` is Unix seconds as a bare number. cJSON_IsNumber is false for a
+     * quoted ISO-8601 timestamp, which is the shape a writer reaching for the
+     * fleet's other clock would publish and which nothing upstream rejects. */
+    cJSON *s = cJSON_GetObjectItemCaseSensitive(root, "since");
+    if (!cJSON_IsNumber(s)) {
+        cJSON_Delete(root);
+        return -1;
+    }
+    *since = s->valuedouble;
+    cJSON_Delete(root);
+    return 0;
+}
+
+/* Fold one observed key into the open cycle. `payload` is the GET result, or
+ * NULL when it could not be read at all. Returns 0 if the host was raised,
+ * -1 if the key named no host to raise.
+ *
+ * Split out of redis_poll_stale so CD-18's inversion is reachable by the test
+ * gate: the poll itself needs a live Redis, and "an unreadable record still
+ * raises its host" is the one rule in this file that must never regress. */
+int redis_stale_apply_record(const char *key, const char *payload) {
+    char host[64];
+    char deployer[64];
+    if (redis_parse_stale_key(key, host, sizeof(host), deployer, sizeof(deployer)) != 0)
+        return -1;
+
+    double since = 0.0;
+    bool since_known = (payload != NULL) && (redis_parse_stale_payload(payload, &since) == 0);
+
+    /* Raised either way. An unreadable payload costs the `since`, not the flag. */
+    stale_registry_observe(host, deployer, since, since_known);
+    return 0;
+}
+
+#ifndef KPIDASH_TEST_STUBS
+void redis_poll_stale(void) {
+    /* No connection: do not open a cycle at all, so the cards stay as they
+     * were rather than being cleared by our own inability to look. */
+    if (!g_ctx || g_ctx->err) return;
+
+    stale_registry_begin_cycle();
+    char cursor[32] = "0";
+    do {
+        redisReply *sr = redisCommand(g_ctx, "SCAN %s MATCH %s COUNT 100",
+                                      cursor, KDASH_KEY_STALE_PATTERN);
+        if (!sr || sr->type != REDIS_REPLY_ARRAY || sr->elements != 2) {
+            if (sr) freeReplyObject(sr);
+            stale_registry_abort_cycle();
+            return;
+        }
+        if (sr->element[0]->type == REDIS_REPLY_STRING) {
+            strncpy(cursor, sr->element[0]->str, sizeof(cursor) - 1);
+            cursor[sizeof(cursor) - 1] = '\0';
+        }
+        redisReply *keys = sr->element[1];
+        if (keys && keys->type == REDIS_REPLY_ARRAY) {
+            for (size_t i = 0; i < keys->elements; i++) {
+                const char *key = keys->element[i]->str;
+                if (!key) continue;
+
+                redisReply *gr = redisCommand(g_ctx, "GET %s", key);
+                if (!gr) {
+                    /* Connection died mid-cycle: what we have is a partial
+                     * view, and committing it would clear hosts nothing has
+                     * cleared. */
+                    freeReplyObject(sr);
+                    stale_registry_abort_cycle();
+                    return;
+                }
+                if (gr->type == REDIS_REPLY_NIL) {
+                    /* Deleted between the SCAN and the GET — a deployer
+                     * genuinely cleared it. This is the one skip that is
+                     * correct, because absence really is the all-clear. */
+                    freeReplyObject(gr);
+                    continue;
+                }
+                /* Anything else that is not a readable string (an error
+                 * reply, a wrong type) reaches apply_record as NULL and
+                 * raises the host without a `since`. */
+                redis_stale_apply_record(key, gr->type == REDIS_REPLY_STRING ? gr->str : NULL);
+                freeReplyObject(gr);
+            }
+        }
+        freeReplyObject(sr);
+    } while (strcmp(cursor, "0") != 0);
+
+    /* Only a scan that ran to cursor 0 is a complete view of the feed, and
+     * only a complete view may take cards down. */
+    stale_registry_commit_cycle();
+}
+#else
+void redis_poll_stale(void) { /* test stub */ }
 #endif
 
 /* ============================================================

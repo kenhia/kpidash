@@ -2,6 +2,7 @@
 #define REGISTRY_H
 
 #include <stdbool.h>
+#include <stddef.h>
 #include <stdint.h>
 #include <time.h>
 
@@ -303,6 +304,88 @@ int apttemps_registry_snapshot(apttemps_entry_t *out, int max);
  * Returned as void* so registry.h stays LVGL-agnostic under test stubs. */
 void *service_registry_remove(const char *name, const char *host);
 void *apttemps_registry_remove(const char *slug);
+
+/* ============================================================
+ * WI #1903: host staleness registry (kdash:stale:<host>:<deployer>)
+ * ============================================================
+ *
+ * One entry per stale HOST; the deployers that flagged it are the card body.
+ * Unlike the service and apt-temps registries this one is rebuilt from the
+ * feed every poll, because the feed is presence-owned (CD-18): a key that
+ * stops existing is the ONLY all-clear signal, so an entry that is not
+ * observed in a completed scan must go.
+ *
+ * That makes the cycle protocol load-bearing. begin/observe/commit replaces
+ * the live set; abort discards the pending set and leaves the live one
+ * standing. A scan that failed half way MUST abort rather than commit — a
+ * partial scan committed would drop hosts nothing had cleared, and an
+ * unraised card reads as "everything is fine", which is the one wrong answer
+ * this feed exists to prevent. */
+#define STALE_REGISTRY_MAX 8    /* hosts shown at once */
+#define STALE_DEPLOYERS_MAX 8   /* deployers per host */
+
+typedef struct {
+    char name[64];      /* deployer, from the key's 4th segment */
+    double since;       /* payload's `since`; meaningless unless since_known */
+    bool since_known;   /* false when the payload was absent or unreadable */
+} stale_deployer_t;
+
+typedef struct stale_entry {
+    char host[64];      /* identity, from the key's 3rd segment */
+    stale_deployer_t deployers[STALE_DEPLOYERS_MAX];
+    int deployer_count;
+#ifndef KPIDASH_TEST_STUBS
+    lv_obj_t *container;
+    lv_obj_t *title_label;
+    lv_obj_t *body_label;
+#else
+    void *container;
+    void *title_label;
+    void *body_label;
+#endif
+} stale_entry_t;
+
+/* Start a new scan cycle: clears the pending set. The live set is untouched
+ * until commit, so the card row keeps rendering the previous cycle meanwhile. */
+void stale_registry_begin_cycle(void);
+
+/* Record one observed key. `host` is required; `deployer` may be
+ * STALE_DEPLOYER_UNKNOWN. `since_known` false means the payload could not be
+ * read — the host is still raised, only the detail is dropped (CD-18).
+ * Silently ignores STALE_EXCLUDED_HOST and anything over the capacity limits. */
+void stale_registry_observe(const char *host, const char *deployer, double since,
+                            bool since_known);
+
+/* Promote the pending set to live. Deployers within each host are sorted
+ * oldest `since` first (WI #1903); a deployer whose `since` is unknown carries
+ * no ordering information and sorts last, then by name so the order is stable.
+ * Hosts are sorted by name. Entries that were live and are not in the pending
+ * set survive as zero-deployer entries until stale_registry_reap collects
+ * them, so their LVGL cards can be destroyed on the LVGL thread. */
+void stale_registry_commit_cycle(void);
+
+/* Discard the pending set; the live set is unchanged. Call this instead of
+ * commit whenever the scan did not complete. */
+void stale_registry_abort_cycle(void);
+
+/* Snapshot the live entries (including any awaiting reap). */
+int stale_registry_snapshot(stale_entry_t *out, int max);
+
+/* Look up a live entry by host, without creating one. NULL if absent.
+ * ui.c uses this to hang the card's LVGL handles on the live entry. */
+stale_entry_t *stale_registry_find(const char *host);
+
+/* Remove every live entry with no deployers, writing each one's card
+ * container into out[] for the caller to destroy. Returns the count written.
+ * Returned as void* so registry.h stays LVGL-agnostic under test stubs. */
+int stale_registry_reap(void **out_containers, int max);
+
+/* Card title: "<host> stale". */
+void stale_format_title(const stale_entry_t *e, char *buf, size_t n);
+
+/* Card body: deployer names, one per line, in entry order (which commit has
+ * already sorted oldest-first). */
+void stale_format_body(const stale_entry_t *e, char *buf, size_t n);
 
 /* ---- Graph host series (T006) ---- */
 #define GRAPH_HOST_MAX 8
