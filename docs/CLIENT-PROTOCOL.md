@@ -15,7 +15,9 @@ authoritative source during development.
 
 ## Key Naming Conventions
 
-- All keys are prefixed `kpidash:`.
+- All keys are prefixed `kpidash:` — with one exception, the `kdash:stale:*`
+  feed in §8c, which the dashboard **reads** but does not own (it belongs to
+  kdashdata and is written by the fleet deployers).
 - Separator: `:`.
 - Hostnames are lowercase, matching the system `hostname` output.
 - JSON field names use `snake_case`.
@@ -338,6 +340,92 @@ Temperature colour: Blue `<65.0` · Green `65.0–75.0` · Orange `75.1–79.9` 
 Red `>79.9`; the card goes GRAY when `(now − ts) ≥ 300 s`. Keys are published by
 the separate **apt-temps** project; the dashboard only reads them. Delete a
 key to remove its card.
+
+---
+
+## 8c. Host Staleness Cards (Sprint 017, WI #1903)
+
+| Key | Type | Written by | Read by | TTL |
+|-----|------|-----------|---------|-----|
+| `kdash:stale:{host}:{deployer}` | STRING (JSON) | the fleet deployers | dashboard | **none, ever** |
+
+One key per **(host, deployer)** pair → one card per stale *host*, listing every
+deployer that flagged it. Note the `kdash:` namespace: this feed is registered
+in **kdashdata** (WI 1904, decision CD-18) and shared with other readers, so the
+dashboard is a consumer here rather than the owner.
+
+Current writers: `fleet-deploy` in **agent-skills**, and `apply` / `audit` in
+**k-homelab**. Both reach Redis through `kdash-pub`, so a new deployer joining
+the feed needs no change here.
+
+```json
+{ "stale": true, "since": 1788594159, "reason": "audit skipped: unreachable", "ts": 1788594159 }
+```
+
+| Field | Type | Required | Notes |
+|-------|------|----------|-------|
+| `stale` | bool | — | Pinned `const: true` by the schema. **The dashboard does not read it** — see below |
+| `since` | number | for the detail | Unix **seconds**, a bare JSON number. When this deployer *first* skipped the host; set once and carried, never restamped |
+| `reason` | string | no | One human-facing line. Not rendered today |
+| `ts` | number | no | Unix seconds; moves on every write. Not rendered |
+
+### The feed is presence-owned, and that inverts the usual rule
+
+There is no TTL and no staleness window: **the key existing is the flag, and its
+absence is the only all-clear.** A deployer that skips a host once and is never
+run again correctly leaves the card up forever — that is the true state of the
+world, and nothing garbage-collects it.
+
+Everywhere else in this protocol the dashboard skips an unparseable record and
+moves on. Here it must not, because skipping this one renders as *all-clear* — a
+single parse bug would report a three-week outage as healthy. So every failure
+path falls back to **"still stale, detail unknown"**:
+
+| What went wrong | What the dashboard does |
+|---|---|
+| Payload absent, empty, corrupt, or not an object | Host still shown stale; `since` dropped |
+| `since` is an ISO-8601 string instead of a number | Same — the record is rejected, the flag is not |
+| `stale: false` published (off-contract) | Host still shown stale — the writer left the key up, so it cleared nothing |
+| Key has no deployer segment, or too many | Host still shown stale; deployer listed as `(unknown)` |
+| `SCAN` fails part-way through | **Whole cycle abandoned**; the previous cards stay up |
+| Key deleted between the `SCAN` and the `GET` | Skipped — this is the one case where absence really is the all-clear |
+| Key names no host at all (`kdash:stale:`) | Ignored; there is nothing to attribute the flag to |
+
+**Clear a flag with `DEL` and nothing else.** Publishing `stale: false` leaves
+the key standing and therefore leaves the card up.
+
+### Render
+
+Dashboard polls `SCAN MATCH kdash:stale:*` inside the same once-a-second cycle
+that scans `kpidash:services:*`, and paints one card into the footer strip after
+the service and apt-temps cards, same 220×240 footprint and warn-coloured band:
+
+```
+  komarchy stale
+    k-homelab
+    agent-skills
+```
+
+Body lists **deployer names, one per line, oldest `since` first** — so the
+deployer that has been waiting longest is at the top. A deployer whose `since`
+could not be read carries no ordering information and sorts last rather than
+claiming to be the oldest; ties break by name so the card does not reshuffle
+between polls. Hosts are sorted by name. The card disappears the second the
+host's last key does.
+
+**`rpi53` is excluded**: it is the panel's own host, and if it is behind there
+is no dashboard to say so.
+
+Limits: `STALE_REGISTRY_MAX` hosts (8) and `STALE_DEPLOYERS_MAX` deployers per
+host (8); anything beyond is dropped rather than overflowing the card.
+
+```bash
+# What the dashboard sees (rpi53 Redis needs auth)
+redis-cli --scan --pattern 'kdash:stale:*'
+
+# Deployers raise and clear their own flags — do not hand-write these.
+# The writers are the point: a hand-made key proves only that the card parses JSON.
+```
 
 ---
 
