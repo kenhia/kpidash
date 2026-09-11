@@ -57,6 +57,37 @@ check-release: _kdash
         -DCMAKE_C_FLAGS_RELEASE="-O2 -DNDEBUG -Wall -Wextra -Werror"
     cmake --build build-release-check
 
+# Gate (opt-in): the WHOLE tree at -O2, warnings fatal — including the
+# dashboard-only sources check-release cannot reach (WI #2307).
+#
+# check-release is scoped to TESTS_ONLY, which is five files, and NOT the five
+# the two warnings in WI #1934 were actually in. That gate could never have
+# caught the warnings it was written in response to. This one compiles
+# everything: main.c, ui.c, fortune.c, screenshot.c, src/widgets/*.
+#
+# Deliberately OUT of `just check`, for two reasons: it needs lib/lvgl, which
+# is the big submodule a tests-only build has never wanted, and it needs
+# libpng-dev on the host. Run it before a deploy and before shipping C changes.
+#
+# WHAT IT STILL DOES NOT CATCH: linker warnings, and aarch64-only ones in
+# particular. The exec-stack warning fixed in sprint 019 was invisible here —
+# native x86_64 links clean while the Pi cross-link warns. Read the deploy
+# output too; this gate narrows that duty, it does not retire it.
+check-warnings-full: _kdash
+    #!/usr/bin/env bash
+    set -euo pipefail
+    if [ ! -f lib/lvgl/CMakeLists.txt ]; then
+        git submodule update --init lib/lvgl
+    fi
+    if ! pkg-config --exists libpng; then
+        echo "check-warnings-full needs libpng-dev (apt install libpng-dev)" >&2
+        exit 1
+    fi
+    cmake -S . -B build-warnings-full \
+        -DCMAKE_BUILD_TYPE=Release \
+        -DCMAKE_C_FLAGS_RELEASE="-O2 -DNDEBUG -Wall -Wextra -Werror"
+    cmake --build build-warnings-full
+
 # Gate: the Python client (lint + tests)
 check-client:
     cd clients/kpidash-client && uv run --extra dev ruff check .

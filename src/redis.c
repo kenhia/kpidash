@@ -471,6 +471,21 @@ bool redis_parse_repo_json(const char *json, repo_entry_t *re) {
     return true;
 }
 
+/* Sort: explicit repos (sort_order=0) first, then by name.
+ *
+ * File scope, not nested inside poll_repos. As a GCC nested function this
+ * needed a stack trampoline, which marks redis.c.o's .note.GNU-stack section
+ * executable and makes ld warn "requires executable stack" on every aarch64
+ * link — the Pi build, i.e. the one that ships. It captures nothing from the
+ * enclosing scope, so file scope costs nothing. (WI #2307.) */
+static int repo_cmp(const void *a, const void *b) {
+    const repo_entry_t *ra = (const repo_entry_t *)a;
+    const repo_entry_t *rb = (const repo_entry_t *)b;
+    if (ra->sort_order != rb->sort_order)
+        return ra->sort_order - rb->sort_order;
+    return strncmp(ra->name, rb->name, LABEL_LEN);
+}
+
 static void poll_repos(const char **hostnames, int n_hosts) {
     g_repo_count = 0;
     for (int i = 0; i < n_hosts && g_repo_count < MAX_REPO_ENTRIES; i++) {
@@ -503,14 +518,6 @@ static void poll_repos(const char **hostnames, int n_hosts) {
         freeReplyObject(hr);
     }
 
-    /* Sort: explicit repos (sort_order=0) first, then by name */
-    int repo_cmp(const void *a, const void *b) {
-        const repo_entry_t *ra = (const repo_entry_t *)a;
-        const repo_entry_t *rb = (const repo_entry_t *)b;
-        if (ra->sort_order != rb->sort_order)
-            return ra->sort_order - rb->sort_order;
-        return strncmp(ra->name, rb->name, LABEL_LEN);
-    }
     qsort(g_repos, (size_t)g_repo_count, sizeof(repo_entry_t), repo_cmp);
 }
 

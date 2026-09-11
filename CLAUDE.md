@@ -139,15 +139,26 @@ that feed it: `kpidash-client` (the telemetry daemon + CLI) and `kpidash-mcp`
   (`-Wstringop-truncation`, `-Wunused-result`, the `-Wmaybe-*` family) only run
   once the optimiser does. Two warnings survived unseen that way until sprint
   017 read the deploy output.
-  - `just check-release` now compiles at `-O2 -Werror` — but **only what
-    TESTS_ONLY compiles**: `config.c`, `redis.c`, `registry.c`, `icons.c`,
-    `memstat.c`.
-  - The dashboard-only sources (`main.c`, `ui.c`, `fortune.c`, `screenshot.c`,
-    `src/widgets/*`) need LVGL and libpng, and **kai has no libpng-dev**, so
-    they cannot be compiled on this dev host at all. They stay covered only by
-    the deploy's own Release build — read its output.
-  - So: warning-clean at `-O2` for the tested core, gated; warning-clean for
-    the rest by inspection at deploy time, not gated. Keep both that way.
+  - `just check-release` compiles at `-O2 -Werror`, but **only what TESTS_ONLY
+    compiles**: `config.c`, `redis.c`, `registry.c`, `icons.c`, `memstat.c`.
+    Worth knowing why that is not enough: neither of the two warnings it was
+    written in response to was in those files, so on its own it could not have
+    caught them. It is in `just check` because it is cheap and needs no LVGL.
+  - `just check-warnings-full` compiles the **whole tree** at `-O2 -Werror`,
+    dashboard-only sources included (`main.c`, `ui.c`, `fortune.c`,
+    `screenshot.c`, `src/widgets/*`). Added in sprint 019 once `libpng-dev`
+    landed on kai — before that the configure step could not even run here.
+    It is **opt-in, not in `just check`**: it needs `lib/lvgl` initialised.
+    Run it before a deploy and before shipping C changes.
+  - **Neither gate sees linker warnings, and aarch64-only ones least of all.**
+    Sprint 019 fixed an exec-stack warning that `ld` printed on every Pi link
+    while the native x86_64 link stayed silent — invisible to both gates by
+    construction. A nested function in `redis.c` was forcing a stack
+    trampoline; it moved to file scope.
+  - So: warning-clean at `-O2` for the whole tree, gated; **linker** output at
+    deploy time still read by eye. The uncovered class is now linking, not
+    compiling — do not let that slip back to "read the deploy output" for
+    everything.
 - **`clang-format` and `cppcheck` are not installed on kai**, so neither is in the
   gate, though `.clang-format` exists and the retired Spec-Kit constitution
   claimed both as pre-commit checks. Format new C to match surrounding style by
