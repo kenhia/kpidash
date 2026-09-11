@@ -17,6 +17,7 @@ function(add_kpidash_test target_name)
     target_link_libraries(${target_name}
         hiredis::hiredis
         ${CJSON_LIBRARIES}
+        kdash_core   # WI #2244: registry.c calls kdash_apttemps_band()
         pthread
     )
     target_compile_options(${target_name} PRIVATE -Wall -Wextra -Wno-unused-parameter)
@@ -55,7 +56,7 @@ add_executable(test_layout_pool
     ${CMAKE_SOURCE_DIR}/src/registry.c
 )
 target_include_directories(test_layout_pool PRIVATE ${CMAKE_SOURCE_DIR}/src)
-target_link_libraries(test_layout_pool pthread)
+target_link_libraries(test_layout_pool kdash_core pthread)  # WI #2244
 target_compile_definitions(test_layout_pool PRIVATE KPIDASH_TEST_STUBS=1)
 target_compile_options(test_layout_pool PRIVATE -Wall -Wextra -Wno-unused-parameter)
 add_test(NAME test_layout_pool COMMAND test_layout_pool)
@@ -65,7 +66,7 @@ add_executable(test_graph_router
     ${CMAKE_SOURCE_DIR}/src/registry.c
 )
 target_include_directories(test_graph_router PRIVATE ${CMAKE_SOURCE_DIR}/src)
-target_link_libraries(test_graph_router pthread)
+target_link_libraries(test_graph_router kdash_core pthread)  # WI #2244
 target_compile_definitions(test_graph_router PRIVATE KPIDASH_TEST_STUBS=1)
 target_compile_options(test_graph_router PRIVATE -Wall -Wextra -Wno-unused-parameter)
 add_test(NAME test_graph_router COMMAND test_graph_router)
@@ -77,6 +78,14 @@ add_executable(test_icon_registry
 target_include_directories(test_icon_registry PRIVATE ${CMAKE_SOURCE_DIR}/src)
 target_compile_options(test_icon_registry PRIVATE -Wall -Wextra -Wno-unused-parameter)
 add_test(NAME test_icon_registry COMMAND test_icon_registry)
+
+# WI #2244: the apartment-temperature band boundaries, pinned on both sides so
+# the repoint onto libkdash's classifier is provably a no-op in rendering.
+add_kpidash_test(test_apttemps_band
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_apttemps_band.c
+    ${CMAKE_SOURCE_DIR}/src/registry.c
+)
+target_compile_definitions(test_apttemps_band PRIVATE KPIDASH_TEST_STUBS=1)
 
 add_kpidash_test(test_service_card
     ${CMAKE_CURRENT_SOURCE_DIR}/test_service_card.c

@@ -35,3 +35,7 @@ dist/
 # local korg sprint marker (never commit)
 .korg-sprint-proposal
 .env
+.sprint-defaults
+CMakeFiles/
+CMakeCache.txt
+compile_commands.json

@@ -35,6 +35,34 @@ if(NOT TARGET hiredis::hiredis)
     message(STATUS "hiredis: using pkg-config (${HIREDIS_VERSION})")
 endif()
 
+# --- libkdash (WI #2244) ---------------------------------------------------
+# kdashdata's shared C consumer library. kpidash links the PURE CORE only:
+# kdash_core has no Redis, no sockets and no ambient clock, so it costs this
+# build nothing but libm — the I/O shell (`kdash`) is deliberately not linked,
+# because kpidash has its own hiredis layer and is not migrating it here.
+#
+# This is added BEFORE the TESTS_ONLY return on purpose. src/registry.c calls
+# kdash_apttemps_band(), and registry.c is compiled into five of the unit-test
+# targets, so the tests-only configuration needs it just as much as the
+# dashboard does.
+#
+# Consequence, and it is a real change to a documented property: `just check`
+# now needs ONE submodule where it previously needed none. The gate recipes
+# init it themselves so a clean clone still passes in one command, and the
+# property that actually matters — no Pi, no sysroot, no LVGL — is unchanged.
+# lib/lvgl stays uninitialised for a tests-only build.
+#
+# hiredis::hiredis is already an IMPORTED GLOBAL target by this point;
+# kdashdata guards its own creation with `if(NOT TARGET hiredis::hiredis)`, so
+# it sees ours and does not redefine it. KDASH_BUILD_EXAMPLES and
+# KDASH_BUILD_TESTS default OFF when kdashdata is not the top-level project,
+# keeping kdash_dump and its ctest registrations out of this build.
+if(NOT EXISTS "${CMAKE_SOURCE_DIR}/lib/kdashdata/CMakeLists.txt")
+    message(FATAL_ERROR
+        "lib/kdashdata is empty. Run: git submodule update --init lib/kdashdata")
+endif()
+add_subdirectory(lib/kdashdata)
+
 enable_testing()
 
 if(TESTS_ONLY)
@@ -110,6 +138,7 @@ target_include_directories(kpidash PRIVATE
 add_dependencies(kpidash kpidash_version)
 
 target_link_libraries(kpidash
+    kdash_core  # WI #2244: the shared apartment-temperature band classifier
     lvgl
     hiredis::hiredis
     ${DRM_LIBRARIES}

@@ -4,6 +4,11 @@
 #include <stdio.h>
 #include <string.h>
 
+/* WI #2244: the shared apartment-temperature band classifier and its default
+ * thresholds. kpidash links kdash_core only — the pure logic, no sockets. */
+#include <kdash/kdash_freshness.h>
+#include <kdash/kdash_payload.h>
+
 /* ---- Global singleton ---- */
 static client_info_t g_clients[MAX_CLIENTS];
 static int g_count = 0;
@@ -164,11 +169,34 @@ service_state_t service_parse_state(const char *s) {
     return SERVICE_STATE_UNKNOWN;
 }
 
+/* WI #902. A table rather than a payload field, and deliberately a short one:
+ * the item asks for a reusable Service Card but also to resist
+ * over-generalising on the first consumer, and a second daily feed will teach
+ * more about the right shape than speculation will. Match on the service NAME
+ * only — identity is (name, host), but a feed's cadence is a property of the
+ * feed, not of where it ran. */
+static const struct {
+    const char *name;
+    double window_s;
+} g_service_windows[] = {
+    { "kmon", SERVICE_DAILY_FRESH_SECONDS },
+};
+
+double service_fresh_window(const char *name) {
+    if (name) {
+        for (size_t i = 0; i < sizeof(g_service_windows) / sizeof(g_service_windows[0]); i++) {
+            if (strcmp(name, g_service_windows[i].name) == 0)
+                return g_service_windows[i].window_s;
+        }
+    }
+    return SERVICE_FRESH_SECONDS;
+}
+
 service_color_t service_color(const service_entry_t *e, double now) {
     if (!e) return SERVICE_COLOR_GRAY;
     if (e->last_valid_state == SERVICE_STATE_DOWN)    return SERVICE_COLOR_GRAY;
     if (e->last_valid_state == SERVICE_STATE_UNKNOWN) return SERVICE_COLOR_GRAY;
-    int fresh = (now - e->last_payload_ts) < SERVICE_FRESH_SECONDS;
+    int fresh = (now - e->last_payload_ts) < service_fresh_window(e->name);
     if (!fresh) return SERVICE_COLOR_RED;
     switch (e->last_valid_state) {
         case SERVICE_STATE_OK:          return SERVICE_COLOR_GREEN;
@@ -231,14 +259,32 @@ int service_registry_snapshot(service_entry_t *out, int max) {
 
 /* ---- apt-temps registry (WI #364) ---- */
 
+/* WI #2244: the thresholds and the classification are libkdash's now; only the
+ * band -> colour mapping below is still kpidash's, because CD-10 says the
+ * library carries no colours.
+ *
+ * Freshness stays on this side deliberately. kdash_apttemps_band() takes
+ * `stale` as a decision the caller has already made rather than a timestamp it
+ * judges, so APTTEMPS_FRESH_SECONDS remains the dashboard's own window — it
+ * happens to agree with the library's KDASH_APTTEMPS_WINDOW_S (300), and
+ * nothing here depends on that continuing to be true. */
 apttemps_color_t apttemps_color(const apttemps_entry_t *e, double now) {
-    if (!e || !e->valid) return APTTEMPS_COLOR_GRAY;
-    if ((now - e->last_payload_ts) >= APTTEMPS_FRESH_SECONDS) return APTTEMPS_COLOR_GRAY;
-    float t = e->temp_f;
-    if (t < 65.0f)  return APTTEMPS_COLOR_BLUE;
-    if (t <= 75.0f) return APTTEMPS_COLOR_GREEN;
-    if (t < 80.0f)  return APTTEMPS_COLOR_ORANGE; /* 75.1 - 79.9 */
-    return APTTEMPS_COLOR_RED;
+    if (!e) return APTTEMPS_COLOR_GRAY;
+
+    /* An entry that never took a payload is treated as stale rather than as a
+     * 0 degree room — same answer the explicit `!e->valid` guard gave before. */
+    const bool stale = !e->valid ||
+                       (now - e->last_payload_ts) >= APTTEMPS_FRESH_SECONDS;
+
+    switch (kdash_apttemps_band(e->temp_f, stale, KDASH_APTTEMPS_COLD_F,
+                                KDASH_APTTEMPS_OK_F, KDASH_APTTEMPS_HOT_F)) {
+        case KDASH_TEMP_COLD:  return APTTEMPS_COLOR_BLUE;
+        case KDASH_TEMP_OK:    return APTTEMPS_COLOR_GREEN;
+        case KDASH_TEMP_WARM:  return APTTEMPS_COLOR_ORANGE;
+        case KDASH_TEMP_HOT:   return APTTEMPS_COLOR_RED;
+        case KDASH_TEMP_STALE:
+        default:               return APTTEMPS_COLOR_GRAY;
+    }
 }
 
 static apttemps_entry_t g_apttemps[APTTEMPS_REGISTRY_MAX];

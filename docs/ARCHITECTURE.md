@@ -36,9 +36,11 @@ LVGL/DRM/KMS with no mouse or keyboard interaction.
 | Dashboard language | C (C11) | LVGL is C-native; direct DRM access without a runtime |
 | UI toolkit | LVGL 9.2.2 | Lightweight, embedded-friendly, excellent Pi support |
 | Display backend | LVGL `lv_linux_drm` driver | Direct DRM/KMS, no X11/Wayland needed |
+| Threading | **None** — `LV_USE_OS = LV_OS_NONE` | The process is single-threaded: the Redis poll and every draw task run on the one LVGL thread. Sprint 018 (WI #1798) removed LVGL's render thread, which was costing a futex round-trip per draw task — ~1.1 cores down to ~0.4. Anything slow added to the poll stalls rendering directly |
 | Message bus | Redis 7.x | TTL-based expiry = implicit offline detection; atomic writes; cross-platform clients |
 | JSON parsing (C) | cJSON | Tiny, single-file C lib; no dynamic allocation surprises |
 | Redis client (C) | hiredis 1.2.0 | Official C client; `find_package(hiredis)` on Debian Trixie |
+| Shared feed logic | libkdash (`kdash_core`) | kdashdata's pure-logic half — shared payload/threshold rules across the dashboards. Sprint 018 links it for the apartment-temperature band classifier. The I/O shell (`kdash`) is deliberately NOT linked: kpidash keeps its own hiredis layer |
 | Client language | Python 3.13+ | psutil, pynvml, GitPython>=3.1 available on all platforms |
 | Client Redis | redis-py 5+ | Official Python client with pipeline support |
 | MCP server | Python + `mcp>=1` | FastMCP for tool registration; stdio transport |
@@ -143,8 +145,11 @@ LVGL/DRM/KMS with no mouse or keyboard interaction.
 
 ```
 kpidash/
-├── CMakeLists.txt              # CMake 3.22+, hiredis, cJSON, libdrm, LVGL
-├── lv_conf.h                   # LVGL configuration
+├── CMakeLists.txt              # CMake 3.22+, hiredis, cJSON, libdrm, LVGL, kdash_core
+├── lv_conf.h                   # LVGL config; LV_USE_OS=LV_OS_NONE (single-threaded render)
+├── lib/                        # git submodules
+│   ├── lvgl/                   # LVGL 9.2.2 — needed by a Pi/native build only
+│   └── kdashdata/              # libkdash; the GATE needs this one (registry.c calls it)
 ├── fonts/
 │   ├── generate.sh             # lv_font_conv: Montserrat Bold 14-48px + NF icons
 │   ├── lv_font_custom.h        # Extern declarations for generated bold fonts
@@ -179,7 +184,8 @@ kpidash/
 │   ├── test_layout_pool.c      # Rows-2-3 widget placement
 │   ├── test_graph_router.c     # Per-host graph series routing
 │   ├── test_icon_registry.c    # Nerd-font glyph lookup
-│   ├── test_service_card.c     # Service state/colour + payload parsing
+│   ├── test_apttemps_band.c    # Apt-temp band edges via libkdash (sprint 018)
+│   ├── test_service_card.c     # Service state/colour, payload parsing, freshness windows
 │   ├── test_stale_card.c       # Host staleness feed reader (sprint 017)
 │   └── test_widget_leak.c      # Widget leak regression (needs LVGL)
 ├── clients/

@@ -20,8 +20,23 @@
 #define LV_DEF_REFR_PERIOD  33      /* ~30 fps */
 #define LV_DPI_DEF 160              /* reasonable for 4K at ~28" viewing distance */
 
-/* OS: pthreads (for mutex support in LVGL internals) */
-#define LV_USE_OS   LV_OS_PTHREAD
+/* OS: none — the software draw unit executes each draw task INLINE.
+ *
+ * WI #1798: with LV_OS_PTHREAD and the default LV_DRAW_SW_DRAW_UNIT_CNT of 1,
+ * lv_draw_sw.c hands every task to a render thread one at a time over a futex
+ * signal/wait round-trip (lv_draw_sw.c:459 `lv_thread_sync_signal`). The three
+ * dev_graph cards refresh 3 x 9 series x 300 points = ~8,100 lv_draw_line tasks
+ * a second, so that handshake ran ~8,300 times a second — and because
+ * lv_draw_finalize_task_creation() calls lv_draw_dispatch() after every task,
+ * the walk over the layer's pending-task list went roughly quadratic.
+ *
+ * LV_OS_NONE takes the `#else` at lv_draw_sw.c:463: execute_drawing_unit()
+ * runs the task immediately, so the pending list never grows and the dispatch
+ * walk stays O(1). Nothing in src/ uses LVGL's threading primitives — the
+ * registries carry their own pthread mutexes, and the Redis poll is a
+ * synchronous step on the one LVGL thread — so there is no LVGL-internal
+ * locking to lose. */
+#define LV_USE_OS   LV_OS_NONE
 
 /* Logging — enable for POC debugging */
 #define LV_USE_LOG 1
