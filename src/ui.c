@@ -91,7 +91,17 @@ static void add_card(const char *hostname) {
     if (g_card_count >= MAX_CLIENTS)
         return;
     lv_obj_t *card = client_card_create(g_card_grid, hostname);
-    strncpy(g_card_hostnames[g_card_count], hostname, HOSTNAME_LEN - 1);
+    /* WI #1934: `hostname` always arrives as a client_info_t.hostname —
+     * char[HOSTNAME_LEN], NUL-terminated — but the parameter is a plain
+     * pointer, so -O2 cannot see that bound and reads the strncpy as a
+     * possible truncation. Copy the exact length instead, clamped to the
+     * destination. The memset keeps strncpy's zero-fill of the tail, so a
+     * reused slot cannot leave a longer previous name's bytes behind. */
+    {
+        size_t hn = strnlen(hostname, HOSTNAME_LEN - 1);
+        memset(g_card_hostnames[g_card_count], 0, HOSTNAME_LEN);
+        memcpy(g_card_hostnames[g_card_count], hostname, hn);
+    }
     g_cards[g_card_count] = card;
     g_card_count++;
 }

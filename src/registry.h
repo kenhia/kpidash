@@ -200,6 +200,33 @@ typedef enum {
  * standardise on ~60s updates and rely on this grace. */
 #define SERVICE_FRESH_SECONDS 75.0
 
+/* WI #902: the window for a feed that publishes DAILY rather than every ~60s.
+ *
+ * 26 hours, and the two extra hours are load-bearing: one absorbs a
+ * daylight-savings shift, one absorbs timer jitter, on top of a ~24h refresh.
+ * kmon's own timer is `OnCalendar=*-*-* 11:00:00 UTC` — UTC-pinned, so DST
+ * never moves it and 25h would do for kmon alone — but the Service Card is a
+ * reusable type and any future consumer scheduled in LOCAL wall-clock time
+ * eats the DST hour twice a year. The hour is for the general case, not the
+ * first one. (Ken, WI #902: the cost of an hour of extra tolerance is nearly
+ * nothing; the cost of a false RED at 2am on the Sunday the clocks change is a
+ * card nobody trusts.)
+ *
+ * Do NOT widen this casually. The card exists because kmon died silently for
+ * 10 days (2026-07-23 -> 2026-08-01) while the dashboard kept showing a stale
+ * GREEN "OK" from before the break; the whole point is that ONE skipped day is
+ * visible. */
+#define SERVICE_DAILY_FRESH_SECONDS 93600.0 /* 26 h */
+
+/* The freshness window that applies to `name`, in seconds.
+ *
+ * Per-service rather than per-payload on purpose (WI #902): the publisher
+ * contract in docs/CLIENT-PROTOCOL.md §8a carries no cadence field, and
+ * inventing one would fork a card shape that now has two consumers. The window
+ * is a rendering policy the dashboard owns, so it stays on this side. Returns
+ * SERVICE_FRESH_SECONDS for anything not known to be a daily feed. */
+double service_fresh_window(const char *name);
+
 typedef struct service_entry {
     char name[64];           /* from key suffix (kpidash:services:<name>) */
     char host[64];           /* optional, "" if absent */
@@ -261,12 +288,17 @@ int service_registry_snapshot(service_entry_t *out, int max);
 /* Payloads older than this render GRAY (stale); the publisher owns freshness. */
 #define APTTEMPS_FRESH_SECONDS 300.0
 
+/* The PALETTE, and only the palette (WI #2244). The band edges quoted against
+ * each colour are libkdash's KDASH_APTTEMPS_{COLD,OK,HOT}_F defaults, restated
+ * here for the reader — they are no longer defined in this repo, and
+ * kdash_apttemps_band() is the one place that decides which band a reading is
+ * in. Changing a number here changes nothing; change it in kdashdata. */
 typedef enum {
-    APTTEMPS_COLOR_GRAY = 0,  /* stale or invalid */
-    APTTEMPS_COLOR_BLUE,      /* temp_f < 65.0 */
-    APTTEMPS_COLOR_GREEN,     /* 65.0 - 75.0 */
-    APTTEMPS_COLOR_ORANGE,    /* 75.1 - 79.9 */
-    APTTEMPS_COLOR_RED,       /* > 79.9 */
+    APTTEMPS_COLOR_GRAY = 0,  /* KDASH_TEMP_STALE — stale or never-valid */
+    APTTEMPS_COLOR_BLUE,      /* KDASH_TEMP_COLD  — below 65.0 */
+    APTTEMPS_COLOR_GREEN,     /* KDASH_TEMP_OK    — 65.0 through 75.0 */
+    APTTEMPS_COLOR_ORANGE,    /* KDASH_TEMP_WARM  — above 75.0, below 80.0 */
+    APTTEMPS_COLOR_RED,       /* KDASH_TEMP_HOT   — 80.0 and above */
 } apttemps_color_t;
 
 typedef struct apttemps_entry {

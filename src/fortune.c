@@ -140,7 +140,13 @@ static void run_fortune_or_canned(void) {
                 if (!f)
                     break;
                 char buf[1024] = {0};
-                fread(buf, 1, sizeof(buf) - 1, f);
+                /* WI #1934: fread is warn_unused_result, and -O2 (which the
+                 * deploy's Release build uses, unlike the dev configure) says
+                 * so. The short read is not an error here — fortune(6) simply
+                 * printed less than the buffer — so use the count to terminate
+                 * rather than discarding it. */
+                size_t got = fread(buf, 1, sizeof(buf) - 1, f);
+                buf[got] = '\0';
                 pclose(f);
 
                 /* Strip trailing newlines */

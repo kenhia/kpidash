@@ -299,7 +299,32 @@ status card per (name, host) pair in the footer strip, sorted by name then
 host. Card border colour reflects state via the truth table in
 `sprints/006-layout-refresh-status-cards/data-model.md`: `DOWN`/`UNKNOWN` →
 GRAY (sticky for DOWN); other states → their colour iff
-`(now − ts) < 60.0 s`, else RED.
+`(now − ts) < ` the service's freshness window, else RED.
+
+#### Freshness windows (sprint 018, WI #902)
+
+The window is a **consumer-side rendering policy**, not part of this contract:
+there is no cadence field in the payload, and publishers do not declare one.
+The dashboard picks it from the service `name`:
+
+| Service name | Window | Why |
+|---|---|---|
+| `kmon` | **26 h** (`SERVICE_DAILY_FRESH_SECONDS`) | Publishes daily; 24h refresh + 1h DST + 1h jitter |
+| anything else | **75 s** (`SERVICE_FRESH_SECONDS`) | ~60s nominal cadence + 15s grace |
+
+This section previously documented the default as `60.0 s`; the code has used
+`75.0` since sprint 006 (60s nominal + 15s grace). The code was right and the
+prose was stale — corrected here rather than changing the behaviour.
+
+A daily feed under the 75s default would be RED from about a minute after every
+successful run, which makes "healthy" and "dead for a week" render identically.
+That is precisely the failure the kmon card was commissioned to catch: kmon died
+silently for 10 days (2026-07-23 → 2026-08-01) while the dashboard showed a
+stale GREEN "OK" from before the break. **Absence of fresh data renders as
+alarming, never as last-known-good.**
+
+Adding a second daily feed means adding a row to `g_service_windows[]` in
+`src/registry.c`. Deliberately not generalised further on one consumer.
 
 CLI example:
 
