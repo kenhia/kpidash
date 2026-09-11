@@ -225,3 +225,18 @@ are different facts and only the second one is about the panel:
 - **WI 902 is unverifiable live and that is expected** — kmon publishes
   nothing yet, so no `kpidash:services:kmon:*` key exists and no card renders.
   The window is covered by unit tests only.
+
+### Re-deployed from merged `main`
+
+`1c0d4d9`, 2026-09-11 23:56 PDT, after PR #19 squash-merged.
+
+The two deploys above were built from the branch, so the running binary
+self-reported `21a1cb3-dirty (2026-09-11)` — and `kpidash:system:version` exists
+precisely to make that drift visible (WI #119). Same code, but a dirty
+pre-merge string is the thing that readback is for, so it was rebuilt from
+merged `main` rather than left to read wrong. It now reports `1c0d4d9
+(2026-09-11)`.
+
+Verified on that build: `NLWP 1` (single thread — WI 1798's structural result
+holds), 38.7% of one core, apttemps rendering GREEN at 70.1/70.8/69.7 °F,
+`NRestarts=0`, journal clean. The Release cross-build was warning-clean.
