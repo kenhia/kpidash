@@ -123,12 +123,15 @@ that feed it: `kpidash-client` (the telemetry daemon + CLI) and `kpidash-mcp`
     client or dashboard that starts without a password authenticates nowhere and
     looks healthy doing it — this repo's own 2026-09-05 scar. Refusing to start is
     the louder failure, and on a panel with no keyboard the only visible one.
-  - **A *user* unit is the exception to "systemd reads it as root".** `systemd --user`
-    runs as you, so it needs an effective `khomelab` membership — and `/etc/group`
-    is not that. The manager takes its groups when it starts and, under
-    `enable-linger`, outlives every login. kai's client is a user unit and is the
-    host where this bites; `install.sh --user` asserts it via `systemd-run --user`
-    rather than reading `/etc/group` and inferring.
+  - **Every unit this repo authors is a *system* unit, and since sprint 021 that is
+    enforced rather than conventional.** A `systemd --user` unit is the exception to
+    "systemd reads it as root": it runs as you, so it needs an effective `khomelab`
+    membership — and `/etc/group` is not that. The manager takes its groups when it
+    starts and, under `enable-linger`, outlives every login, so the membership can be
+    correct in every file and still not be in effect, indefinitely. kai, kubs0 and
+    kubsdb ran user units and were all three in exactly that state. They are now
+    system units running the published package; `install.sh --user` is refused, and
+    `just check-units` fails if a `*.user.service.template` reappears.
   - Shell helpers (`krpidss`, `kpidash-cards`, `deploy.sh`) have no unit to hand
     them the value, so they resolve it themselves through `scripts/kpidash-auth.sh`
     — this repo's copy of the fleet's CD-19 order. The Python client does **not**:

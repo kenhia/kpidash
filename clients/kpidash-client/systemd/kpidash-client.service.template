@@ -16,8 +16,13 @@ User=__KPIDASH_CLIENT_USER__
 # runs with no password, connects, and fails every write with NOAUTH while
 # looking healthy. That is exactly the silent failure that left rpi53 reading
 # "down" on its own dashboard. Failing to start is the louder, better answer.
+#
+# This is the ONLY shape this repo authors. A `systemd --user` unit -- which
+# kai, kubs0 and kubsdb ran until sprint 021 -- cannot read the file at all:
+# it is not PID 1, so it reads EnvironmentFile= as you, and a lingering
+# manager keeps the groups it started with however /etc/group changes later.
 EnvironmentFile=/etc/khomelab/secrets.env
-ExecStart=__KPIDASH_CLIENT_VENV_BIN__/kpidash-client daemon start --foreground
+ExecStart=__KPIDASH_CLIENT_EXEC__ daemon start --foreground
 Restart=always
 RestartSec=5
 
