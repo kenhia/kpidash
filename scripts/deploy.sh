@@ -53,9 +53,14 @@ health_check() {
     [ "$active" = "active" ] || die "service is '$active' after deploy (NRestarts=$restarts) — check 'journalctl -u $SERVICE', or re-run with --rollback"
     say "service active (NRestarts=$restarts)"
     # Best-effort: read back the version the running binary published to Redis.
-    # Redis requires auth; source the ken-readable client auth env if present.
+    # Redis requires auth. kpidash-auth.sh is piped to the Pi and resolves the
+    # password THERE (CD-19) — from the Pi's own /etc/khomelab/secrets.env,
+    # readable because a fresh ssh login picks up its khomelab membership.
     local ver
-    ver=$(ssh "$REMOTE" 'f="$HOME/.config/kpidash-client/redis-auth.env"; [ -f "$f" ] && { set -a; . "$f"; set +a; }; redis-cli GET kpidash:system:version 2>/dev/null' || true)
+    ver=$( { cat "$REPO_ROOT/scripts/kpidash-auth.sh"
+             echo 'kpidash_load_auth >/dev/null 2>&1 || true'
+             echo 'redis-cli GET kpidash:system:version 2>/dev/null'
+           } | ssh "$REMOTE" 'bash -s' || true)
     [ -n "$ver" ] && say "dashboard reports version: $ver" || say "(could not read kpidash:system:version — non-fatal)"
 }
 

@@ -1,0 +1,34 @@
+[Unit]
+Description=KPIDash LVGL Dashboard
+After=network.target
+
+[Service]
+Type=simple
+User=root
+Group=root
+
+# The Redis password: one copy per host, rendered by k-homelab from the age
+# store (root:khomelab 0640). This unit runs as root and systemd reads
+# EnvironmentFile= as PID 1 anyway, so no khomelab membership is involved and
+# SupplementaryGroups=khomelab must NOT be added -- a group that does not exist
+# would stop the dashboard starting at all.
+#
+# No `-` prefix, deliberately: a dashboard that starts without a password
+# renders an empty panel that looks like a quiet afternoon. On a screen with no
+# keyboard, read from across the room, a service that refuses to start is the
+# more visible fault.
+EnvironmentFile=/etc/khomelab/secrets.env
+
+# Non-secret configuration, owned by THIS repo rather than by k-homelab, and
+# optional (`-`) because none of it is required to render. It used to be an
+# Environment= line in this unit, which meant the only copy lived on the Pi.
+EnvironmentFile=-/etc/kpidash/config.env
+
+ExecStart=/home/ken/kpidash
+
+# Restart on crash, but not on clean exit
+Restart=on-failure
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target

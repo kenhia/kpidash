@@ -56,10 +56,14 @@ rsync -az build-pi/kpidash ken@rpi53:~/kpidash
 ### 3. Run on Pi 5
 
 ```bash
-# DRM requires root (or video group membership); -E preserves REDISCLI_AUTH
-export REDISCLI_AUTH=yourpassword
+# DRM requires root (or video group membership); -E preserves REDISCLI_AUTH.
+# On rpi53 the password comes from the host's one copy rather than your shell:
+set -a; . /etc/khomelab/secrets.env; set +a     # needs group khomelab
 sudo -E ./kpidash
 ```
+
+Running it by hand like this is for debugging. The installed service reads the
+same file itself — see [ops/rpi53/dashboard/](ops/rpi53/dashboard/).
 
 ### 4. Start a client daemon (Linux or Windows)
 
@@ -79,7 +83,7 @@ See [clients/kpidash-client/README.md](clients/kpidash-client/README.md) for con
 |---------------------|---------|-------------|
 | `KPIDASH_REDIS_HOST` | `127.0.0.1` | Redis host |
 | `KPIDASH_REDIS_PORT` | `6379` | Redis port |
-| `REDISCLI_AUTH` | (none) | Redis password — **must** be in env when using `sudo -E` |
+| `REDISCLI_AUTH` | (none) | Redis password — **must** be in env when using `sudo -E`. One copy per host in `/etc/khomelab/secrets.env`; the service reads it with `EnvironmentFile=` |
 | `KPIDASH_DRM_DEV` | `/dev/dri/card1` | DRM device (card1 = vc4 GPU on Pi 5) |
 | `KPIDASH_MAX_CLIENTS` | `16` | Max tracked clients |
 | `KPIDASH_ACTIVITY_MAX` | `10` | Max activities shown |

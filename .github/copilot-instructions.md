@@ -108,6 +108,10 @@ that feed it: `kpidash-client` (the telemetry daemon + CLI) and `kpidash-mcp`
   slow added there stalls the render loop.
 - **Redis auth is `REDISCLI_AUTH` in the environment only** — never in code, never
   in a config file. DRM needs root, and `sudo -E` is what preserves the variable.
+  One copy per host lives in `/etc/khomelab/secrets.env` (`root:khomelab 0640`);
+  units read it with `EnvironmentFile=` and `just check-units` enforces that.
+  Shell helpers resolve it via `scripts/kpidash-auth.sh`; the Python client reads
+  only `$REDISCLI_AUTH`.
 - **Redis keys** are `kpidash:{category}:{hostname}:{subcategory}`, lowercase with
   colons; JSON values use `snake_case` fields.
 - **`lib/lvgl` is a git submodule.** Clone with `--recurse-submodules`. `just check`

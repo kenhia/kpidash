@@ -2,7 +2,8 @@
 
 > **Version**: 2.0 (Sprint 002)
 > **Transport**: Redis 7.x key/value operations
-> **Auth**: `REDISCLI_AUTH` environment variable
+> **Auth**: `REDISCLI_AUTH` environment variable, from the host's one copy at
+> `/etc/khomelab/secrets.env`
 > **Encoding**: JSON values in Redis strings/hashes
 
 This document is the canonical reference for all Redis key names, value
@@ -596,8 +597,9 @@ krpidss [basename]        # -> ./kpidash-YYYYmmdd-HHMMSS.png (or ./basename.png)
 ```
 
 `krpidss` lives in `scripts/` and installs to `~/.local/bin`. Host override via
-`KRP_HOST` (default `ken@rpi53`); it sources `REDISCLI_AUTH` from the client's
-`redis-auth.env`.
+`KRP_HOST` (default `ken@rpi53`). It prepends `scripts/kpidash-auth.sh` to the
+script it runs on the Pi, so `REDISCLI_AUTH` is resolved **there**, from the
+Pi's own `/etc/khomelab/secrets.env` — not carried across from this host.
 
 ### 9.6 Service-Card Evict (Sprint 013, WI #374)
 

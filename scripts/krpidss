@@ -15,17 +15,22 @@ KRP_HOST="${KRP_HOST:-ken@rpi53}"
 base="${1:-kpidash-$(date +%Y%m%d-%H%M%S)}"
 base="${base%.png}"
 tmp_bmp="$(mktemp --suffix=.bmp)"
-trap 'rm -f "$tmp_bmp"' EXIT
 
 # One round-trip: trigger the shot and stream it back once it is FRESH. The
 # kpidash service runs as root and overwrites its own default output file in
 # place, so freshness is judged by mtime (a stale file from a previous run must
-# not satisfy the wait). rpi53's Redis requires auth, so pull REDISCLI_AUTH
-# from the client's env file (redis-cli reads that variable automatically).
+# not satisfy the wait). rpi53's Redis requires auth, and the password now
+# lives in the per-host file, so kpidash-auth.sh is prepended to the remote
+# script and resolves it THERE (CD-19) — the Pi's own copy, not this host's.
 # Wrapped in bash -s so the remote login shell's dialect doesn't matter.
-ssh "$KRP_HOST" 'bash -s' > "$tmp_bmp" <<'EOF'
+script_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+remote_script="$(mktemp)"
+trap 'rm -f "$tmp_bmp" "$remote_script"' EXIT
+{
+    cat "$script_dir/kpidash-auth.sh"
+    cat <<'EOF'
 f=/tmp/kpidash-shot.bmp
-set -a; . "$HOME/.config/kpidash-client/redis-auth.env" 2>/dev/null || true; set +a
+kpidash_load_auth >/dev/null 2>&1 || true
 t0=$(date +%s)
 redis-cli set kpidash:screenshot 1 > /dev/null 2>&1
 for i in $(seq 1 14); do
@@ -37,6 +42,8 @@ m=$(stat -c %Y "$f" 2>/dev/null || echo 0)
 [ "$m" -ge "$t0" ] && cat "$f"
 exit 0
 EOF
+} > "$remote_script"
+ssh "$KRP_HOST" 'bash -s' < "$remote_script" > "$tmp_bmp"
 
 if [ ! -s "$tmp_bmp" ]; then
     echo "krpidss: no screenshot produced — is kpidash running on ${KRP_HOST#*@}?" >&2

@@ -262,7 +262,8 @@ ctest -V        # runs test_config and test_redis_json without hardware
 ## 7. Runtime on Pi 5
 
 ```bash
-export REDISCLI_AUTH=yourpassword
+# The password has one copy per host; do not type it or keep a private copy.
+set -a; . /etc/khomelab/secrets.env; set +a     # needs group khomelab
 export KPIDASH_DRM_DEV=/dev/dri/card1
 
 # DRM requires root or video group membership
@@ -275,7 +276,7 @@ sudo -E ./kpidash
 |----------|---------|-------------|
 | `KPIDASH_REDIS_HOST` | `127.0.0.1` | Redis host |
 | `KPIDASH_REDIS_PORT` | `6379` | Redis port |
-| `REDISCLI_AUTH` | (none) | Redis password |
+| `REDISCLI_AUTH` | (none) | Redis password — one copy per host in `/etc/khomelab/secrets.env`; `kpidash.service` reads it with `EnvironmentFile=` (see `ops/rpi53/dashboard/`) |
 | `KPIDASH_DRM_DEV` | `/dev/dri/card1` | DRM device path |
 | `KPIDASH_MAX_CLIENTS` | `16` | Max tracked clients |
 | `KPIDASH_ACTIVITY_MAX` | `10` | Max activities shown |
