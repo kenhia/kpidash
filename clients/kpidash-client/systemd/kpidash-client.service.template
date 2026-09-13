@@ -6,7 +6,17 @@ Wants=network-online.target
 [Service]
 Type=simple
 User=__KPIDASH_CLIENT_USER__
-EnvironmentFile=__KPIDASH_CLIENT_ENV_FILE__
+# The one copy of the Redis password on this host, rendered by k-homelab from
+# the age store (root:khomelab 0640). systemd reads EnvironmentFile= as PID 1,
+# as root, BEFORE dropping to User=, so this unit needs no khomelab membership
+# and must not declare SupplementaryGroups=khomelab — a group that does not
+# exist would stop the unit starting at all.
+#
+# Deliberately NOT `EnvironmentFile=-`: a missing file here means the daemon
+# runs with no password, connects, and fails every write with NOAUTH while
+# looking healthy. That is exactly the silent failure that left rpi53 reading
+# "down" on its own dashboard. Failing to start is the louder, better answer.
+EnvironmentFile=/etc/khomelab/secrets.env
 ExecStart=__KPIDASH_CLIENT_VENV_BIN__/kpidash-client daemon start --foreground
 Restart=always
 RestartSec=5

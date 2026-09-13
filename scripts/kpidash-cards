@@ -13,14 +13,18 @@
 #   kpidash-cards prune --service NAME[:HOST] ... prune specific service card(s)
 #   kpidash-cards prune --zone SLUG ...           prune specific apt-temps card(s)
 #
-# Env: KPIDASH_REDIS_HOST (default rpi53). REDISCLI_AUTH is auto-sourced from
-#      ~/.config/kpidash-client/redis-auth.env if present. Needs redis-cli + jq.
+# Env: KPIDASH_REDIS_HOST (default rpi53). REDISCLI_AUTH is resolved by
+#      scripts/kpidash-auth.sh (CD-19): the environment, then
+#      /etc/khomelab/secrets.env, then the deprecated per-user file.
+#      Needs redis-cli + jq.
 set -euo pipefail
 
 REDIS_HOST="${KPIDASH_REDIS_HOST:-rpi53}"
 EVICT_KEY="kpidash:cmd:services:evict"
 
-[ -f "$HOME/.config/kpidash-client/redis-auth.env" ] && { set -a; . "$HOME/.config/kpidash-client/redis-auth.env"; set +a; }
+# shellcheck source=kpidash-auth.sh
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/kpidash-auth.sh"
+kpidash_load_auth || { echo "kpidash-cards: no Redis password available" >&2; exit 1; }
 command -v jq >/dev/null || { echo "kpidash-cards: needs jq" >&2; exit 1; }
 R() { redis-cli -h "$REDIS_HOST" "$@"; }
 

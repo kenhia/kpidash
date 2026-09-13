@@ -18,13 +18,19 @@ Requires a working checkout with `uv sync` already run (`.venv/` present) and a 
 place at `~/.config/kpidash-client/config.toml`. From the client checkout:
 
 ```bash
-./systemd/install.sh
+./systemd/install.sh            # system unit (default) -- what rpi53 runs
+./systemd/install.sh --user     # user unit             -- what kai runs
 ```
 
-This resolves the venv and config relative to wherever the checkout actually lives (host clone
-paths have been observed to differ, e.g. `~/src/tools/kpidash` vs `~/src/kpidash`), generates
+**`--system`** resolves the venv and config relative to wherever the checkout actually lives (host
+clone paths have been observed to differ, e.g. `~/src/tools/kpidash` vs `~/src/kpidash`), generates
 `/etc/systemd/system/kpidash-client.service` from the template with your user and venv path
 substituted in, and enables+starts it (`Restart=always`, boot-start via `multi-user.target`).
+
+**`--user`** installs `~/.config/systemd/user/kpidash-client.service` running
+`~/.local/bin/kpidash-client` — the published package rather than a checkout venv. Both shapes are
+in the fleet, so both are authored here; a unit running on a host with no copy in this repo is how
+kai's diverged unnoticed.
 
 Runs as your own user (not root) via `--foreground`, so systemd owns the process lifecycle
 directly rather than the double-fork path — matches how the Windows client's `run --foreground`
@@ -32,17 +38,29 @@ works under its own service supervisor.
 
 ### Redis password
 
-The client reads its Redis password exclusively from the `REDISCLI_AUTH` env var — but systemd
-services start with a clean environment, so they don't see whatever your `~/.bashrc` exports for
-interactive shells. `install.sh` handles this: if `~/.config/kpidash-client/redis-auth.env`
-doesn't exist yet, it creates it (mode 600) from `REDISCLI_AUTH` in the shell you're running the
-installer from, and the unit loads it via `EnvironmentFile=`. If `REDISCLI_AUTH` isn't set in your
-shell either, create the file yourself first: `echo 'REDISCLI_AUTH=<password>' > \
-~/.config/kpidash-client/redis-auth.env && chmod 600 ~/.config/kpidash-client/redis-auth.env`.
+The client reads its Redis password exclusively from the `REDISCLI_AUTH` env var, and **nothing
+here writes a copy of it any more.** It lives once per host in `/etc/khomelab/secrets.env`
+(`root:khomelab 0640`, rendered by k-homelab from the age store) and the unit loads it with
+`EnvironmentFile=`. The old per-user `~/.config/kpidash-client/redis-auth.env` is retired; its
+deletion belongs to the fleet-wide changeover, not to this installer.
 
-(This was the second bug found while fixing `rpi53`'s "down" status — the daemon started under
-systemd but silently failed to authenticate to Redis, since the password it had always relied on
-was never actually reaching it.)
+There is **no `-` on that `EnvironmentFile=`**, so a host without the file gets a service that
+refuses to start. That is on purpose. The alternative — starting anyway with no password — is the
+second bug found while fixing `rpi53`'s "down" status: the daemon came up under systemd, looked
+healthy, and silently failed to authenticate to Redis, because the password it had always relied
+on was never actually reaching it. A dead unit is visible; that was not.
+
+`install.sh` checks before installing, and the check differs by shape:
+
+- **system unit** — systemd reads `EnvironmentFile=` as PID 1, as root, *before* dropping to
+  `User=`. No `khomelab` membership is involved, and `SupplementaryGroups=khomelab` must not be
+  added (a group that does not exist stops the unit starting). The installer only asserts the
+  file exists and grants `REDISCLI_AUTH` on this host.
+- **user unit** — `systemd --user` runs as *you*, so it does need the group. Being listed in
+  `/etc/group` is not enough: the manager takes its supplementary groups when it starts and, with
+  `loginctl enable-linger`, outlives every login, so a membership added afterwards does not reach
+  it until it restarts. The installer therefore asks the manager to attempt the read
+  (`systemd-run --user ... test -r`) instead of reading `/etc/group` and inferring.
 
 ## Uninstall
 

@@ -115,6 +115,24 @@ that feed it: `kpidash-client` (the telemetry daemon + CLI) and `kpidash-mcp`
   slow added there stalls the render loop.
 - **Redis auth is `REDISCLI_AUTH` in the environment only** — never in code, never
   in a config file. DRM needs root, and `sudo -E` is what preserves the variable.
+  Since sprint 020 the value has **one copy per host**, `/etc/khomelab/secrets.env`
+  (`root:khomelab 0640`, rendered by k-homelab from the age store). Every unit this
+  repo authors reads it with `EnvironmentFile=`, and `just check-units` fails if one
+  stops. The per-user `redis-auth.env` and rpi53's `/etc/kpidash.env` are retired.
+  - **`EnvironmentFile=` has no `-` prefix on the secrets file, deliberately.** A
+    client or dashboard that starts without a password authenticates nowhere and
+    looks healthy doing it — this repo's own 2026-09-05 scar. Refusing to start is
+    the louder failure, and on a panel with no keyboard the only visible one.
+  - **A *user* unit is the exception to "systemd reads it as root".** `systemd --user`
+    runs as you, so it needs an effective `khomelab` membership — and `/etc/group`
+    is not that. The manager takes its groups when it starts and, under
+    `enable-linger`, outlives every login. kai's client is a user unit and is the
+    host where this bites; `install.sh --user` asserts it via `systemd-run --user`
+    rather than reading `/etc/group` and inferring.
+  - Shell helpers (`krpidss`, `kpidash-cards`, `deploy.sh`) have no unit to hand
+    them the value, so they resolve it themselves through `scripts/kpidash-auth.sh`
+    — this repo's copy of the fleet's CD-19 order. The Python client does **not**:
+    it reads `$REDISCLI_AUTH` and nothing else, on purpose.
 - **Redis keys** are `kpidash:{category}:{hostname}:{subcategory}`, lowercase with
   colons; JSON values use `snake_case` fields.
 - **Two git submodules.** Clone with `--recurse-submodules`. `lib/lvgl` is the

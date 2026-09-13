@@ -13,7 +13,7 @@ _default:
 # tests-only build has never needed it.
 
 # Gate: everything in the repo
-check: check-dashboard check-release check-client
+check: check-dashboard check-release check-client check-units check-scripts
 
 # Init just the one submodule the tests need (no-op once present).
 [private]
@@ -49,6 +49,7 @@ check-dashboard: _kdash
 # screenshot.c, src/widgets/*), which need LVGL and libpng and so cannot be
 # compiled on a bare dev host. Those stay covered by the deploy's own Release
 # build. See CLAUDE.md's note on the warning-clean claim.
+[doc("The same sources again at -O2, warnings fatal (partial coverage)")]
 check-release: _kdash
     #!/usr/bin/env bash
     set -euo pipefail
@@ -73,6 +74,7 @@ check-release: _kdash
 # particular. The exec-stack warning fixed in sprint 019 was invisible here —
 # native x86_64 links clean while the Pi cross-link warns. Read the deploy
 # output too; this gate narrows that duty, it does not retire it.
+[doc("Opt-in: the WHOLE tree at -O2, warnings fatal (needs lib/lvgl + libpng)")]
 check-warnings-full: _kdash
     #!/usr/bin/env bash
     set -euo pipefail
@@ -88,6 +90,22 @@ check-warnings-full: _kdash
         -DCMAKE_C_FLAGS_RELEASE="-O2 -DNDEBUG -Wall -Wextra -Werror"
     cmake --build build-warnings-full
 
+# Gate: the systemd units this repo authors read the ONE per-host password
+# file and no private copy (sprint 020). Static, and it has to be: the failure
+# it catches is a unit reading a stale private copy, which looks identical to a
+# healthy one for exactly as long as the two values agree.
+[doc("The systemd units read the one per-host password file")]
+check-units:
+    ./scripts/unit-lint.sh
+
+# Gate: scripts/kpidash-auth.sh, this repo's shell copy of CD-19 -- the
+# fallback order the fleet's tools share. The Python client is NOT a CD-19
+# consumer (systemd hands it the value); these shell helpers have no unit to do
+# that for them, so they are the only copy of the chain in this repo.
+[doc("The shell copy of CD-19 (scripts/kpidash-auth.sh)")]
+check-scripts:
+    ./tests/shell/test_kpidash_auth.sh
+
 # Gate: the Python client (lint + tests)
 check-client:
     cd clients/kpidash-client && uv run --extra dev ruff check .
@@ -96,6 +114,7 @@ check-client:
 # Build and publish kpidash-client to the homelab package store
 # (see k-homelab docs/deploying.md). kpkg refuses an already-published
 # version — bump clients/kpidash-client/pyproject.toml first.
+[doc("Build and publish kpidash-client to the homelab package store")]
 publish:
     #!/usr/bin/env bash
     set -euo pipefail
