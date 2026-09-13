@@ -160,3 +160,31 @@ the user manager, only the one unit under it.
   `/etc/khomelab/secrets.env`, so 2436 may delete it on its ordinary host-by-host
   schedule.
 - `loginctl enable-linger` on all three.
+
+## Deployed
+
+**kai, kubs0 and kubsdb, 2026-09-13.** `kpidash-client.service` installed as a
+**system unit** on all three, each running the published package
+(`~/.local/bin/kpidash-client`, a uv tool) as `User=ken`, reading
+`/etc/khomelab/secrets.env` and nothing else — `EnvironmentFiles=… (ignore_errors=no)`
+read back from systemd rather than from the file. The `systemd --user` units are
+stopped, disabled and their unit files removed; `loginctl enable-linger` untouched
+on all three. Exactly one daemon per host.
+
+Verified per host, **from that host**: the deleted-key proof
+(`kpidash:client:<host>:health` deleted, unit restarted, key back with a live
+TTL), with a wrong-password control returning `WRONGPASS` and a no-credential
+control returning `NOAUTH`. Old and new password values are identical, so
+nothing weaker would have proved the source.
+
+**Post-merge check (PR #22, squash `d816c36`):** the template re-rendered from
+merged `main` with `--render-only` is byte-identical to the unit installed on all
+three hosts (`8f8cf250024c9491742876868a629340`), so what is deployed is what
+landed. All five publishers — kai, kubs0, kubsdb, rpi53, cleo — fresh at once
+after the merge.
+
+This closes sprint 020's "kai, kubs0 and kubsdb: **not deployed**". The
+dashboard **binary** was not rebuilt or redeployed — this sprint changed no C.
+
+The deprecated `~/.config/kpidash-client/redis-auth.env` remains on all three,
+read by nothing; its deletion is korg:2436's, whose hazard note is now lifted.
