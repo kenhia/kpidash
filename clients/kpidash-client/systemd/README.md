@@ -12,29 +12,65 @@ LVGL dashboard itself) is a proper systemd unit but the client daemon never was.
 
 This is a per-host gap: any machine running `kpidash-client` manually has the same exposure.
 
+## One shape: a system unit
+
+Until sprint 021 this installer offered two shapes, and the fleet ran both: a system unit on
+rpi53, and a `systemd --user` unit on kai, kubs0 and kubsdb. **The user shape is retired**, and
+`--user` is now refused with a message explaining why.
+
+A user unit cannot read `/etc/khomelab/secrets.env`. `systemd --user` is not PID 1: it runs as you
+and reads `EnvironmentFile=` with your credentials, and under `loginctl enable-linger` the manager
+outlives every login — so a `khomelab` membership added after it started never reaches it. The
+membership can be correct in every file on disk and still not be in effect, indefinitely, and
+`id -nG ken` will not show you that. A system unit sidesteps the whole question, because PID 1
+reads the file as root before dropping to `User=`.
+
 ## Install
 
-Requires a working checkout with `uv sync` already run (`.venv/` present) and a config already in
-place at `~/.config/kpidash-client/config.toml`. From the client checkout:
+Requires a config already in place at `~/.config/kpidash-client/config.toml`. From the client
+checkout:
 
 ```bash
-./systemd/install.sh            # system unit (default) -- what rpi53 runs
-./systemd/install.sh --user     # user unit             -- what kai runs
+./systemd/install.sh
 ```
 
-**`--system`** resolves the venv and config relative to wherever the checkout actually lives (host
-clone paths have been observed to differ, e.g. `~/src/tools/kpidash` vs `~/src/kpidash`), generates
-`/etc/systemd/system/kpidash-client.service` from the template with your user and venv path
-substituted in, and enables+starts it (`Restart=always`, boot-start via `multi-user.target`).
+That generates `/etc/systemd/system/kpidash-client.service` from the template, enables and starts
+it (`Restart=always`, boot-start via `multi-user.target`), and retires any user unit this host was
+running. `loginctl enable-linger` is deliberately left alone — other things run under that
+manager.
 
-**`--user`** installs `~/.config/systemd/user/kpidash-client.service` running
-`~/.local/bin/kpidash-client` — the published package rather than a checkout venv. Both shapes are
-in the fleet, so both are authored here; a unit running on a host with no copy in this repo is how
-kai's diverged unnoticed.
+**Which binary it runs.** The published package (`~/.local/bin/kpidash-client`, a uv tool
+installed with `kpkg install kpidash-client`) is preferred; a checkout venv
+(`<checkout>/.venv/bin/kpidash-client`) is the fallback. A host with both is a dev host, and the
+published build is the one the fleet actually runs. `--exec PATH` forces the choice.
 
-Runs as your own user (not root) via `--foreground`, so systemd owns the process lifecycle
-directly rather than the double-fork path — matches how the Windows client's `run --foreground`
-works under its own service supervisor.
+**Which account it runs as.** Your own, by default (`--run-as NAME` overrides). Not root, and
+deliberately not a dedicated service account: the client reports git status for the repos named in
+`config.toml`, which live in your home, and `repos.py` swallows `PermissionError` — so a service
+account would report "no dirty repos" rather than failing. The Redis keys are named from the
+hostname, not the account, so nothing downstream depends on this choice.
+
+Runs via `--foreground`, so systemd owns the process lifecycle directly rather than the
+double-fork path — matches how the Windows client's `run --foreground` works under its own service
+supervisor.
+
+## Installing on a host with no checkout
+
+kubs0 and kubsdb run the published package and have no clone of this repo. Render the unit where
+the repo *is*, deliver the bytes, install them there:
+
+```bash
+# on a host with the checkout
+./systemd/install.sh --render-only > /tmp/kpidash-client.service
+
+# deliver and install (base64 so no shell mangles the content in transit)
+base64 -w0 /tmp/kpidash-client.service |
+    ssh HOST 'base64 -d | sudo install -m 644 /dev/stdin /etc/systemd/system/kpidash-client.service'
+ssh HOST 'sudo systemctl daemon-reload && sudo systemctl enable --now kpidash-client.service'
+```
+
+`--render-only` checks nothing about the target host — the secrets file and `config.toml` are its
+state, not the rendering host's — and says so on stderr. Verify there, after installing.
 
 ### Redis password
 
@@ -50,17 +86,14 @@ second bug found while fixing `rpi53`'s "down" status: the daemon came up under 
 healthy, and silently failed to authenticate to Redis, because the password it had always relied
 on was never actually reaching it. A dead unit is visible; that was not.
 
-`install.sh` checks before installing, and the check differs by shape:
+`install.sh` checks before installing: systemd reads `EnvironmentFile=` as PID 1, as root,
+*before* dropping to `User=`, so no `khomelab` membership is involved and
+`SupplementaryGroups=khomelab` must not be added (a group that does not exist stops the unit
+starting). The installer asserts the file exists and grants `REDISCLI_AUTH` on this host.
 
-- **system unit** — systemd reads `EnvironmentFile=` as PID 1, as root, *before* dropping to
-  `User=`. No `khomelab` membership is involved, and `SupplementaryGroups=khomelab` must not be
-  added (a group that does not exist stops the unit starting). The installer only asserts the
-  file exists and grants `REDISCLI_AUTH` on this host.
-- **user unit** — `systemd --user` runs as *you*, so it does need the group. Being listed in
-  `/etc/group` is not enough: the manager takes its supplementary groups when it starts and, with
-  `loginctl enable-linger`, outlives every login, so a membership added afterwards does not reach
-  it until it restarts. The installer therefore asks the manager to attempt the read
-  (`systemd-run --user ... test -r`) instead of reading `/etc/group` and inferring.
+`just check-units` enforces both of those against the template, and fails if a
+`*.user.service.template` reappears anywhere in the repo — which is how the retired shape would
+come back, somebody copying the system one "for kai".
 
 ## Uninstall
 
@@ -69,6 +102,16 @@ sudo systemctl disable --now kpidash-client.service
 sudo rm /etc/systemd/system/kpidash-client.service
 sudo systemctl daemon-reload
 ```
+
+To retire a leftover user unit by hand (the installer does this for you):
+
+```bash
+systemctl --user disable --now kpidash-client.service
+rm ~/.config/systemd/user/kpidash-client.service
+systemctl --user daemon-reload
+```
+
+Leave `loginctl enable-linger` alone.
 
 ## Migrating from a manual `daemon start`
 

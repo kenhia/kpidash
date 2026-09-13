@@ -14,7 +14,6 @@ SECRETS_FILE=/etc/khomelab/secrets.env
 
 UNITS=(
     "clients/kpidash-client/systemd/kpidash-client.service.template"
-    "clients/kpidash-client/systemd/kpidash-client.user.service.template"
     "ops/rpi53/dashboard/kpidash.service"
 )
 
@@ -63,6 +62,15 @@ for u in "${UNITS[@]}"; do
 
     note "ok   $u"
 done
+
+# Sprint 021 retired the `systemd --user` shape outright: such a unit reads
+# EnvironmentFile= as the invoking user, and a lingering manager keeps the
+# groups it started with, so it can never read the root:khomelab file. A
+# template for that shape is a template for a unit that cannot work -- and the
+# way it comes back is somebody copying the system one "for kai".
+while IFS= read -r stray; do
+    err "${stray#"$REPO_ROOT/"}" "user-unit template -- the --user shape was retired in sprint 021"
+done < <(find "$REPO_ROOT" -name '*.user.service.template' -not -path '*/.venv/*' 2>/dev/null)
 
 if [ "$fail" -ne 0 ]; then
     echo
