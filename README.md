@@ -88,6 +88,7 @@ See [clients/kpidash-client/README.md](clients/kpidash-client/README.md) for con
 | `KPIDASH_MAX_CLIENTS` | `16` | Max tracked clients |
 | `KPIDASH_ACTIVITY_MAX` | `10` | Max activities shown |
 | `KPIDASH_LOG_FILE` | `/var/log/kpidash/kpidash.log` | Log path written to Redis |
+| `KPIDASH_STATE_FILE` | `/var/lib/kpidash/admitted` | Hosts that have published at least once, one per line. Loaded at startup so a host that is **down** across a restart still shows a red card instead of no card; written only when the set grows. Missing or corrupt = start empty |
 | `KPIDASH_PRIORITY_CLIENTS` | (none) | Comma-separated hostnames; displayed first in listed order, never evicted from registry |
 
 ---
