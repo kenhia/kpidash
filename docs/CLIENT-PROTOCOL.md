@@ -37,6 +37,58 @@ SADD kpidash:clients {hostname}
 
 Dashboard enumerates clients with `SMEMBERS kpidash:clients`.
 
+**The set is append-only, so membership alone does not earn a card
+(sprint 022, WI #2524).** `redis_client.py` SADDs on every health write and
+nothing in the fleet ever SREMs, so a host that is registered once stays
+registered forever — `kwork` sat in the set with no `kpidash:client:kwork:*`
+key of any kind, and the panel carried a permanently-down card for it, on a
+screen with no input devices where "down" is exactly how a genuinely dead
+machine reads.
+
+The dashboard therefore admits a member the first time it actually publishes:
+
+- **Never published** (no health *and* no telemetry, ever, in this dashboard
+  run) → **no card.** It costs no `MAX_CLIENTS` slot and evicts nobody.
+- **Published, then stopped** → **keeps its card**, which goes offline. Every
+  client key is TTL'd (health 5 s, telemetry 15 s), so "no data this cycle" is
+  any host fifteen seconds dead; dropping the card on that would turn every
+  real outage into a host that silently vanishes, which is precisely the
+  failure WI #902 exists to prevent.
+
+Nothing is removed from the set, deliberately: a `kwork` that starts
+publishing tomorrow appears on the panel by itself, with no operator step.
+
+**"Has published" survives a restart, and it does so outside this protocol
+(WI #3012).** Every client key is TTL'd, so Redis cannot answer "has this host
+ever published" — a host dead for a minute and a host that has never existed
+look identical. The dashboard therefore keeps its own small file of admitted
+hostnames and loads it at startup, so a host that is down when `kpidash`
+starts still gets its card and goes RED.
+
+| | |
+|---|---|
+| **Path** | `/var/lib/kpidash/admitted`, overridable with `KPIDASH_STATE_FILE` |
+| **Format** | one lowercase hostname per line, no header — readable and repairable with `cat` |
+| **Written** | only when a host is admitted that was not admitted before; never on a timer |
+| **Bound** | `MAX_CLIENTS`, the same bound as the card grid |
+| **Pruning** | none, like the set itself |
+| **Missing or corrupt** | starts empty; individual bad lines are skipped, not fatal |
+
+This is **dashboard-local state, not part of this contract.** No key was added
+to the `kpidash:client:*` namespace that kdeskdash also reads, and no
+publisher has to change. A different consumer of this protocol is free to
+solve the same problem differently, or not at all.
+
+**One-time consequence of the sprint-022 deploy.** The first start after the
+deploy finds no file, so the admitted set begins empty and each host is
+re-admitted the first time it publishes — within seconds for a live
+publisher. A member of `kpidash:clients` that happens to be **silent during
+that first start** therefore has no card until it next publishes, where
+before it would have shown a down card. It is a one-boot window and it never
+recurs. Measured at the time of the sprint: the set held six members —
+`kai`, `kubs0`, `kubsdb`, `rpi53`, `cleo` all publishing, and `kwork`, which
+is the host this whole rule exists to keep off the panel.
+
 ---
 
 ## 2. Health
@@ -275,7 +327,7 @@ samples to a per-host series in the dashboard's graph router
 |-------|------|----------|-------|
 | `ts` | float | yes | Last payload timestamp (unix seconds) |
 | `state` | string | yes | One of `ok`, `unhealthy`, `maintenance`, `down`, `unknown` |
-| `text` | string | yes | Short status text shown on the card |
+| `text` | string | yes | Short status text shown on the card, ≤128 bytes. See **Which characters are safe** below |
 | `host` | string | no | Echo of the host segment for display; the **key** is authoritative |
 | `icon` | int | no | Optional icon index into `lv_font_icons_56` |
 
@@ -302,6 +354,45 @@ host. Card border colour reflects state via the truth table in
 GRAY (sticky for DOWN); other states → their colour iff
 `(now − ts) < ` the service's freshness window, else RED.
 
+#### Which characters are safe in `text` (sprint 022, WI #2646)
+
+The panel renders with a font built from a fixed glyph set — there is no
+fallback font and no substitution. A character outside the set draws as an
+empty box, and until sprint 022 it also wrote
+`lv_draw_letter: glyph dsc. not found for U+…` to the journal **on every
+redraw**: 3,844 lines in two hours for a single `·` on one card. The warning
+is now deduped per codepoint (`src/logfilter.c`), so the cost of an
+unsupported character is a box and one log line, not a flood — but it is
+still a box.
+
+**Safe, and covered by the gate:**
+
+| Set | Notes |
+|---|---|
+| ASCII printable, `U+0020`–`U+007E` | |
+| Latin-1 Supplement, `U+00A0`–`U+00FF` | Includes `°` `·` `©` `±` `«` `»` `¼` `½` and the accented letters |
+| `–` `—` (`U+2013`, `U+2014`) | En and em dash |
+| `'` `'` `"` `"` (`U+2018`–`U+2019`, `U+201C`–`U+201D`) | What a smart-quoted apostrophe or quote becomes |
+| `•` (`U+2022`) | Bullet, commonly used as a separator |
+| `…` (`U+2026`) | What an editor makes of `...` |
+| `U+F300`–`U+F381`, `U+F1D2`–`U+F1D3` | Nerd Font icons, reachable via the `icon` index — not by typing them |
+
+**Not safe:** anything else. Most often emoji, arrows (`→` `⇒`), box-drawing,
+CJK, and the mathematical symbols that look like ASCII (`×` is Latin-1 and
+fine; `✕` `✓` `✗` are not).
+
+The set is declared once, in `RANGE` in `fonts/generate.sh`, and
+`just check-fonts` asserts the committed `fonts/*.c` actually carry it. To
+widen it: edit `RANGE`, re-run `cd fonts && bash generate.sh`, commit the
+regenerated `.c` files, and update this table. All four, or the gate fails —
+which is the point, since the generated fonts are committed artifacts and
+nothing else would notice them going stale.
+
+**This is a rendering policy, not a payload rule.** The dashboard stores and
+compares whatever bytes it is given; it is only the drawing that is limited.
+Publishers that want to be certain can stay inside ASCII, which every
+version of the panel has rendered.
+
 #### Freshness windows (sprint 018, WI #902)
 
 The window is a **consumer-side rendering policy**, not part of this contract:
@@ -326,6 +417,26 @@ alarming, never as last-known-good.**
 
 Adding a second daily feed means adding a row to `g_service_windows[]` in
 `src/registry.c`. Deliberately not generalised further on one consumer.
+
+**What "absence" covers, and what it does not (sprint 022, WI #2306).** It
+covers a service whose key exists and has aged past its window: that goes RED,
+and because `kpidash:services:*` keys are TTL-less, a publisher that dies
+leaves its last key behind forever — so the ten-days-silent case that
+commissioned WI #902 is covered. It does **not** cover a service that has
+never published at all. The dashboard discovers services by
+`SCAN MATCH kpidash:services:*:*`; no key means no card, which is
+indistinguishable from a service that was never expected.
+
+That gap is **out of scope by decision, not by oversight**. Closing it needs
+the dashboard to know what it *should* be seeing, and this contract is
+entirely discovery-based — so it would need a new declared-services key
+(`kpidash:services:expected` or similar). That is a contract addition binding
+on both consumers (kpidash and kdeskdash), and it buys the case that has never
+bitten: a service that has never published has never been trusted, and the
+failure that prompted WI #902 was stale-GREEN, which is fixed. **A publisher
+that is expected to be watched must publish at least once.** If a future
+consumer needs the declared-services key, that is a contract change to propose
+on its own evidence, not a bug in this one.
 
 CLI example:
 

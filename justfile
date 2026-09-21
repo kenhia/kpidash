@@ -13,7 +13,7 @@ _default:
 # tests-only build has never needed it.
 
 # Gate: everything in the repo
-check: check-dashboard check-release check-client check-units check-scripts
+check: check-dashboard check-release check-client check-units check-scripts check-fonts
 
 # Init just the one submodule the tests need (no-op once present).
 [private]
@@ -105,6 +105,17 @@ check-units:
 [doc("The shell copy of CD-19 (scripts/kpidash-auth.sh)")]
 check-scripts:
     ./tests/shell/test_kpidash_auth.sh
+
+# Gate: the committed fonts carry the characters the card contract promises
+# (WI #2646). fonts/*.c are generated artifacts committed so a cross-compile
+# needs no Node.js, which means RANGE in fonts/generate.sh can be widened, the
+# docs updated to match, and the generator never re-run -- with nothing failing
+# and the only symptom a box on a panel in another room. This asserts the two
+# ends against each other. It needs no Node.js itself: it reads the generated
+# cmaps.
+[doc("The committed fonts cover the character set the contract promises")]
+check-fonts:
+    ./tests/shell/test_font_coverage.sh
 
 # Gate: the Python client (lint + tests)
 check-client:

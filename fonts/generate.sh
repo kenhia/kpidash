@@ -13,8 +13,26 @@ cd "$(dirname "$0")"
 BOLD_TTF="ttf/Montserrat-Bold.ttf"
 SYMBOLS_TTF="ttf/SymbolsNerdFont-Regular.ttf"
 BPP=4
-# 0x20-0x7E: ASCII printable. 0xB0: ° DEGREE SIGN (temp cards, WI #363).
-RANGE="0x20-0x7E,0xB0"
+# Glyph coverage for the Montserrat Bold text fonts.
+#
+#   0x20-0x7E  ASCII printable.
+#   0xA0-0xFF  Latin-1 Supplement. Subsumes 0xB0 ° DEGREE SIGN (temp cards,
+#              WI #363) and 0xB7 · MIDDLE DOT (WI #2646), and covers the
+#              accented letters and © ± « » ¼ ½ that ordinary prose reaches
+#              for without anyone thinking of it as "a special character".
+#   0x2013/14  – EN DASH, — EM DASH. The single most common thing an agent
+#              types into a Service Card `text`.
+#   0x2018/19  ' ' single curly quotes — what a smart-quoted apostrophe is.
+#   0x201C/1D  " " double curly quotes.
+#   0x2022     • BULLET, used as a separator.
+#   0x2026     … HORIZONTAL ELLIPSIS, what an editor makes of "...".
+#
+# WI #2646: a character outside this set draws as a box AND writes a warning
+# to the journal on every redraw — measured at 3,844 lines in two hours for
+# one `·` on one card. src/logfilter.c now dedupes the warning, but the box
+# stays, so the set has to cover what publishers actually type. It is stated
+# as a contract in docs/CLIENT-PROTOCOL.md §8a; keep the two in step.
+RANGE="0x20-0x7E,0xA0-0xFF,0x2013-0x2014,0x2018-0x2019,0x201C-0x201D,0x2022,0x2026"
 
 # Sizes to generate (match built-in Montserrat Regular sizes + extras)
 SIZES=(14 16 20 24 28 36 48)

@@ -14,10 +14,22 @@ static client_info_t g_clients[MAX_CLIENTS];
 static int g_count = 0;
 static pthread_mutex_t g_mutex = PTHREAD_MUTEX_INITIALIZER;
 
+/* WI #3012: hosts that have published at least once, EVER — seeded from the
+ * admitted-hosts file at startup, appended to when a new host first
+ * publishes, and never pruned (the same rule `kpidash:clients` itself
+ * follows). This is what survives a restart, and so what keeps a host that
+ * is down at boot showing a red card instead of no card. */
+static char g_admitted[MAX_CLIENTS][HOSTNAME_LEN];
+static int g_admitted_count = 0;
+static bool g_admitted_dirty = false;
+
 void registry_init(void) {
     pthread_mutex_lock(&g_mutex);
     memset(g_clients, 0, sizeof(g_clients));
     g_count = 0;
+    memset(g_admitted, 0, sizeof(g_admitted));
+    g_admitted_count = 0;
+    g_admitted_dirty = false;
     pthread_mutex_unlock(&g_mutex);
 }
 
@@ -59,13 +71,129 @@ int registry_priority_index(const char *hostname) {
     return -1;
 }
 
-client_info_t *registry_find_or_create(const char *hostname) {
-    /* Search existing (must be called with lock held) */
+client_info_t *registry_find(const char *hostname) {
+    /* Must be called with lock held. */
+    if (!hostname || !hostname[0])
+        return NULL;
+
     for (int i = 0; i < g_count; i++) {
         if (strncmp(g_clients[i].hostname, hostname, HOSTNAME_LEN) == 0) {
             return &g_clients[i];
         }
     }
+    return NULL;
+}
+
+/* Must be called with the lock held. */
+static bool is_admitted(const char *hostname) {
+    for (int i = 0; i < g_admitted_count; i++) {
+        if (strncmp(g_admitted[i], hostname, HOSTNAME_LEN) == 0)
+            return true;
+    }
+    return false;
+}
+
+/* Must be called with the lock held. Returns true if the set grew. */
+static bool remember_admitted(const char *hostname) {
+    if (is_admitted(hostname))
+        return false;
+
+    if (g_admitted_count >= MAX_CLIENTS) {
+        /* The registry is bounded by the same number, so this only happens
+         * on a fleet that has outgrown the panel. Say so once and carry on:
+         * the host still gets its card this run, it just will not survive a
+         * restart, which is strictly better than dropping it now. */
+        fprintf(stderr, "registry: admitted set full (%d), '%s' will not persist\n", MAX_CLIENTS,
+                hostname);
+        return false;
+    }
+
+    strncpy(g_admitted[g_admitted_count], hostname, HOSTNAME_LEN - 1);
+    g_admitted[g_admitted_count][HOSTNAME_LEN - 1] = '\0';
+    g_admitted_count++;
+    return true;
+}
+
+client_info_t *registry_admit(const char *hostname, bool has_client_data) {
+    /* WI #2524: create on data, find otherwise. See registry.h for why the
+     * second half is not a detail — it is what keeps an outage visible. */
+    client_info_t *existing = registry_find(hostname);
+    if (existing)
+        return existing;
+
+    if (!hostname || !hostname[0])
+        return NULL;
+
+    if (has_client_data) {
+        /* First payload this run. Recording it is what makes the admission
+         * outlive the process (WI #3012). */
+        if (remember_admitted(hostname))
+            g_admitted_dirty = true;
+        return registry_find_or_create(hostname);
+    }
+
+    /* No data right now — but if this host was admitted in an earlier run,
+     * it has published before and its silence is news. Give it a card so it
+     * can go red. */
+    if (is_admitted(hostname))
+        return registry_find_or_create(hostname);
+
+    return NULL;
+}
+
+int registry_seed_admitted(const char hosts[][HOSTNAME_LEN], int count) {
+    if (!hosts || count <= 0)
+        return 0;
+
+    pthread_mutex_lock(&g_mutex);
+    int before = g_admitted_count;
+    for (int i = 0; i < count; i++) {
+        if (!hosts[i][0])
+            continue;
+        remember_admitted(hosts[i]);
+    }
+    int accepted = g_admitted_count - before;
+    /* Deliberately NOT marking dirty: this came off the disk, and writing it
+     * straight back would be a disk write on every boot that changes
+     * nothing. */
+    pthread_mutex_unlock(&g_mutex);
+    return accepted;
+}
+
+int registry_admitted_snapshot(char out[][HOSTNAME_LEN], int max) {
+    if (!out || max <= 0)
+        return 0;
+
+    pthread_mutex_lock(&g_mutex);
+    int n = g_admitted_count < max ? g_admitted_count : max;
+    for (int i = 0; i < n; i++) {
+        /* memcpy of the whole element, not strncpy: source and destination
+         * are both exactly HOSTNAME_LEN, so this copies the terminator with
+         * the name and cannot truncate. strncpy here makes GCC's
+         * -Wstringop-truncation fire at -O2 — caught by `just check-release`,
+         * which is the flow-sensitive class that only runs with the
+         * optimiser (WI #1934). */
+        memcpy(out[i], g_admitted[i], HOSTNAME_LEN);
+    }
+    pthread_mutex_unlock(&g_mutex);
+    return n;
+}
+
+bool registry_admitted_take_dirty(void) {
+    pthread_mutex_lock(&g_mutex);
+    bool was = g_admitted_dirty;
+    g_admitted_dirty = false;
+    pthread_mutex_unlock(&g_mutex);
+    return was;
+}
+
+client_info_t *registry_find_or_create(const char *hostname) {
+    /* Search existing (must be called with lock held) */
+    client_info_t *existing = registry_find(hostname);
+    if (existing)
+        return existing;
+    if (!hostname || !hostname[0])
+        return NULL;
 
     /* Allocate new slot if space available */
     if (g_count < MAX_CLIENTS) {

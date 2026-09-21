@@ -281,6 +281,7 @@ sudo -E ./kpidash
 | `KPIDASH_MAX_CLIENTS` | `16` | Max tracked clients |
 | `KPIDASH_ACTIVITY_MAX` | `10` | Max activities shown |
 | `KPIDASH_LOG_FILE` | `/var/log/kpidash/kpidash.log` | Log path (written to Redis) |
+| `KPIDASH_STATE_FILE` | `/var/lib/kpidash/admitted` | Hosts that have published at least once (sprint 022); loaded at startup so a down host keeps its card |
 | `KPIDASH_PRIORITY_CLIENTS` | (none) | Comma-separated hostnames; never evicted |
 
 ---
