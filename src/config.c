@@ -42,6 +42,9 @@ void config_load(kpidash_config_t *cfg) {
     parse_str_env("KPIDASH_LOG_FILE", "/var/log/kpidash/kpidash.log", cfg->log_file,
                   sizeof(cfg->log_file));
 
+    parse_str_env("KPIDASH_STATE_FILE", "/var/lib/kpidash/admitted", cfg->state_file,
+                  sizeof(cfg->state_file));
+
     /* Parse priority clients: comma-separated hostnames */
     const char *pc = getenv("KPIDASH_PRIORITY_CLIENTS");
     if (pc) {

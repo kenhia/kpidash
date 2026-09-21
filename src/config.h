@@ -11,6 +11,11 @@ typedef struct {
     int max_clients;    /* from KPIDASH_MAX_CLIENTS, bounded by MAX_CLIENTS */
     int activity_max;   /* from KPIDASH_ACTIVITY_MAX */
     char log_file[512]; /* from KPIDASH_LOG_FILE */
+    /* WI #3012: where the admitted-hosts file lives. One hostname per line;
+     * the record of which hosts have ever published, so a host that is down
+     * across a restart still gets a (red) card. /var/lib is the FHS answer
+     * for service state and parallels the log path above. */
+    char state_file[512]; /* from KPIDASH_STATE_FILE */
     char priority_clients[PRIORITY_CLIENTS_MAX][HOSTNAME_LEN]; /* from KPIDASH_PRIORITY_CLIENTS */
     int priority_client_count;
 } kpidash_config_t;

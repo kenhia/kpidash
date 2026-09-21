@@ -113,7 +113,11 @@ LVGL/DRM/KMS with no mouse or keyboard interaction.
    a member only gets a card once it has actually published — the set is
    append-only, so membership alone proves nothing — but once admitted it
    keeps its card, which is what makes the red LED an outage report rather
-   than a host quietly disappearing. See CLIENT-PROTOCOL §1.
+   than a host quietly disappearing. The admitted set is persisted to
+   `/var/lib/kpidash/admitted` (`KPIDASH_STATE_FILE`) and loaded at startup,
+   so the admission outlives the process and a host that is down across a
+   restart still shows red rather than vanishing. Dashboard-local state, not
+   part of the Redis contract. See CLIENT-PROTOCOL §1.
 2. **Telemetry**: client writes `kpidash:client:{h}:telemetry` (JSON, EX 15 s)
    with CPU, RAM, GPU, disk data. Dashboard parses and updates client cards.
 3. **Dev Telemetry**: client writes `kpidash:client:{h}:dev_telemetry` (JSON,

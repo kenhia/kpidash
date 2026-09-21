@@ -10,6 +10,7 @@
 #include <time.h>
 #include <unistd.h>
 
+#include "admitted.h"
 #include "config.h"
 #include "fortune.h"
 #include "kpidash_version.h"
@@ -32,11 +33,37 @@ static void sigint_handler(int sig) {
 }
 
 /* ---- 1-second LVGL timer: poll Redis, refresh UI ---- */
+/* Persist the admitted-hosts set, but only when a host has been admitted
+ * that was not admitted before (WI #3012). In steady state that is never:
+ * the flag is false on every one of the ~86,400 polls a day, so this costs a
+ * bool read on the LVGL thread and no disk I/O at all. It fires once per new
+ * host, ever. */
+static void save_admitted_if_changed(void) {
+    if (!registry_admitted_take_dirty())
+        return;
+
+    char hosts[MAX_CLIENTS][HOSTNAME_LEN];
+    int n = registry_admitted_snapshot(hosts, MAX_CLIENTS);
+    if (admitted_save(g_config.state_file, hosts, n)) {
+        fprintf(stderr, "kpidash: admitted set now %d host(s), saved to %s\n", n,
+                g_config.state_file);
+    } else {
+        /* Not fatal, and deliberately not retried: the panel renders
+         * correctly for the rest of this run, and the next new host will set
+         * the flag again. Worth one loud line so a read-only /var is
+         * diagnosable from the journal. */
+        fprintf(stderr, "kpidash: could not save admitted set to %s — host cards will not "
+                        "survive a restart\n",
+                g_config.state_file);
+    }
+}
+
 static void timer_poll_cb(lv_timer_t *t) {
     (void)t;
     if (!redis_reconnect_if_needed())
         return;
     redis_poll();
+    save_admitted_if_changed();
     ui_refresh();
 }
 
@@ -98,6 +125,19 @@ int main(void) {
     registry_init();
     if (g_config.priority_client_count > 0)
         registry_set_priority_clients(g_config.priority_clients, g_config.priority_client_count);
+
+    /* WI #3012: which hosts have ever published. Without this, a host that is
+     * down when the dashboard starts gets no card at all — sprint 022 made a
+     * card something a host earns by publishing, and the earning has to
+     * outlive the process. A missing file is the normal first-boot state and
+     * loads as empty. */
+    {
+        char admitted[MAX_CLIENTS][HOSTNAME_LEN];
+        int n = admitted_load(g_config.state_file, admitted, MAX_CLIENTS);
+        registry_seed_admitted(admitted, n);
+        fprintf(stderr, "kpidash: %d previously-admitted host(s) from %s\n", n,
+                g_config.state_file);
+    }
 
     /* Build UI — must be after LVGL display init */
     ui_init();

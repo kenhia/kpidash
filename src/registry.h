@@ -161,10 +161,39 @@ client_info_t *registry_find(const char *hostname);
  *     telemetry 15 s), so "no data this cycle" is any host fifteen seconds
  *     dead — dropping on that would be the bug, not the fix.
  *
+ * A host admitted in an EARLIER dashboard run counts as admitted: the set is
+ * seeded from disk at startup by registry_seed_admitted(), which is what
+ * stops a host that is down across a restart losing its card (WI #3012).
+ *
  * Must be called with the registry locked. Returns NULL when the member is
  * not (yet) admitted, and NULL is a normal answer, not an error.
  */
 client_info_t *registry_admit(const char *hostname, bool has_client_data);
+
+/**
+ * Seed the admitted set from the admitted-hosts file (WI #3012).
+ *
+ * Call once at startup, after registry_init() and before the first poll.
+ * Invalid and duplicate names are skipped; the set is bounded by
+ * MAX_CLIENTS. Seeding does NOT mark the set dirty — it came from the file,
+ * so writing it straight back would be a pointless disk write on every boot.
+ *
+ * Returns the number of hostnames accepted.
+ */
+int registry_seed_admitted(const char hosts[][HOSTNAME_LEN], int count);
+
+/**
+ * Copy the admitted hostnames into out[]. Returns the number copied.
+ * Thread-safe; takes the lock itself.
+ */
+int registry_admitted_snapshot(char out[][HOSTNAME_LEN], int max);
+
+/**
+ * True if the admitted set has grown since the last call, and CLEARS the
+ * flag. This is the "write it only when the set changes" signal — the caller
+ * saves the file exactly when this returns true. Thread-safe.
+ */
+bool registry_admitted_take_dirty(void);
 
 /**
  * Remove clients whose hostnames are NOT in the provided set.

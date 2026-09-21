@@ -130,6 +130,111 @@ static void test_keyless_member_never_evicts(void) {
     }
 }
 
+/* WI #3012: a host admitted in an EARLIER run is admitted now, with no data
+ * at all. This is the restart case — the whole reason the file exists. */
+static void test_seeded_host_gets_a_card_while_down(void) {
+    registry_init();
+
+    char seed[2][HOSTNAME_LEN] = {"kai", "kubs0"};
+    CHECK(registry_seed_admitted(seed, 2) == 2);
+
+    /* Down since before the dashboard started: no health, no telemetry. */
+    client_info_t *c = registry_admit("kai", false);
+    CHECK(c != NULL);
+    CHECK(c != NULL && strcmp(c->hostname, "kai") == 0);
+    CHECK(c != NULL && c->online == false); /* red card, not a missing one */
+    CHECK(registry_count() == 1);
+
+    /* Still stable across cycles, and still the same slot when it comes back. */
+    CHECK(registry_admit("kai", false) == c);
+    CHECK(registry_admit("kai", true) == c);
+    CHECK(registry_count() == 1);
+
+    /* A host that was never admitted is still refused, seed or no seed. */
+    CHECK(registry_admit("kwork", false) == NULL);
+    CHECK(registry_count() == 1);
+}
+
+/* Seeding is not a write: it came off the disk. */
+static void test_seeding_does_not_dirty_the_set(void) {
+    registry_init();
+    CHECK(registry_admitted_take_dirty() == false);
+
+    char seed[2][HOSTNAME_LEN] = {"kai", "kubs0"};
+    CHECK(registry_seed_admitted(seed, 2) == 2);
+    CHECK(registry_admitted_take_dirty() == false);
+
+    /* A host already in the seed publishing is not a change either. */
+    CHECK(registry_admit("kai", true) != NULL);
+    CHECK(registry_admitted_take_dirty() == false);
+
+    /* A genuinely new host IS a change — once. */
+    CHECK(registry_admit("kubsdb", true) != NULL);
+    CHECK(registry_admitted_take_dirty() == true);
+    CHECK(registry_admitted_take_dirty() == false);
+
+    /* And a member that never publishes never dirties anything, however
+     * many cycles it sits there — otherwise kwork would rewrite the file
+     * once a second forever. */
+    for (int i = 0; i < 50; i++) {
+        CHECK(registry_admit("kwork", false) == NULL);
+    }
+    CHECK(registry_admitted_take_dirty() == false);
+}
+
+/* The snapshot is what gets written back, so it has to round-trip. */
+static void test_admitted_snapshot(void) {
+    registry_init();
+
+    char seed[2][HOSTNAME_LEN] = {"kai", "kubs0"};
+    CHECK(registry_seed_admitted(seed, 2) == 2);
+    CHECK(registry_admit("kubsdb", true) != NULL);
+    CHECK(registry_admit("kwork", false) == NULL);
+
+    char out[MAX_CLIENTS][HOSTNAME_LEN];
+    int n = registry_admitted_snapshot(out, MAX_CLIENTS);
+    CHECK(n == 3);
+
+    bool saw_kwork = false, saw_kubsdb = false;
+    for (int i = 0; i < n; i++) {
+        if (strcmp(out[i], "kwork") == 0)
+            saw_kwork = true;
+        if (strcmp(out[i], "kubsdb") == 0)
+            saw_kubsdb = true;
+    }
+    CHECK(saw_kubsdb);
+    CHECK(!saw_kwork); /* never published, so never persisted */
+
+    /* Honours a smaller ceiling without writing past it. */
+    char small[2][HOSTNAME_LEN];
+    CHECK(registry_admitted_snapshot(small, 2) == 2);
+    CHECK(registry_admitted_snapshot(out, 0) == 0);
+}
+
+/* Duplicates and junk in the file do not multiply the set. */
+static void test_seed_is_deduped_and_bounded(void) {
+    registry_init();
+
+    char seed[4][HOSTNAME_LEN] = {"kai", "kai", "kubs0", ""};
+    CHECK(registry_seed_admitted(seed, 4) == 2);
+
+    char out[MAX_CLIENTS][HOSTNAME_LEN];
+    CHECK(registry_admitted_snapshot(out, MAX_CLIENTS) == 2);
+
+    CHECK(registry_seed_admitted(NULL, 4) == 0);
+    CHECK(registry_seed_admitted(seed, 0) == 0);
+
+    /* Past MAX_CLIENTS the set stops growing rather than overrunning. */
+    registry_init();
+    char many[MAX_CLIENTS + 8][HOSTNAME_LEN];
+    memset(many, 0, sizeof(many));
+    for (int i = 0; i < MAX_CLIENTS + 8; i++) {
+        snprintf(many[i], HOSTNAME_LEN, "h%03d", i);
+    }
+    CHECK(registry_seed_admitted(many, MAX_CLIENTS + 8) == MAX_CLIENTS);
+    CHECK(registry_admitted_snapshot(out, MAX_CLIENTS) == MAX_CLIENTS);
+}
+
 int main(void) {
     test_never_published_gets_no_card();
     test_first_payload_admits();
@@ -137,6 +242,10 @@ int main(void) {
     test_admission_and_prune_compose();
     test_find_never_creates();
     test_keyless_member_never_evicts();
+    test_seeded_host_gets_a_card_while_down();
+    test_seeding_does_not_dirty_the_set();
+    test_admitted_snapshot();
+    test_seed_is_deduped_and_bounded();
 
     fprintf(stderr, "test_client_registry: %d passed, %d failed\n", passed, failed);
     return failed == 0 ? 0 : 1;

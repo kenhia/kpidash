@@ -102,6 +102,17 @@ add_kpidash_test(test_stale_card
 )
 target_compile_definitions(test_stale_card PRIVATE KPIDASH_TEST_STUBS=1)
 
+# WI #3012: the admitted-hosts file. Pure file I/O with no LVGL and no Redis,
+# so the load side -- which must never fail, because it runs at startup on a
+# panel with no keyboard -- is reachable from the gate.
+add_executable(test_admitted
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_admitted.c
+    ${CMAKE_SOURCE_DIR}/src/admitted.c
+)
+target_include_directories(test_admitted PRIVATE ${CMAKE_SOURCE_DIR}/src)
+target_compile_options(test_admitted PRIVATE -Wall -Wextra -Wno-unused-parameter)
+add_test(NAME test_admitted COMMAND test_admitted)
+
 # WI #2524: host-card admission. registry.c only — the rule is expressed as
 # registry_admit() precisely so it is reachable without a live Redis.
 add_executable(test_client_registry

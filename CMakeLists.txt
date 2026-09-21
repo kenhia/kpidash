@@ -103,6 +103,7 @@ add_executable(kpidash
     src/status.c
     src/memstat.c
     src/logfilter.c
+    src/admitted.c
     src/ui.c
     src/fortune.c
     src/widgets/client_card.c

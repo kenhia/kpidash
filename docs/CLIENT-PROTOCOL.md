@@ -58,11 +58,36 @@ The dashboard therefore admits a member the first time it actually publishes:
 Nothing is removed from the set, deliberately: a `kwork` that starts
 publishing tomorrow appears on the panel by itself, with no operator step.
 
-One consequence worth stating, because it is the residual cost of the rule: a
-host that is **down across a dashboard restart** shows no card until it
-publishes again. Distinguishing "never published" from "published before this
-process started" would need a durable marker the protocol does not have — see
-korg #3012.
+**"Has published" survives a restart, and it does so outside this protocol
+(WI #3012).** Every client key is TTL'd, so Redis cannot answer "has this host
+ever published" — a host dead for a minute and a host that has never existed
+look identical. The dashboard therefore keeps its own small file of admitted
+hostnames and loads it at startup, so a host that is down when `kpidash`
+starts still gets its card and goes RED.
+
+| | |
+|---|---|
+| **Path** | `/var/lib/kpidash/admitted`, overridable with `KPIDASH_STATE_FILE` |
+| **Format** | one lowercase hostname per line, no header — readable and repairable with `cat` |
+| **Written** | only when a host is admitted that was not admitted before; never on a timer |
+| **Bound** | `MAX_CLIENTS`, the same bound as the card grid |
+| **Pruning** | none, like the set itself |
+| **Missing or corrupt** | starts empty; individual bad lines are skipped, not fatal |
+
+This is **dashboard-local state, not part of this contract.** No key was added
+to the `kpidash:client:*` namespace that kdeskdash also reads, and no
+publisher has to change. A different consumer of this protocol is free to
+solve the same problem differently, or not at all.
+
+**One-time consequence of the sprint-022 deploy.** The first start after the
+deploy finds no file, so the admitted set begins empty and each host is
+re-admitted the first time it publishes — within seconds for a live
+publisher. A member of `kpidash:clients` that happens to be **silent during
+that first start** therefore has no card until it next publishes, where
+before it would have shown a down card. It is a one-boot window and it never
+recurs. Measured at the time of the sprint: the set held six members —
+`kai`, `kubs0`, `kubsdb`, `rpi53`, `cleo` all publishing, and `kwork`, which
+is the host this whole rule exists to keep off the panel.
 
 ---
 

@@ -32,6 +32,7 @@ static void clear_env(void) {
     unsetenv("KPIDASH_MAX_CLIENTS");
     unsetenv("KPIDASH_ACTIVITY_MAX");
     unsetenv("KPIDASH_LOG_FILE");
+    unsetenv("KPIDASH_STATE_FILE");
     unsetenv("KPIDASH_PRIORITY_CLIENTS");
 }
 
@@ -47,6 +48,8 @@ static void test_defaults(void) {
     CHECK(cfg.max_clients == MAX_CLIENTS);
     CHECK(cfg.activity_max == ACTIVITY_MAX_DISPLAY);
     CHECK(strcmp(cfg.log_file, "/var/log/kpidash/kpidash.log") == 0);
+    /* WI #3012: the admitted-hosts file. */
+    CHECK(strcmp(cfg.state_file, "/var/lib/kpidash/admitted") == 0);
     CHECK(cfg.priority_client_count == 0);
 }
 
@@ -58,6 +61,7 @@ static void test_overrides(void) {
     setenv("KPIDASH_MAX_CLIENTS", "8", 1);
     setenv("KPIDASH_ACTIVITY_MAX", "5", 1);
     setenv("KPIDASH_LOG_FILE", "/tmp/kpidash.log", 1);
+    setenv("KPIDASH_STATE_FILE", "/tmp/kpidash-admitted", 1);
 
     kpidash_config_t cfg;
     config_load(&cfg);
@@ -69,6 +73,7 @@ static void test_overrides(void) {
     CHECK(cfg.max_clients == 8);
     CHECK(cfg.activity_max == 5);
     CHECK(strcmp(cfg.log_file, "/tmp/kpidash.log") == 0);
+    CHECK(strcmp(cfg.state_file, "/tmp/kpidash-admitted") == 0);
 
     clear_env();
 }

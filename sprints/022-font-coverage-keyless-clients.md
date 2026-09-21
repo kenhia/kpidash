@@ -50,11 +50,11 @@ No `SREM`, deliberately — a `kwork` that starts publishing tomorrow appears by
 itself, with no operator step. That was the program's instruction and it is
 also the right answer: the set is the registration, the keys are the evidence.
 
-The residual cost is stated, not hidden: "has published" lives in the
-dashboard process, so a host that is **down across a dashboard restart** shows
-no card until it publishes again. Closing that needs durable state the
-protocol does not have, which is a contract decision — filed as korg #3012 and
-documented in §1.
+That leaves one thing: "has published" would live only in the dashboard
+process, so a host **down across a dashboard restart** would show no card
+until it published again. The first pass filed that as korg #3012. The
+overseer's ruling was that a regression does not get filed, it gets fixed —
+see **korg #3012** below, where it is built.
 
 ### 2646: widen the font *and* dedupe the warning — they fix different things
 
@@ -92,15 +92,21 @@ Unicode.
   so a reader is not misled into thinking the character was drawn once.
 - `lv_conf.h` — `LV_LOG_PRINTF 0`, with the reason.
 - `src/registry.{c,h}` — `registry_find()` (never allocates) and
-  `registry_admit()` (the WI 2524 rule). `registry_find_or_create()` now
-  routes its search through `registry_find()` and rejects a NULL/empty
-  hostname instead of walking off it.
+  `registry_admit()` (the WI 2524 rule), plus `registry_seed_admitted()`,
+  `registry_admitted_snapshot()` and `registry_admitted_take_dirty()` for the
+  persistence in WI 3012. `registry_find_or_create()` now routes its search
+  through `registry_find()` and rejects a NULL/empty hostname instead of
+  walking off it.
 - `src/redis.c` — `redis_poll()` reads health and telemetry **before**
   deciding whether the member gets a card, and calls `registry_admit()`.
 - `docs/CLIENT-PROTOCOL.md` — three contract statements: §1 host-card
   admission, §8a the safe character set for `text`, §8a the WI 902 narrowing.
+- `src/admitted.{c,h}` — the admitted-hosts file (WI 3012, below), wired in
+  `src/main.c` (load after `registry_init()`, save from the poll timer when
+  the set grows) and `src/config.{c,h}` (`KPIDASH_STATE_FILE`).
 - `tests/test_logfilter.c`, `tests/test_client_registry.c`,
-  `tests/shell/test_font_coverage.sh`, and `just check-fonts` in the gate.
+  `tests/test_admitted.c`, `tests/shell/test_font_coverage.sh`, and
+  `just check-fonts` in the gate.
 
 ## The gate grew a third leg, and it needed one
 
@@ -131,7 +137,8 @@ decoration.
 
 ## Verification
 
-- `just check` — 11 tests, all pass (two new), plus ruff, 80 client tests,
+- `just check` — 12 tests, all pass (three new: `test_logfilter`,
+  `test_client_registry`, `test_admitted`), plus ruff, 80 client tests,
   `unit-lint`, the CD-19 shell gate and the new font gate.
 - `just check-warnings-full` — whole tree at `-O2 -Werror`, clean. It matters
   here because `main.c` is dashboard-only and `check-release` cannot reach it.
@@ -157,13 +164,58 @@ repo does from merged `main`. See `## Deployed`.
   breaking the gate on purpose; it would otherwise have shipped silently
   under-checking.
 
-## Filed, with the decision named
+## Filed, then ruled on and built: korg #3012
 
-- **korg #3012** — a host down across a dashboard restart shows no card,
-  because admission-on-data has no durable "has published" marker. Four
-  options, each of which mints something (a new key in a two-consumer
-  namespace, a client-protocol change, local dashboard state, or an explicit
-  acceptance). Not a call this sprint had standing to make.
+The first pass through this sprint **filed** the residual: admission-on-data
+has no durable "has published" marker, so a host down across a dashboard
+restart showed no card where before it showed a down card. Four options were
+named, each minting something — a new key in the two-consumer namespace, a
+client-protocol change, local dashboard state, or an explicit acceptance.
+
+**The overseer's ruling was not to ship a regression and file it**, and to
+take the third option: local dashboard state, the only one contained entirely
+in this repo. So it is built, and korg #3012 closes with the sprint rather
+than outliving it.
+
+`src/admitted.{c,h}` keeps one small file of admitted hostnames:
+
+- `/var/lib/kpidash/admitted`, overridable by `KPIDASH_STATE_FILE` — the same
+  shape as the existing `KPIDASH_LOG_FILE`, and `/var/lib` is the FHS answer
+  for service state that parallels `/var/log/kpidash` already in use. The unit
+  runs `User=root` with no sandboxing (`ProtectSystem=no`, no
+  `StateDirectory=`), confirmed live on rpi53, so the location is writable and
+  nothing had to be invented.
+- One lowercase hostname per line, no header. Small enough to read and repair
+  with `cat`, which is most of why it is not JSON.
+- **Written only when the admitted set grows.** In steady state the dirty flag
+  is false on every one of the ~86,400 polls a day, so the cost on the LVGL
+  thread is a bool read and no disk I/O at all. It fires once per new host,
+  ever.
+- **Atomic**: temp file in the same directory, `fflush`, `fsync`, `rename`. A
+  panel loses power often enough for a half-written file to be a real way to
+  drop every card on the next boot.
+- **Never pruned**, the same rule `kpidash:clients` follows, and bounded by
+  `MAX_CLIENTS`, the same bound as the card grid.
+- **A missing, empty, unreadable or corrupt file starts the set empty** — not
+  an error. There is nobody at the panel to tell. Bad lines are skipped
+  *individually*, so one mangled line does not cost the hosts around it; an
+  over-long line is consumed to its newline rather than being read as a line
+  of its own, because truncating it would admit a host that does not exist.
+
+`kwork` stays unadmitted: it has never published, so it never enters the file.
+
+### The one-time consequence, accepted and written down
+
+The first start after this deploy finds no file, so the set begins empty and
+each host is re-admitted the first time it publishes — within seconds for a
+live publisher. A member of `kpidash:clients` that happens to be **silent
+during that first start** has no card until it next publishes. One boot
+window, never recurring, and it is stated in `CLIENT-PROTOCOL.md` §1.
+
+Measured at the time of the sprint, the set held six members: `kai`, `kubs0`,
+`kubsdb`, `rpi53` and `cleo` all publishing, plus `kwork` — which is the host
+the whole rule exists to keep off the panel. So the practical exposure of that
+window is zero unless a publisher is down at the moment of the deploy.
 
 ## Left alone, deliberately
 
