@@ -38,11 +38,19 @@
  * locking to lose. */
 #define LV_USE_OS   LV_OS_NONE
 
-/* Logging — enable for POC debugging */
+/* Logging — enable for POC debugging.
+ *
+ * LV_LOG_PRINTF is 0 deliberately (WI #2646): lv_log_add() runs its printf
+ * path and any registered callback BOTH, so leaving it at 1 would print
+ * every line twice and dedupe neither. main.c registers the printing half
+ * with lv_log_register_print_cb(); src/logfilter.c decides what reaches
+ * stdout, which is how one missing glyph stops writing 3,844 journal lines
+ * in two hours. Nothing is lost by the swap — the callback prints in the
+ * same place, in the same format, with the same fflush. */
 #define LV_USE_LOG 1
 #if LV_USE_LOG
     #define LV_LOG_LEVEL LV_LOG_LEVEL_WARN
-    #define LV_LOG_PRINTF 1
+    #define LV_LOG_PRINTF 0
 #endif
 
 /* Note (spec 005): memstat calls lv_mem_monitor() directly; that function

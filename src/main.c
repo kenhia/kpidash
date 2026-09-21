@@ -13,6 +13,7 @@
 #include "config.h"
 #include "fortune.h"
 #include "kpidash_version.h"
+#include "logfilter.h"
 #include "lvgl.h"
 #include "memstat.h"
 #include "protocol.h"
@@ -45,6 +46,31 @@ static void memstat_timer_cb(lv_timer_t *t) {
     memstat_sample_now();
 }
 
+/* LVGL's print sink (WI #2646). Replaces LVGL's own LV_LOG_PRINTF path —
+ * same destination, same flush — so that logfilter.c can drop the repeats of
+ * a missing-glyph warning that would otherwise arrive once per redraw,
+ * forever, for one character a publisher typed. */
+static void lv_log_print_cb(lv_log_level_t level, const char *buf) {
+    (void)level;
+    switch (logfilter_check(buf)) {
+    case LOGFILTER_SUPPRESS:
+        return;
+    case LOGFILTER_EMIT_FIRST:
+        fputs(buf, stdout);
+        /* Say it out loud: a reader who sees one line must not conclude the
+         * character was drawn once. */
+        fputs("kpidash: further reports for this codepoint suppressed (WI #2646); "
+              "add it to RANGE in fonts/generate.sh to render it\n",
+              stdout);
+        break;
+    case LOGFILTER_EMIT:
+    default:
+        fputs(buf, stdout);
+        break;
+    }
+    fflush(stdout);
+}
+
 int main(void) {
     /* Signal handling */
     struct sigaction sa;
@@ -59,6 +85,10 @@ int main(void) {
 
     /* LVGL initialisation */
     lv_init();
+
+    /* After lv_init, never before: LV_GLOBAL_INIT() resets the struct the
+     * callback pointer lives in, so an earlier registration is thrown away. */
+    lv_log_register_print_cb(lv_log_print_cb);
 
     /* DRM/KMS display — A3: verify refresh period is set (≈30fps) */
     lv_display_t *disp = lv_linux_drm_create();

@@ -102,6 +102,29 @@ add_kpidash_test(test_stale_card
 )
 target_compile_definitions(test_stale_card PRIVATE KPIDASH_TEST_STUBS=1)
 
+# WI #2524: host-card admission. registry.c only — the rule is expressed as
+# registry_admit() precisely so it is reachable without a live Redis.
+add_executable(test_client_registry
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_client_registry.c
+    ${CMAKE_SOURCE_DIR}/src/registry.c
+)
+target_include_directories(test_client_registry PRIVATE ${CMAKE_SOURCE_DIR}/src)
+target_link_libraries(test_client_registry kdash_core pthread)  # WI #2244
+target_compile_definitions(test_client_registry PRIVATE KPIDASH_TEST_STUBS=1)
+target_compile_options(test_client_registry PRIVATE -Wall -Wextra -Wno-unused-parameter)
+add_test(NAME test_client_registry COMMAND test_client_registry)
+
+# WI #2646: per-codepoint dedupe of LVGL's missing-glyph warning. Pure string
+# work with no LVGL dependency, which is the point of splitting it out of the
+# print callback that uses it — the gate can hold the flood shut.
+add_executable(test_logfilter
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_logfilter.c
+    ${CMAKE_SOURCE_DIR}/src/logfilter.c
+)
+target_include_directories(test_logfilter PRIVATE ${CMAKE_SOURCE_DIR}/src)
+target_compile_options(test_logfilter PRIVATE -Wall -Wextra -Wno-unused-parameter)
+add_test(NAME test_logfilter COMMAND test_logfilter)
+
 # Spec 005 / T006: widget leak regression suite.
 # Requires LVGL, which is only built in the full (non-TESTS_ONLY) configuration.
 if(TARGET lvgl)

@@ -109,7 +109,11 @@ LVGL/DRM/KMS with no mouse or keyboard interaction.
 
 1. **Health**: client writes `kpidash:client:{h}:health` (JSON, EX 5 s).
    Dashboard SMEMBERS the registry set then GETs each health key. Key
-   absence = TTL expired = client offline → LED turns red.
+   absence = TTL expired = client offline → LED turns red. Since sprint 022
+   a member only gets a card once it has actually published — the set is
+   append-only, so membership alone proves nothing — but once admitted it
+   keeps its card, which is what makes the red LED an outage report rather
+   than a host quietly disappearing. See CLIENT-PROTOCOL §1.
 2. **Telemetry**: client writes `kpidash:client:{h}:telemetry` (JSON, EX 15 s)
    with CPU, RAM, GPU, disk data. Dashboard parses and updates client cards.
 3. **Dev Telemetry**: client writes `kpidash:client:{h}:dev_telemetry` (JSON,
@@ -274,9 +278,19 @@ Widget content (1×1): UNIT_W - 2×CELL_PAD = 624, UNIT_H - 2×CELL_PAD = 620
 ## Custom Font Pipeline
 
 Bold fonts generated via `lv_font_conv` from Montserrat-Bold.ttf at sizes
-14, 16, 20, 24, 28, 36, 48px. Includes ASCII (0x20-0x7E), Nerd Font Logos
-(0xF300-0xF381), and Git icons (0xF1D2-0xF1D3). Regular-weight
-`lv_font_montserrat_20` from LVGL built-in is used for activity text.
+14, 16, 20, 24, 28, 36, 48px. Includes ASCII (0x20-0x7E), Latin-1 Supplement
+(0xA0-0xFF), the punctuation publishers actually type (en/em dash, curly
+quotes, bullet, ellipsis), Nerd Font Logos (0xF300-0xF381), and Git icons
+(0xF1D2-0xF1D3). Regular-weight `lv_font_montserrat_20` from LVGL built-in is
+used for activity text.
+
+The glyph set is declared once, in `RANGE` in `fonts/generate.sh`; it is
+stated as a contract in `docs/CLIENT-PROTOCOL.md` §8a, and `just check-fonts`
+asserts the committed `fonts/*.c` actually carry it. A character outside the
+set draws as an empty box — there is no fallback font. Since sprint 022 the
+resulting LVGL warning is deduped per codepoint by `src/logfilter.c`, which
+is registered as LVGL's print callback in `main.c`; `lv_conf.h` therefore has
+`LV_LOG_PRINTF 0`, because LVGL runs its own printf path *and* the callback.
 
 ## Key Design Decisions
 

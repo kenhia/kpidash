@@ -132,9 +132,39 @@ void registry_unlock(void);
 /**
  * Find existing client by hostname or allocate a new slot.
  * Must be called with the registry locked.
- * Returns NULL if the registry is full.
+ * Returns NULL if the registry is full, or on a NULL/empty hostname.
+ *
+ * Prefer registry_admit() from the poll loop — see WI #2524.
  */
 client_info_t *registry_find_or_create(const char *hostname);
+
+/**
+ * Find an existing client by hostname. NEVER allocates.
+ * Must be called with the registry locked.
+ * Returns NULL if this host has no card.
+ */
+client_info_t *registry_find(const char *hostname);
+
+/**
+ * Admit a `kpidash:clients` member to the card grid (WI #2524).
+ *
+ * `has_client_data` says whether THIS poll cycle found any
+ * `kpidash:client:<host>:*` payload for the member. The rule is
+ * admission-on-data:
+ *
+ *   - a member that has never published gets no slot, because the set is
+ *     append-only (redis_client.py SADDs, nothing ever SREMs) and
+ *     membership alone therefore proves nothing about the host existing;
+ *   - a member that HAS been admitted keeps its slot when the data stops,
+ *     so a real outage still renders as a down card rather than as a host
+ *     that quietly vanishes. Every client key is TTL'd (health 5 s,
+ *     telemetry 15 s), so "no data this cycle" is any host fifteen seconds
+ *     dead — dropping on that would be the bug, not the fix.
+ *
+ * Must be called with the registry locked. Returns NULL when the member is
+ * not (yet) admitted, and NULL is a normal answer, not an error.
+ */
+client_info_t *registry_admit(const char *hostname, bool has_client_data);
 
 /**
  * Remove clients whose hostnames are NOT in the provided set.

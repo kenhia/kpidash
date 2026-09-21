@@ -552,28 +552,33 @@ void redis_poll(void) {
 
     for (int i = 0; i < n_hosts; i++) {
         const char *h = hostnames[i];
-        client_info_t *c = registry_find_or_create(h);
-        if (!c)
-            continue;
-
-        /* Health */
         char key[256];
+
+        /* Read both payloads BEFORE deciding whether this member gets a card
+         * (WI #2524). kpidash:clients is append-only, so a member proves
+         * nothing on its own; what admits a host is having published. */
         snprintf(key, sizeof(key), KPIDASH_KEY_HEALTH, h);
         redisReply *hr = redisCommand(g_ctx, "GET %s", key);
-        if (hr && hr->type == REDIS_REPLY_STRING) {
-            redis_parse_health_json(hr->str, c);
-        } else {
-            c->online = false;
-        }
-        if (hr)
-            freeReplyObject(hr);
-
-        /* Telemetry */
         snprintf(key, sizeof(key), KPIDASH_KEY_TELEMETRY, h);
         redisReply *tr = redisCommand(g_ctx, "GET %s", key);
-        if (tr && tr->type == REDIS_REPLY_STRING) {
-            redis_parse_telemetry_json(tr->str, c);
+
+        bool health_ok = hr && hr->type == REDIS_REPLY_STRING;
+        bool telemetry_ok = tr && tr->type == REDIS_REPLY_STRING;
+
+        client_info_t *c = registry_admit(h, health_ok || telemetry_ok);
+        if (c) {
+            if (health_ok) {
+                redis_parse_health_json(hr->str, c);
+            } else {
+                c->online = false;
+            }
+            if (telemetry_ok) {
+                redis_parse_telemetry_json(tr->str, c);
+            }
         }
+
+        if (hr)
+            freeReplyObject(hr);
         if (tr)
             freeReplyObject(tr);
     }

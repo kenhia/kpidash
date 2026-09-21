@@ -59,13 +59,35 @@ int registry_priority_index(const char *hostname) {
     return -1;
 }
 
-client_info_t *registry_find_or_create(const char *hostname) {
-    /* Search existing (must be called with lock held) */
+client_info_t *registry_find(const char *hostname) {
+    /* Must be called with lock held. */
+    if (!hostname || !hostname[0])
+        return NULL;
+
     for (int i = 0; i < g_count; i++) {
         if (strncmp(g_clients[i].hostname, hostname, HOSTNAME_LEN) == 0) {
             return &g_clients[i];
         }
     }
+    return NULL;
+}
+
+client_info_t *registry_admit(const char *hostname, bool has_client_data) {
+    /* WI #2524: create on data, find otherwise. See registry.h for why the
+     * second half is not a detail — it is what keeps an outage visible. */
+    client_info_t *existing = registry_find(hostname);
+    if (existing || !has_client_data)
+        return existing;
+    return registry_find_or_create(hostname);
+}
+
+client_info_t *registry_find_or_create(const char *hostname) {
+    /* Search existing (must be called with lock held) */
+    client_info_t *existing = registry_find(hostname);
+    if (existing)
+        return existing;
+    if (!hostname || !hostname[0])
+        return NULL;
 
     /* Allocate new slot if space available */
     if (g_count < MAX_CLIENTS) {
