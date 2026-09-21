@@ -231,3 +231,41 @@ window is zero unless a publisher is down at the moment of the deploy.
 - **`kpidash-cards` is still not installed on kai** (noted on WI 2646 during
   program korg:2232). Nothing in this repo installs the shell helpers; whether
   `install.sh` should own `~/.local/bin` for them is a separate call.
+
+## Deployed
+
+**rpi53, 2026-09-21 14:38 PDT**, by `scripts/deploy.sh` from merged `main`
+(squash `cb74d77`, PR #23). Cross-built at `-DCMAKE_BUILD_TYPE=Release`
+against the synced sysroot; **compile and link both clean**, which is the
+output CLAUDE.md says is read by eye because neither gate covers aarch64
+linking. Service active, `NRestarts=0`, and the running binary self-reports
+`cb74d77 (2026-09-21)` — read back from `kpidash:system:version`, not
+inferred. Binary 1,981,128 bytes.
+
+Verified live, from kai against rpi53's own Redis and journal, with a
+screenshot of the panel for the things only a screen can settle:
+
+| the claim | what was seen |
+|---|---|
+| version read-back | `kpidash:system:version` = `cb74d77 (2026-09-21)`; the `rpidash` service card shows the same |
+| five host cards, no `kwork` | five `registry: new client` lines — kubs0, cleo, rpi53, kai, kubsdb — and **zero** for `kwork`, on both starts. Confirmed on the panel screenshot |
+| the admitted file | `/var/lib/kpidash/admitted`, `root:root 0644`, 28 bytes, the five publishers, `kwork` absent |
+| first start after deploy | `0 previously-admitted host(s)` then `admitted set now 5 host(s), saved` one second later — the documented one-time empty-start, behaving exactly as written |
+| a card carrying the new characters renders | throwaway `kpidash:services:shiptest:_` with `— · • ° … “ ” ï`: every one drew as a real glyph, no boxes. The `·` is the character that produced the 3,844-line flood |
+| the journal stays quiet | **zero** `glyph dsc.` lines across the whole deploy, the card's lifetime and the restart. No suppression notice either, which is the stronger result: nothing was missing to suppress |
+| throwaway card removed | key deleted and `kpidash:cmd:services:evict` sent; the footer strip is back to its five real cards |
+| host cards survive a restart | one restart at 14:40:19. `5 previously-admitted host(s) from /var/lib/kpidash/admitted` — against `0` on the first start — and all five cards recreated |
+
+**One thing the restart did not prove, and it is worth being exact about.**
+All five publishers were live across it, so both admission paths produce a
+card and the restart cannot tell seeded admission from data admission. What it
+*does* establish is that the seed loads (5 vs 0) and that the five cards come
+back. The discriminating case — a host that is **silent** getting a card and
+rendering red — is covered by `test_seeded_host_gets_a_card_while_down`, which
+asserts `online == false` on a seeded host with no data. Proving it live would
+need a publisher to be down, which is not something to arrange on purpose.
+
+**A clause confirmed live that was only a unit test before:** the file's mtime
+is still `14:38:12` after the `14:40:19` restart, so seeding really does not
+mark the set dirty and the restart wrote nothing. That is the "write only when
+the set changes" rule, observed rather than asserted.
