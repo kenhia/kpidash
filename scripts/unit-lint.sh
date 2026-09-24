@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# unit-lint — assert every systemd unit this repo authors reads the Redis
-# password from the one per-host file, and from nowhere else.
+# unit-lint — assert every systemd unit (and, since sprint 023, the macOS
+# LaunchAgent) this repo authors reads the Redis password from the one per-host
+# file, and from nowhere else.
 #
 # Why this is a gate and not a comment: a unit that reads a private copy of the
 # password keeps rendering live data from a credential nobody maintains, and
@@ -60,6 +61,39 @@ for u in "${UNITS[@]}"; do
         continue
     fi
 
+    note "ok   $u"
+done
+
+# The macOS LaunchAgent (WI #3132). launchd has no EnvironmentFile=, so the plist's
+# launcher script reads the same file itself -- the check is the same question in
+# the plist's own terms: it names the one per-host file as the launcher's argument,
+# names no private copy, and carries no EnvironmentVariables dict, which is the one
+# place in a plist a password could be pasted as a literal.
+PLISTS=(
+    "clients/kpidash-client/launchd/net.kenhia.kpidash.client.plist"
+)
+for u in "${PLISTS[@]}"; do
+    f="$REPO_ROOT/$u"
+    if [ ! -f "$f" ]; then
+        err "$u" "missing -- a LaunchAgent this repo is supposed to author is gone"
+        continue
+    fi
+    if ! grep -q "<string>$SECRETS_FILE</string>" "$f"; then
+        err "$u" "does not hand its launcher $SECRETS_FILE"
+        continue
+    fi
+    bad=""
+    for r in "${RETIRED[@]}"; do
+        grep -q -- "$r" "$f" && bad="$bad $r"
+    done
+    if [ -n "$bad" ]; then
+        err "$u" "still references a retired private password file:$bad"
+        continue
+    fi
+    if grep -q '<key>EnvironmentVariables</key>' "$f"; then
+        err "$u" "declares EnvironmentVariables -- the password comes from $SECRETS_FILE only"
+        continue
+    fi
     note "ok   $u"
 done
 

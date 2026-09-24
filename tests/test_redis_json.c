@@ -79,6 +79,37 @@ static void test_health_malformed(void) {
     CHECK(!ok);
 }
 
+/* WI #3132: a host that sleeps by design declares it, and its silence is not a fault. */
+static void test_health_availability(void) {
+    client_info_t c = {0};
+
+    /* Absent: an always-on host, exactly as before. */
+    CHECK(redis_parse_health_json("{\"last_seen_ts\":1.0}", &c));
+    CHECK(c.intermittent == false);
+    CHECK(client_presence(&c) == CLIENT_PRESENCE_ONLINE);
+    c.online = false;
+    CHECK(client_presence(&c) == CLIENT_PRESENCE_OFFLINE);
+
+    /* Declared intermittent, then the data stops: asleep, not offline. The
+     * flag survives the health key expiring because nothing clears it but the
+     * next health payload. */
+    CHECK(redis_parse_health_json("{\"last_seen_ts\":2.0,\"availability\":\"intermittent\"}", &c));
+    CHECK(c.intermittent == true);
+    CHECK(client_presence(&c) == CLIENT_PRESENCE_ONLINE);
+    c.online = false;
+    CHECK(client_presence(&c) == CLIENT_PRESENCE_ASLEEP);
+
+    /* Reconfigured back to always-on: the next payload clears it. */
+    CHECK(redis_parse_health_json("{\"last_seen_ts\":3.0}", &c));
+    CHECK(c.intermittent == false);
+
+    /* An unknown value is not intermittent: when in doubt, red. */
+    CHECK(redis_parse_health_json("{\"last_seen_ts\":4.0,\"availability\":\"sometimes\"}", &c));
+    CHECK(c.intermittent == false);
+    CHECK(redis_parse_health_json("{\"last_seen_ts\":5.0,\"availability\":7}", &c));
+    CHECK(c.intermittent == false);
+}
+
 static void test_telemetry_full(void) {
     const char *json =
         "{"
@@ -158,6 +189,7 @@ int main(void) {
     test_health_missing_uptime();
     test_health_os_name_empty();
     test_health_malformed();
+    test_health_availability();
     test_telemetry_full();
     test_telemetry_no_gpu();
     test_telemetry_disk_types();

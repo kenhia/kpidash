@@ -106,6 +106,7 @@ bool redis_parse_health_json(const char *json, client_info_t *c) {
     cJSON *ts_obj = cJSON_GetObjectItemCaseSensitive(root, "last_seen_ts");
     cJSON *up_obj = cJSON_GetObjectItemCaseSensitive(root, "uptime_seconds");
     cJSON *os_obj = cJSON_GetObjectItemCaseSensitive(root, "os_name");
+    cJSON *av_obj = cJSON_GetObjectItemCaseSensitive(root, "availability");
 
     if (cJSON_IsNumber(ts_obj))
         c->last_seen_ts = ts_obj->valuedouble;
@@ -113,6 +114,9 @@ bool redis_parse_health_json(const char *json, client_info_t *c) {
         c->uptime_seconds = (float)up_obj->valuedouble;
     if (cJSON_IsString(os_obj))
         strncpy(c->os_name, os_obj->valuestring, OS_NAME_LEN - 1);
+    /* Every payload decides it afresh; anything but the one known value is an
+     * always-on host, so a typo renders RED rather than hiding an outage. */
+    c->intermittent = cJSON_IsString(av_obj) && strcmp(av_obj->valuestring, "intermittent") == 0;
 
     cJSON_Delete(root);
     c->online = true;

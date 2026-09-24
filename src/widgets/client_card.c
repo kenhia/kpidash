@@ -329,15 +329,25 @@ void client_card_update_health(lv_obj_t *card, const client_info_t *c) {
     if (!h)
         return;
 
-    /* Center circle color */
-    lv_obj_set_style_bg_color(h->health_circle, c->online ? COLOR_ONLINE : COLOR_OFFLINE, 0);
-
-    /* Uptime */
+    /* Center circle color and the uptime line. A host that declared it sleeps
+     * (WI #3132) goes GRAY "asleep" when it stops: every night, on a panel read
+     * from across the room, RED would be a fault that is not one. */
     char buf[32];
-    if (c->online)
+    switch (client_presence(c)) {
+    case CLIENT_PRESENCE_ONLINE:
+        lv_obj_set_style_bg_color(h->health_circle, COLOR_ONLINE, 0);
         format_uptime(c->uptime_seconds, buf, sizeof(buf));
-    else
+        break;
+    case CLIENT_PRESENCE_ASLEEP:
+        lv_obj_set_style_bg_color(h->health_circle, COLOR_GRAY, 0);
+        snprintf(buf, sizeof(buf), "asleep");
+        break;
+    case CLIENT_PRESENCE_OFFLINE:
+    default:
+        lv_obj_set_style_bg_color(h->health_circle, COLOR_OFFLINE, 0);
         snprintf(buf, sizeof(buf), "offline");
+        break;
+    }
     lv_label_set_text(h->uptime_lbl, buf);
 
     /* OS name */

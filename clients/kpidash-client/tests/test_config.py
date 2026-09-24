@@ -112,3 +112,28 @@ def test_defaults(tmp_path):
     assert cfg.health_interval_s == 3
     assert cfg.repo_scan_interval_s == 30
     assert cfg.hostname is None
+
+
+# ---------------------------------------------------------------------------
+# availability (WI #3132): a host that sleeps by design says so
+# ---------------------------------------------------------------------------
+
+
+def test_availability_defaults_to_always(tmp_path):
+    cfg_file = tmp_path / "config.toml"
+    cfg_file.write_text(MINIMAL_TOML)
+    assert ClientConfig.load(cfg_file).availability == "always"
+
+
+def test_availability_intermittent(tmp_path):
+    cfg_file = tmp_path / "config.toml"
+    cfg_file.write_text(MINIMAL_TOML + '\n[client]\navailability = "intermittent"\n')
+    assert ClientConfig.load(cfg_file).availability == "intermittent"
+
+
+def test_availability_unknown_value_is_an_error(tmp_path):
+    """A typo must not quietly become `always` -- that is the red-card-all-night case."""
+    cfg_file = tmp_path / "config.toml"
+    cfg_file.write_text(MINIMAL_TOML + '\n[client]\navailability = "sometimes"\n')
+    with pytest.raises(ConfigError, match="availability"):
+        ClientConfig.load(cfg_file)

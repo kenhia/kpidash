@@ -132,6 +132,13 @@ that feed it: `kpidash-client` (the telemetry daemon + CLI) and `kpidash-mcp`
     kubsdb ran user units and were all three in exactly that state. They are now
     system units running the published package; `install.sh --user` is refused, and
     `just check-units` fails if a `*.user.service.template` reappears.
+  - **macOS is the one per-user exception, and it is not the same trap.** kimac runs
+    a LaunchAgent (`net.kenhia.kpidash.client`, `clients/kpidash-client/launchd/`,
+    sprint 023). launchd resolves a job's groups **when it spawns the job**, not from
+    the login session, and kmon sprint 39 proved on kimac that a launchd-fired job
+    reads the file. launchd has no `EnvironmentFile=`, so the plist's `/bin/sh`
+    launcher extracts `REDISCLI_AUTH` and refuses to exec the client without it.
+    `check-units` lints the plist as well.
   - Shell helpers (`krpidss`, `kpidash-cards`, `deploy.sh`) have no unit to hand
     them the value, so they resolve it themselves through `scripts/kpidash-auth.sh`
     — this repo's copy of the fleet's CD-19 order. The Python client does **not**:

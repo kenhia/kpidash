@@ -102,6 +102,9 @@ class RedisClient:
             payload["uptime_seconds"] = uptime_s
         if os_name is not None:
             payload["os_name"] = os_name
+        # Omitted for the default, so an always-on host's payload is unchanged.
+        if self._config.availability != "always":
+            payload["availability"] = self._config.availability
         self._cmd(
             "set",
             f"kpidash:client:{self._hostname}:health",
