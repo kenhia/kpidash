@@ -58,17 +58,48 @@ def test_collect_os_name_fallback_no_file():
     assert result == "Linux 5.15.0-173-generic"
 
 
-def test_collect_os_name_non_linux():
-    """Non-Linux returns platform.system() + platform.release()."""
+def test_collect_os_name_macos_product_version():
+    """macOS reports the product version, not the Darwin kernel release (WI #3132).
+
+    `Darwin 25.0.0` is the kernel; nobody reading the panel knows it means macOS 27.
+    """
+    with (
+        patch("platform.system", return_value="Darwin"),
+        patch("platform.release", return_value="25.0.0"),
+        patch("platform.mac_ver", return_value=("27.0", ("", "", ""), "arm64")),
+    ):
+        from kpidash_client.telemetry.system import collect_os_name
+
+        result = collect_os_name()
+
+    assert result == "macOS 27.0"
+
+
+def test_collect_os_name_macos_without_product_version():
+    """If mac_ver() comes back empty, fall back to the kernel rather than guess."""
     with (
         patch("platform.system", return_value="Darwin"),
         patch("platform.release", return_value="23.1.0"),
+        patch("platform.mac_ver", return_value=("", ("", "", ""), "")),
     ):
         from kpidash_client.telemetry.system import collect_os_name
 
         result = collect_os_name()
 
     assert result == "Darwin 23.1.0"
+
+
+def test_collect_os_name_windows():
+    """Other platforms return platform.system() + platform.release()."""
+    with (
+        patch("platform.system", return_value="Windows"),
+        patch("platform.release", return_value="11"),
+    ):
+        from kpidash_client.telemetry.system import collect_os_name
+
+        result = collect_os_name()
+
+    assert result == "Windows 11"
 
 
 # ---------------------------------------------------------------------------

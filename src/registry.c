@@ -71,6 +71,12 @@ int registry_priority_index(const char *hostname) {
     return -1;
 }
 
+client_presence_t client_presence(const client_info_t *c) {
+    if (c->online)
+        return CLIENT_PRESENCE_ONLINE;
+    return c->intermittent ? CLIENT_PRESENCE_ASLEEP : CLIENT_PRESENCE_OFFLINE;
+}
+
 client_info_t *registry_find(const char *hostname) {
     /* Must be called with lock held. */
     if (!hostname || !hostname[0])

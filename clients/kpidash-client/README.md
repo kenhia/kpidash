@@ -68,6 +68,7 @@ hostname = ""           # optional: override auto-detected hostname
 telemetry_interval_s = 5
 health_interval_s    = 3
 repo_scan_interval_s = 30
+availability = "always" # or "intermittent" -- see "Hosts that sleep" below
 
 [[disks]]
 path  = "/"
@@ -84,6 +85,36 @@ scan_roots = ["/home/user/src"]
 scan_depth = 3
 exclude    = ["/home/user/src/vendor"]
 ```
+
+### macOS
+
+Same file and path as Linux. Two differences:
+
+- **Disks:** `/` is the sealed, read-only system volume (~13 GB used on kimac) and
+  says nothing useful. The APFS volume that fills up is `/System/Volumes/Data`.
+  Type is not auto-detected off Linux, so give it:
+
+  ```toml
+  [[disks]]
+  path  = "/System/Volumes/Data"
+  label = "data"
+  type  = "ssd"
+  ```
+
+- **No GPU, no temperatures.** GPU telemetry is NVIDIA-only (`pynvml`), so a Mac
+  reports `"gpu": null` like any GPU-less host. The card shows empty GPU arcs rather
+  than zeros. The client collects no temperatures on any platform.
+
+It runs as a LaunchAgent, not a systemd unit. See [`launchd/README.md`](launchd/README.md).
+
+### Hosts that sleep
+
+`[client] availability = "intermittent"` declares a host that sleeps by design, like a
+Mac or a laptop. It matches k-homelab inventory's `availability:`. The health payload
+then carries `"availability": "intermittent"`, and when the host goes quiet the panel
+shows its card as grey **asleep** instead of red **offline**. The default, `always`,
+leaves the payload unchanged. Any other value is a config error, so a typo cannot hide
+an outage.
 
 ### Windows
 

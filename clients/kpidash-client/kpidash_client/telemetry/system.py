@@ -37,8 +37,14 @@ def collect_os_name() -> str:
 
     On Linux, reads PRETTY_NAME from /etc/os-release (e.g. 'Ubuntu 22.04.5 LTS').
     Falls back to 'Linux <kernel>' if the file is missing or unparseable.
+    On macOS, the product version from platform.mac_ver() (e.g. 'macOS 27.0') --
+    platform.release() there is the Darwin kernel, which reads as nonsense on a panel.
     On other platforms returns '<system> <release>'.
     """
+    if platform.system() == "Darwin":
+        version = platform.mac_ver()[0]
+        if version:
+            return f"macOS {version}"
     if platform.system() == "Linux":
         try:
             with open("/etc/os-release") as f:

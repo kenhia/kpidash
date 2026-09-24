@@ -39,6 +39,10 @@ typedef struct {
     double last_seen_ts; /* Unix epoch of last health ping */
     float uptime_seconds;
     char os_name[OS_NAME_LEN]; /* e.g. "Linux 5.15.0-173-generic" */
+    /* Health payload said `"availability":"intermittent"` (WI #3132): a host
+     * that sleeps by design. Set and cleared ONLY by a health payload, so it
+     * outlives the health key expiring -- which is the moment it matters. */
+    bool intermittent;
     float cpu_pct;
     float top_core_pct;
     uint32_t ram_used_mb;
@@ -128,6 +132,16 @@ typedef struct {
 void registry_init(void);
 void registry_lock(void);
 void registry_unlock(void);
+
+/* How a client card presents the host (WI #3132). */
+typedef enum {
+    CLIENT_PRESENCE_ONLINE = 0, /* health key present */
+    CLIENT_PRESENCE_OFFLINE,    /* gone, and it is not supposed to go: a fault, RED */
+    CLIENT_PRESENCE_ASLEEP,     /* gone, and it declared it sleeps: not a fault, GRAY */
+} client_presence_t;
+
+/* Pure; no lock needed on a snapshot copy. */
+client_presence_t client_presence(const client_info_t *c);
 
 /**
  * Find existing client by hostname or allocate a new slot.

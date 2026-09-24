@@ -106,9 +106,22 @@ is the host this whole rule exists to keep off the panel.
 }
 ```
 
-`uptime_seconds` is optional. `os_name` is optional (from `/etc/os-release`
-`PRETTY_NAME`, fallback to `platform.system() + " " + platform.release()`).
+`uptime_seconds` is optional. `os_name` is optional. It comes from `/etc/os-release`
+`PRETTY_NAME` on Linux and from `platform.mac_ver()` on macOS (`"macOS 27.0"`). The
+fallback everywhere else is `platform.system() + " " + platform.release()`.
 Key absence (TTL expired) = client offline.
+
+`availability` is optional (sprint 023, WI #3132). The only value is `"intermittent"`,
+which a host that sleeps by design sends, from `[client] availability` in its
+`config.toml`. When it is absent the host is always-on, and every host that existed
+before this field sends no `availability`. The dashboard keeps the **last** value it
+saw after the key expires, because the expiry is exactly when the value matters. An
+offline host that last said `intermittent` is drawn grey **asleep**, and any other
+offline host is red **offline**. Any other value, or a non-string, counts as absent,
+so a typo shows an outage instead of hiding it. The flag lives in dashboard memory
+only. After a dashboard restart a host that is asleep shows red until it next
+publishes. kdashdata's schema (`kpidash-client-health`) is `additionalProperties:
+true`, so this field is contract-legal there without being listed.
 
 ```
 SET kpidash:client:kubs0:health '{...}' EX 5

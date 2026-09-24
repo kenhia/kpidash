@@ -14,6 +14,11 @@ import tomllib
 from dataclasses import dataclass, field
 from pathlib import Path
 
+# How the host is expected to be present (WI #3132). `intermittent` is a host that
+# sleeps by design -- a Mac, a laptop -- and the dashboard renders its silence as
+# asleep rather than as a fault. Mirrors k-homelab inventory's `availability:`.
+AVAILABILITY_VALUES = ("always", "intermittent")
+
 
 class ConfigError(ValueError):
     """Raised when the configuration is invalid or missing required fields."""
@@ -57,6 +62,7 @@ class ClientConfig:
     dev_interval_s: int | None = None  # fast GPU+CPU+RAM interval (default: telemetry_interval_s)
     health_interval_s: int = 3  # health ping interval
     repo_scan_interval_s: int = 30  # repo scan interval
+    availability: str = "always"  # "always" | "intermittent" (AVAILABILITY_VALUES)
     disks: list[DiskConfig] = field(default_factory=list)
     repos: RepoConfig = field(default_factory=RepoConfig)
 
@@ -114,6 +120,13 @@ class ClientConfig:
         # Parse client section
         client_section = data.get("client", {})
 
+        availability = client_section.get("availability", "always")
+        if availability not in AVAILABILITY_VALUES:
+            raise ConfigError(
+                f"[client] availability = {availability!r} in {p} -- expected one of "
+                + ", ".join(AVAILABILITY_VALUES)
+            )
+
         return cls(
             redis_host=redis_host,
             redis_port=redis_port,
@@ -124,6 +137,7 @@ class ClientConfig:
             else None,
             health_interval_s=int(client_section.get("health_interval_s", 3)),
             repo_scan_interval_s=int(client_section.get("repo_scan_interval_s", 30)),
+            availability=availability,
             disks=disks,
             repos=repos,
         )

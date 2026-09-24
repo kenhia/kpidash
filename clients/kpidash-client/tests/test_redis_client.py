@@ -63,6 +63,26 @@ def test_write_health_omits_os_name_when_none(tmp_path, monkeypatch):
     assert "os_name" not in payload
 
 
+def test_write_health_omits_availability_when_always(tmp_path, monkeypatch):
+    """An always-on host's payload is byte-for-byte what it was before WI #3132."""
+    monkeypatch.delenv("REDISCLI_AUTH", raising=False)
+    client, mock_r = make_client(tmp_path)
+    client.write_health(uptime_s=100.0)
+
+    payload = json.loads(mock_r.set.call_args.args[1])
+    assert "availability" not in payload
+
+
+def test_write_health_declares_intermittent(tmp_path, monkeypatch):
+    monkeypatch.delenv("REDISCLI_AUTH", raising=False)
+    client, mock_r = make_client(tmp_path)
+    client._config.availability = "intermittent"
+    client.write_health(uptime_s=100.0)
+
+    payload = json.loads(mock_r.set.call_args.args[1])
+    assert payload["availability"] == "intermittent"
+
+
 def test_write_telemetry_sets_key(tmp_path):
     client, mock_r = make_client(tmp_path)
     client.write_telemetry({"cpu_pct": 50.0, "ram_used_mb": 1024, "ram_total_mb": 4096})

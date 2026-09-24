@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  kpidash-client as a per-user LaunchAgent: the macOS counterpart of
+  systemd/kpidash-client.service.template (WI #3132).
+
+  A TEMPLATE. launchd expands neither `~` nor `$HOME`, so @HOME@ and @EXEC@ are
+  filled by launchd/install.sh. Do not load this file as it stands.
+
+  launchd has no EnvironmentFile=, so ProgramArguments is a small /bin/sh
+  launcher that reads REDISCLI_AUTH from the one per-host secrets file
+  (root:khomelab 0640) and execs the client. It is the twin of the systemd
+  unit's un-prefixed EnvironmentFile=: no readable password, no start. A client
+  that starts without one connects, fails every write with NOAUTH, and looks
+  healthy doing it.
+
+  The extraction matches scripts/kpidash-auth.sh: KEY='value' or bare KEY=value,
+  first match, never eval'd. A launchd-spawned job carries khomelab (proved on
+  kimac in kmon sprint 39), so the file is readable here without a re-login.
+
+  Arguments after the script: $0 is a name for error messages, $1 the secrets
+  file, and the rest is the command to exec. The tests swap $1 and the command
+  and run this exact script (tests/test_launchd.py).
+-->
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>net.kenhia.kpidash.client</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/sh</string>
+        <string>-c</string>
+        <string>f=$1; shift
+v=$(sed -n "s/^[[:space:]]*REDISCLI_AUTH=//p" "$f" | head -n1 | sed -e "s/^'\(.*\)'\$/\1/" -e 's/^"\(.*\)"$/\1/')
+if [ -z "$v" ]; then
+    echo "$0: no REDISCLI_AUTH readable in $f -- refusing to start without a password"
+    exit 78
+fi
+REDISCLI_AUTH=$v; export REDISCLI_AUTH
+exec "$@"</string>
+        <string>kpidash-client-launchd</string>
+        <string>/etc/khomelab/secrets.env</string>
+        <string>@EXEC@</string>
+        <string>daemon</string>
+        <string>start</string>
+        <string>--foreground</string>
+    </array>
+
+    <!-- A daemon, not a timer: start at login, restart if it exits. launchd's
+         default 10 s throttle stands in for systemd's RestartSec. -->
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <true/>
+    <key>ProcessType</key>
+    <string>Background</string>
+
+    <!-- No journald: both streams to one file, as kmon's satellite does. -->
+    <key>StandardOutPath</key>
+    <string>@HOME@/Library/Logs/kpidash/client.log</string>
+    <key>StandardErrorPath</key>
+    <string>@HOME@/Library/Logs/kpidash/client.log</string>
+</dict>
+</plist>
