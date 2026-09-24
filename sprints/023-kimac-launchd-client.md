@@ -178,3 +178,17 @@ Gates: `just check` green, including 12 ctest targets and 103 client tests.
 ## Cross-repo changes made
 
 None.
+
+## Deployed
+
+2026-09-23, around 23:20 PDT. Run from kai in the foreground, under the overseer's clearance (korg:3145, comment 3027).
+
+- **Dashboard to rpi53:** `scripts/deploy.sh` cross-built from merged `main` and installed.
+  - The service came back `active` with `NRestarts=0`.
+  - The running binary reports **`3dc2714 (2026-09-24)`**.
+  - The link printed no warnings.
+  - On the glass (`krpidss`), the rpidash service card reads `3dc2714`.
+  - kimac's card is **present and red "offline"**. That is expected: the admitted file seeded it, and the restart cleared the in-memory `intermittent` flag. It turns grey "asleep" the first time kimac publishes and then sleeps. That trigger belongs to the production install in k-homelab korg:3143.
+- **Client 1.2.0 to the package store:** `just publish` added `kpidash_client-1.2.0-py3-none-any.whl` and `kpidash_client-1.2.0.tar.gz`. Both appear in `https://kubsdb.encke-wahoo.ts.net:4880/simple/kpidash-client/`.
+  - No host has been upgraded yet. The Linux hosts run 1.1.0, which is unaffected: `availability` defaults to omitted.
+- **kimac:** nothing is installed. Production delivery is korg:3143's job.
