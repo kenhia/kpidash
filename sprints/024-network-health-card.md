@@ -217,5 +217,10 @@ here, because it changed no repo.
 - **Live on the panel**: the card sits in Fortune's cell, row 3 columns 3-4,
   after the four dev graphs, which did not move. kai (10G, AQC113) and cleo (5G,
   RTL8126, slice 3.5's producer, already publishing) are live. kubs0, kubsdb and
-  gratch read `NO FEED` until slice 4. The headline is `ALL 10G`, with UDM 0.3 ms
-  and WAN 13-14 ms.
+  gratch read `NO FEED` until slice 4. The headline is `ALL 10G`, with UDM
+  0.3-0.4 ms and WAN 7-14 ms. Captures on WI 4062: `img-ff3` healthy, `img-ff2`
+  stale.
+- **Two render fixes found on the real panel**, each redeployed: the stale hatch
+  was not clipped to the column's rounded corners (`0ceaa3a`), and a young
+  throughput history was stretched across the whole hour (`c6e1abc`, now anchored
+  at the right, one step per minute).
