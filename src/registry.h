@@ -538,6 +538,7 @@ typedef enum {
     WIDGET_ACTIVITIES,
     WIDGET_REPO_STATUS,
     WIDGET_FORTUNE,
+    WIDGET_NETCARD,          /* WI #4062: takes Fortune's place, same footprint */
 } widget_kind_t;
 
 /* Sprint 006 / T003: canonical cell footprints for rows-2-3 widgets.
@@ -546,6 +547,7 @@ typedef enum {
 #define WIDGET_CELLS_ACTIVITIES  2
 #define WIDGET_CELLS_REPO_STATUS 2
 #define WIDGET_CELLS_FORTUNE     2
+#define WIDGET_CELLS_NETCARD     2
 
 typedef struct {
     widget_kind_t kind;

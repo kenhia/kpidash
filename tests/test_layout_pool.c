@@ -113,6 +113,25 @@ static void test_exact_capacity(void) {
     CHECK(out[0].kind == WIDGET_GRAPH);
 }
 
+/* (g) WI #4062: the network card takes Fortune's place — after every graph,
+ *     so the dev graphs keep the cells they had. With rpi53's four graph
+ *     hosts it lands in the fifth 2-cell slot, exactly where Fortune was. */
+static void test_netcard_takes_fortunes_slot(void) {
+    widget_request_t reqs[] = {
+        {WIDGET_NETCARD, WIDGET_CELLS_NETCARD, NULL},
+        {WIDGET_GRAPH, WIDGET_CELLS_GRAPH, "kai"},
+        {WIDGET_GRAPH, WIDGET_CELLS_GRAPH, "kimac"},
+        {WIDGET_GRAPH, WIDGET_CELLS_GRAPH, "kubs0"},
+        {WIDGET_GRAPH, WIDGET_CELLS_GRAPH, "kubsdb"},
+    };
+    widget_request_t out[8] = {0};
+    int n = layout_pool_place(reqs, 5, out, 8);
+    CHECK(n == 5);
+    for (int i = 0; i < 4; i++) CHECK(out[i].kind == WIDGET_GRAPH);
+    CHECK(out[4].kind == WIDGET_NETCARD);
+    CHECK(WIDGET_CELLS_NETCARD == WIDGET_CELLS_FORTUNE);
+}
+
 int main(void) {
     test_canonical_set_fits();
     test_oversized_drops_self();
@@ -120,6 +139,7 @@ int main(void) {
     test_multi_graph_stable_order();
     test_empty();
     test_exact_capacity();
+    test_netcard_takes_fortunes_slot();
 
     fprintf(stderr, "test_layout_pool: %d passed, %d failed\n", passed, failed);
     return failed == 0 ? 0 : 1;

@@ -1,0 +1,404 @@
+<title>Network Card Mock-ups</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;700&display=swap">
+<style>
+/* Layout: a toolbar, then four 1264×628 cards (rpi53's real 2×1 cell), each with its notes.
+   Single dark theme on purpose: it mocks a dark LVGL panel. */
+:root {
+  color-scheme: dark;
+  /* Catppuccin Mocha, as kpidash's common.h has it */
+  --base: #1E1E2E; --mantle: #181825; --crust: #11111B;
+  --text: #CDD6F4; --sub0: #A6ADC8; --muted: #6C7086; --over1: #7F849C;
+  --surf0: #313244; --surf1: #45475A; --surf2: #585B70;
+  --green: #A6E3A1; --blue: #89B4FA; --red: #F38BA8; --peach: #FAB387;
+  --mauve: #CBA6F7; --yellow: #F9E2AF; --pink: #F5C2E7;
+  /* Proposed extension for the new look */
+  --teal: #94E2D5;      /* 10G, the healthy fabric colour */
+  --sapphire: #74C7EC;  /* 5G (cleo) */
+  --lavender: #B4BEFE;  /* structure: switch, rings, headers */
+  --sky: #89DCEB;
+  --font: "Montserrat", "Segoe UI", system-ui, sans-serif;
+}
+html, body { background: var(--crust); color: var(--text); font-family: var(--font); margin: 0; }
+body { padding-block: 16px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+h1 { font-size: 20px; margin: 0 0 4px; color: var(--pink); }
+.lead { color: var(--sub0); font-size: 14px; margin: 0 0 12px; max-width: 70ch; }
+.bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 16px; position: sticky; top: 0; background: var(--crust); padding-block: 8px; z-index: 5; }
+.bar .lbl { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .08em; margin-right: 4px; }
+button { font: inherit; font-size: 13px; font-weight: 700; background: var(--surf0); color: var(--text); border: 1px solid var(--surf1); border-radius: 6px; padding: 6px 10px; cursor: pointer; }
+button:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
+button[aria-pressed="true"] { background: var(--lavender); color: var(--crust); border-color: var(--lavender); }
+.sep { width: 1px; height: 22px; background: var(--surf1); margin: 0 6px; }
+section { margin-bottom: 36px; }
+h2 { font-size: 16px; margin: 0 0 2px; color: var(--lavender); }
+h2 small { color: var(--muted); font-weight: 400; font-size: 13px; margin-left: 8px; }
+.stage { overflow-x: auto; background: var(--crust); padding: 8px 0; }
+.frame { width: 1264px; height: 628px; transform-origin: top left; }
+.scaled .frame { transform: scale(.5); }
+.scaled .stage { height: 330px; }
+.card { width: 1264px; height: 628px; display: block; }
+.notes { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; font-size: 13px; color: var(--sub0); max-width: 1264px; }
+.notes h3 { font-size: 12px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin: 8px 0 4px; }
+.notes ul { margin: 0; padding-left: 18px; } .notes li { margin: 2px 0; }
+.notes code { font-family: ui-monospace, Consolas, monospace; font-size: 12px; color: var(--text); background: var(--surf0); padding: 0 4px; border-radius: 3px; }
+@media (max-width: 700px) { .notes { grid-template-columns: 1fr; } }
+/* SVG text helpers: LVGL sizes only */
+.card text { font-family: var(--font); fill: var(--text); }
+.b14 { font-size: 14px; font-weight: 700 } .b16 { font-size: 16px; font-weight: 700 } .b20 { font-size: 20px; font-weight: 700 }
+.b24 { font-size: 24px; font-weight: 700 } .b28 { font-size: 28px; font-weight: 700 } .b36 { font-size: 36px; font-weight: 700 } .b48 { font-size: 48px; font-weight: 700 }
+.r14 { font-size: 14px } .r16 { font-size: 16px } .r20 { font-size: 20px } .r24 { font-size: 24px }
+.mono { font-variant-numeric: tabular-nums }
+@keyframes sweep { from { transform: rotate(0deg) } to { transform: rotate(360deg) } }
+@keyframes scan { from { transform: translateX(0) } to { transform: translateX(760px) } }
+.sweep { animation: sweep 6s linear infinite; transform-box: fill-box; transform-origin: center; }
+.scan { animation: scan 8s linear infinite; }
+@media (prefers-reduced-motion: reduce) { .sweep, .scan { animation: none } }
+/* solo mode (#state.cardX): one card, 1:1, nothing else — for pixel-exact captures */
+body.solo { padding: 0; } body.solo > :not(section), body.solo section:not(.solo-on), body.solo .notes, body.solo h2 { display: none; }
+body.solo .stage { padding: 0; height: 628px; overflow: hidden; } body.solo .frame { transform: none; }
+</style>
+
+<h1>Network-health card, four looks</h1>
+<p class="lead">Each card is drawn at rpi53's real 2×1 cell, 1264×628 px, in Fortune's slot. The state buttons drive all four at once so the degraded reads can be compared side by side. Text sizes are the Montserrat sizes kpidash already ships (14–48).</p>
+
+<div class="bar" id="bar">
+  <span class="lbl">State</span>
+  <button data-state="healthy" aria-pressed="true">Healthy</button>
+  <button data-state="kai1g">kai on 1G</button>
+  <button data-state="flap">kubs0 flapping</button>
+  <button data-state="uplink">Uplink lost</button>
+  <button data-state="wan">WAN down</button>
+  <button data-state="stale">gratch stale</button>
+  <span class="sep"></span>
+  <span class="lbl">Scale</span>
+  <button data-scale="0.5" aria-pressed="true">50%</button>
+  <button data-scale="1">1:1</button>
+</div>
+
+<section>
+  <h2>A · Fabric map <small>stylised topology, links carry the state</small></h2>
+  <div class="stage"><div class="frame"><svg class="card" id="cardA" viewBox="0 0 1264 628"></svg></div></div>
+  <div class="notes">
+    <div><h3>Glance</h3>All spokes teal and the uplink lavender means healthy. A yellow spoke is a host on its 1G backup. A red dashed uplink with every host still teal is the korg:4055 trap, drawn as what it is.
+    <h3>LVGL cost</h3><ul><li>Rounded rects, <code>lv_line</code> spokes (width per speed), labels. No chart, no canvas.</li><li>Static between polls; nothing animates. Cheapest of the four.</li><li>Dashed lines are not native in LVGL 9.2; the "down" spoke is a run of short <code>lv_line</code> segments.</li></ul></div>
+    <div><h3>Fields it needs</h3><ul><li>Per host: active leg (10g / 5g / 1g / down), negotiated speed, Link Failure Count + 24 h delta, RX errors 24 h delta, feed age.</li><li>Per host reachability: UDM, any peer, Internet (ok / fail), WAN RTT.</li><li>Fabric: uplink state (derived: no host reaches UDM while peers are fine).</li><li>Does <em>not</em> need throughput.</li></ul></div>
+  </div>
+</section>
+
+<section>
+  <h2>B · Rail <small>one column per host under a fabric backplane, with throughput</small></h2>
+  <div class="stage"><div class="frame"><svg class="card" id="cardB" viewBox="0 0 1264 628"></svg></div></div>
+  <div class="notes">
+    <div><h3>Glance</h3>The status word and the rail's colour carry it. A column's numeral turns yellow or red on its own, and the sparkline shows whether the link has been busy or flat.
+    <h3>LVGL cost</h3><ul><li>Five 60-point area sparklines: either <code>lv_chart</code> or the dev_graph line path, about 300 line tasks per refresh, well under one dev graph.</li><li>Pills are rounded rects with labels.</li><li>Needs the 48-pt bold font, which the repo already generates.</li></ul></div>
+    <div><h3>Fields it needs</h3><ul><li>Everything in A, plus per host: 10G NIC bytes/s (tx+rx), 60-sample history kept by the renderer, not the feed.</li><li>UDM RTT, WAN RTT, uplink load (sum of host traffic that leaves the fabric, if the producer can tell).</li></ul></div>
+  </div>
+</section>
+
+<section>
+  <h2>C · Reach rings <small>hosts as rays through fabric, gateway and Internet rings</small></h2>
+  <div class="stage"><div class="frame"><svg class="card" id="cardC" viewBox="0 0 1264 628"></svg></div></div>
+  <div class="notes">
+    <div><h3>Glance</h3>Every ray reaches the outer ring: healthy. Uplink lost: every ray stops at the first ring. WAN down: they stop at the second. A host on 1G is a yellow ray. The ring a ray stops at <em>is</em> the diagnosis, which the other three only say in words.
+    <h3>LVGL cost</h3><ul><li>Three <code>lv_arc</code> rings, five rays as <code>lv_line</code>, nodes as circles (rounded rects with radius = half size), labels.</li><li>The sweep is one rotating arc animated by <code>lv_anim</code>; drop it if 30 fps on the Pi dips. Everything else is static.</li></ul></div>
+    <div><h3>Fields it needs</h3><ul><li>Same as A. Throughput optional (could set ray thickness).</li><li>The ray stop point is computed on the panel from the three reachability booleans, so the feed stays small.</li></ul></div>
+  </div>
+</section>
+
+<section>
+  <h2>D · Pulse <small>big verdict, host chips with live load, an hour-long heartbeat trace</small></h2>
+  <div class="stage"><div class="frame"><svg class="card" id="cardD" viewBox="0 0 1264 628"></svg></div></div>
+  <div class="notes">
+    <div><h3>Glance</h3>The verdict word and its colour. The trace tells the story of the last hour: a failover is a red tick with the host's initial, so a flapping link shows as a comb of ticks even when the numeral says 10G right now.
+    <h3>LVGL cost</h3><ul><li>One 120-point <code>lv_chart</code> with area fill, event ticks as small rects, the scan line is one animated <code>lv_line</code>.</li><li>Chip load bars are <code>lv_bar</code>.</li><li>Comparable to one dev graph; fine.</li></ul></div>
+    <div><h3>Fields it needs</h3><ul><li>Everything in B, plus a failover event log (host, time, from→to leg) or the renderer diffs LFC between polls to synthesise ticks.</li><li>Aggregate fabric throughput per sample (sum of host 10G bytes/s).</li></ul></div>
+  </div>
+</section>
+
+<script>
+(function () {
+  const C = {
+    teal:'#94E2D5', sapphire:'#74C7EC', yellow:'#F9E2AF', red:'#F38BA8', green:'#A6E3A1',
+    lavender:'#B4BEFE', blue:'#89B4FA', peach:'#FAB387', mauve:'#CBA6F7', pink:'#F5C2E7',
+    text:'#CDD6F4', sub:'#A6ADC8', muted:'#6C7086', over1:'#7F849C',
+    surf0:'#313244', surf1:'#45475A', surf2:'#585B70', mantle:'#181825', crust:'#11111B', base:'#1E1E2E'
+  };
+
+  // deterministic noise so the sparklines are stable
+  function rng(seed){ let s = seed>>>0; return () => { s = (s*1664525 + 1013904223)>>>0; return s/4294967296; }; }
+  function series(seed, n, base, spike){ const r = rng(seed); const out=[]; for(let i=0;i<n;i++){ let v = base*(0.6+0.5*r()); if (r()<0.06) v += spike*r(); out.push(v);} return out; }
+
+  const HOSTS = [
+    { name:'kubs0',  port:1, nic:'AQC113',  lfc:28, hist:series(11,60,900,4000) },
+    { name:'kubsdb', port:2, nic:'X550',    lfc:2,  hist:series(12,60,1600,6000) },
+    { name:'kai',    port:3, nic:'AQC113',  lfc:1,  hist:series(13,60,2400,7000) },
+    { name:'gratch', port:4, nic:'AQC107',  lfc:1,  hist:series(14,60,1200,8000) },
+    { name:'cleo',   port:5, nic:'RTL8126', lfc:null, nobond:true, hist:series(15,60,500,3000) },
+  ];
+
+  function build(state){
+    const hosts = HOSTS.map(h => ({
+      ...h, leg: h.nobond ? '5g' : '10g', lfcDelta:0, rxErr:0, udm:true, peers:true, wan:true,
+      wanMs: 11 + (h.port%3), udmMs: 0.4 + h.port*0.1, stale:false, age: 2 + h.port, hist: h.hist.slice(), events: []
+    }));
+    const H = n => hosts.find(h => h.name===n);
+    const s = { hosts, wanMs: 11, wanUp:true, udmUp:true, uplinkUp:true, uplinkLoad: 0.31, verdict:'ALL 10G', why:'4 bonds on 10G · cleo 5G · WAN 11 ms', level:'ok' };
+    switch(state){
+      case 'kai1g': { const k=H('kai'); k.leg='1g'; k.lfcDelta=1; k.events=[52]; k.hist = k.hist.map((v,i)=> i>52 ? Math.min(v,900) : v);
+        s.verdict='kai ON 1G'; s.why='kai 10G link down 8 min · bond on 1G backup'; s.level='warn'; break; }
+      case 'flap': { const k=H('kubs0'); k.lfcDelta=3; k.rxErr=1240; k.events=[14,31,47];
+        k.hist = k.hist.map((v,i)=> (i>=14&&i<17)||(i>=31&&i<33)||(i>=47&&i<50) ? 60 : v);
+        s.verdict='kubs0 FLAPPING'; s.why='3 link drops in 60 min · rx errors +1240 · still on 10G'; s.level='warn'; break; }
+      case 'uplink': { hosts.forEach(h => { h.udm=false; h.wan=false; }); const c=H('cleo'); c.peers=false; c.leg='down';
+        s.udmUp=false; s.wanUp=false; s.uplinkUp=false; s.uplinkLoad=0; s.verdict='UPLINK LOST'; s.why='peers reachable · no host reaches UDM'; s.level='crit'; break; }
+      case 'wan': { hosts.forEach(h => { h.wan=false; }); s.wanUp=false; s.verdict='WAN DOWN'; s.why='UDM reachable · Internet unreachable 2 min'; s.level='crit'; break; }
+      case 'stale': { const g=H('gratch'); g.stale=true; g.age=94; s.verdict='gratch STALE'; s.why='no feed for 94 s · fabric otherwise 10G'; s.level='warn'; break; }
+    }
+    return s;
+  }
+
+  const legColor = h => h.stale ? C.muted : ({ '10g':C.teal, '5g':C.sapphire, '1g':C.yellow, 'down':C.red })[h.leg];
+  const legText  = h => h.stale ? '—' : ({ '10g':'10G', '5g':'5G', '1g':'1G', 'down':'DOWN' })[h.leg];
+  const levelColor = l => ({ ok:C.teal, warn:C.yellow, crit:C.red })[l];
+  const okc = b => b ? C.teal : C.red;
+  const esc = t => String(t).replace(/&/g,'&amp;').replace(/</g,'&lt;');
+
+  function frame(){ return `<rect x="4.5" y="4.5" width="1255" height="619" rx="8" fill="${C.mantle}" stroke="${C.surf1}"/>`; }
+  function txt(x,y,cls,fill,t,anchor){ return `<text x="${x}" y="${y}" class="${cls} mono" fill="${fill}" ${anchor?`text-anchor="${anchor}"`:''}>${esc(t)}</text>`; }
+  function pill(x,y,w,h,fill,fg,t,cls){ return `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="${h/2}" fill="${fill}"/>` + txt(x+w/2, y+h*0.72, cls||'b14', fg, t, 'middle'); }
+  function reachDots(x,y,h,gap){ // U P W
+    const items=[['U',h.udm],['P',h.peers],['W',h.wan]]; let o='';
+    items.forEach((it,i)=>{ const c = h.stale? C.surf2 : okc(it[1]);
+      o += `<circle cx="${x+i*gap}" cy="${y}" r="7" fill="${c}"/>` + txt(x+i*gap, y+22, 'r14', C.muted, it[0], 'middle'); });
+    return o;
+  }
+  function dashedLine(x1,y1,x2,y2,color,w){ return `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${color}" stroke-width="${w}" stroke-dasharray="10 8" stroke-linecap="round"/>`; }
+  function hatch(id){ return `<pattern id="${id}" width="8" height="8" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="8" height="8" fill="${C.surf0}"/><line x1="0" y1="0" x2="0" y2="8" stroke="${C.surf2}" stroke-width="3"/></pattern>`; }
+
+  /* ---------- A: Fabric map ---------- */
+  function cardA(s){
+    let o = `<defs>${hatch('hA')}</defs>` + frame();
+    o += txt(24, 40, 'b20', C.lavender, 'NETWORK');
+    o += txt(1240, 38, 'r14', C.muted, s.hosts.some(h=>h.stale) ? 'gratch feed 94 s old' : 'all feeds < 10 s', 'end');
+    // WAN + UDM
+    const wanX=1140, wanY=120, udmX=900, udmY=120;
+    o += `<line x1="${udmX+80}" y1="${udmY}" x2="${wanX-40}" y2="${wanY}" stroke="${okc(s.wanUp)}" stroke-width="6" stroke-linecap="round"/>`;
+    o += `<circle cx="${wanX}" cy="${wanY}" r="40" fill="${C.surf0}" stroke="${okc(s.wanUp)}" stroke-width="3"/>`;
+    o += txt(wanX, wanY+6, 'b16', C.text, 'WAN', 'middle');
+    o += txt(wanX, wanY+68, 'b16', s.wanUp?C.sub:C.red, s.wanUp ? `${s.wanMs} ms` : 'unreachable', 'middle');
+    o += `<rect x="${udmX-80}" y="${udmY-32}" width="160" height="64" rx="10" fill="${C.surf0}" stroke="${okc(s.udmUp)}" stroke-width="3"/>`;
+    o += txt(udmX, udmY-4, 'b20', C.text, 'UDM-Pro', 'middle') + txt(udmX, udmY+20, 'r14', s.udmUp?C.sub:C.red, s.udmUp?'192.168.1.1':'unreachable', 'middle');
+    // Switch
+    const swX=260, swY=270, swW=740, swH=64;
+    o += `<rect x="${swX}" y="${swY}" width="${swW}" height="${swH}" rx="10" fill="${C.surf0}" stroke="${C.lavender}" stroke-width="2"/>`;
+    o += txt(swX+16, swY+40, 'b20', C.lavender, '10G FABRIC');
+    o += txt(swX+170, swY+40, 'r16', C.muted, '8-port');
+    const portX = p => swX + 300 + (p-1)*54;
+    for (let p=1;p<=8;p++){ const used = p<=5 || p===7 || p===8;
+      o += `<rect x="${portX(p)-12}" y="${swY+20}" width="24" height="24" rx="4" fill="${used?C.surf2:C.mantle}" stroke="${C.surf1}"/>` + txt(portX(p), swY+37, 'r14', used?C.text:C.muted, p, 'middle'); }
+    // uplink: port 8 → UDM (1G)
+    const upC = s.uplinkUp ? C.lavender : C.red;
+    if (s.uplinkUp) o += `<polyline points="${portX(8)},${swY} ${portX(8)},${udmY+60} ${udmX},${udmY+60} ${udmX},${udmY+32}" fill="none" stroke="${upC}" stroke-width="4" stroke-linejoin="round"/>`;
+    else { o += dashedLine(portX(8), swY, portX(8), udmY+60, upC, 4) + dashedLine(portX(8), udmY+60, udmX, udmY+60, upC, 4) + dashedLine(udmX, udmY+60, udmX, udmY+32, upC, 4); }
+    o += pill(portX(8)+14, udmY+100, 64, 24, s.uplinkUp?C.surf1:C.red, s.uplinkUp?C.text:C.crust, s.uplinkUp?'1G up':'1G ✕');
+    // 5-port
+    o += `<polyline points="${portX(7)},${swY} ${portX(7)},${swY-50} ${swX+90},${swY-50} ${swX+90},${swY-70}" fill="none" stroke="${C.surf2}" stroke-width="3"/>`;
+    o += `<rect x="${swX+15}" y="${swY-112}" width="150" height="42" rx="8" fill="${C.mantle}" stroke="${C.surf1}"/>` + txt(swX+90, swY-85, 'r14', C.muted, '5-port · 0 hosts', 'middle');
+    // Hosts
+    s.hosts.forEach((h,i)=>{
+      const cx = 140 + i*240, top=430, w=210, x=cx-w/2;
+      const col = legColor(h), wdt = h.leg==='10g'?8 : h.leg==='5g'?6 : h.leg==='1g'?4 : 3;
+      if (h.leg==='down') o += dashedLine(portX(h.port), swY+swH, cx, top, C.red, 3);
+      else o += `<line x1="${portX(h.port)}" y1="${swY+swH}" x2="${cx}" y2="${top}" stroke="${col}" stroke-width="${wdt}" stroke-linecap="round"/>`;
+      // speed label on spoke
+      const mx=(portX(h.port)+cx)/2, my=(swY+swH+top)/2;
+      o += `<rect x="${mx-26}" y="${my-13}" width="52" height="26" rx="13" fill="${C.mantle}"/>` + txt(mx, my+6, 'b16', col, legText(h), 'middle');
+      // chip
+      o += `<rect x="${x}" y="${top}" width="${w}" height="160" rx="10" fill="${h.stale?'url(#hA)':C.base}" stroke="${h.stale?C.surf2:col}" stroke-width="${h.stale?1:2}"/>`;
+      o += txt(x+16, top+34, 'b24', C.text, h.name);
+      o += txt(x+w-16, top+34, 'b24', col, legText(h), 'end');
+      if (h.stale) o += txt(x+16, top+66, 'r16', C.red, `stale · ${h.age} s`);
+      else if (h.nobond) o += txt(x+16, top+66, 'r16', C.muted, 'no bond · port 5');
+      else o += txt(x+16, top+66, 'r16', (h.lfcDelta||h.rxErr)?C.yellow:C.sub, `LFC ${h.lfc}${h.lfcDelta?` +${h.lfcDelta}`:''} · rx ${h.rxErr||0}`);
+      o += reachDots(x+30, top+110, h, 36);
+      if (!h.stale) o += txt(x+w-16, top+116, 'r16', h.wan?C.sub:C.red, h.wan ? `${h.wanMs} ms` : h.udm ? 'no WAN' : 'no UDM', 'end');
+    });
+    return o;
+  }
+
+  /* ---------- B: Rail ---------- */
+  function spark(x,y,w,h,data,color,max){
+    const n=data.length, mx = max || Math.max(...data)*1.1; let pts='';
+    data.forEach((v,i)=>{ pts += `${x + i*w/(n-1)},${y+h - v/mx*h} `; });
+    const last = data[n-1];
+    return `<polygon points="${x},${y+h} ${pts}${x+w},${y+h}" fill="${color}" opacity=".18"/>` +
+           `<polyline points="${pts}" fill="none" stroke="${color}" stroke-width="2.5" stroke-linejoin="round"/>` +
+           `<circle cx="${x+w}" cy="${y+h-last/mx*h}" r="4" fill="${color}"/>`;
+  }
+  // text with speed tokens coloured: 10G teal, 5G sapphire, 1G yellow, DOWN red
+  const tokC = { '10G':C.teal, '5G':C.sapphire, '1G':C.yellow, 'DOWN':C.red };
+  function ctxt(x,y,cls,fill,t,anchor){
+    const parts = String(t).split(/(\b10G\b|\b5G\b|\b1G\b|\bDOWN\b)/);
+    const inner = parts.map(p => tokC[p] ? `<tspan fill="${tokC[p]}">${esc(p)}</tspan>` : esc(p)).join('');
+    return `<text x="${x}" y="${y}" class="${cls} mono" fill="${fill}" ${anchor?`text-anchor="${anchor}"`:''}>${inner}</text>`;
+  }
+  // per-host attention: what colour the column's frame takes
+  function attn(h){
+    if (h.stale || h.leg==='down' || !h.peers || !h.udm || !h.wan) return C.red;
+    if (h.leg==='1g' || h.lfcDelta || h.rxErr) return C.yellow;
+    return null;
+  }
+  function cardB(s){
+    let o = `<defs>${hatch('hB')}</defs>` + frame();
+    const lc = levelColor(s.level);
+    o += ctxt(24, 72, 'b48', lc, s.verdict);
+    o += ctxt(26, 102, 'r16', C.sub, s.why);
+    // right tiles
+    const tiles = [['UDM', s.udmUp? '0.4 ms':'✕', okc(s.udmUp)], ['WAN', s.wanUp? `${s.wanMs} ms`:'✕', okc(s.wanUp)], ['UPLINK', s.uplinkUp? `1G · ${Math.round(s.uplinkLoad*100)}%`:'✕', okc(s.uplinkUp)]];
+    tiles.forEach((t,i)=>{ const x=760+i*164; o += `<rect x="${x}" y="28" width="150" height="76" rx="8" fill="${C.base}" stroke="${C.surf1}"/>` + txt(x+12, 52, 'r14', C.muted, t[0]) + txt(x+12, 88, 'b24', t[2], t[1]); });
+    // rail
+    o += `<rect x="24" y="126" width="1216" height="8" rx="4" fill="${lc}"/>`;
+    s.hosts.forEach((h,i)=>{
+      const x = 24 + i*246, w=226, col = legColor(h), cx=x+w/2;
+      const at = attn(h), frameC = h.stale ? C.surf2 : (at || C.surf1), bandC = h.stale ? C.surf2 : (at || col);
+      o += `<rect x="${cx-3}" y="134" width="6" height="18" fill="${bandC}"/>`;
+      o += `<rect x="${x}" y="152" width="${w}" height="452" rx="10" fill="${h.stale?'url(#hB)':C.base}" stroke="${frameC}" stroke-width="${at&&!h.stale?3:1}"/>`;
+      o += `<rect x="${x}" y="152" width="${w}" height="${at?10:6}" rx="3" fill="${bandC}"/>`;
+      o += txt(x+16, 192, 'b20', C.text, h.name);
+      o += txt(x+w-16, 192, 'r14', C.muted, h.nic, 'end');
+      o += txt(x+16, 256, 'b48', col, legText(h));
+      const flapping = h.lfcDelta >= 2 && h.leg !== '1g';
+      if (h.stale) o += txt(x+16, 290, 'b16', C.red, `STALE · ${h.age} s`);
+      else if (flapping) o += txt(x+16, 290, 'b16', C.yellow, `FLAPPING · ${h.lfcDelta} drops`);
+      else if (h.leg==='1g') o += ctxt(x+16, 290, 'b16', C.yellow, '10G down · on 1G backup');
+      else if (h.leg==='down') o += txt(x+16, 290, 'b16', C.red, 'NO LINK');
+      else if (!h.udm || !h.wan) o += txt(x+16, 290, 'b16', C.red, !h.udm ? 'no path to UDM' : 'no path to Internet');
+      else o += txt(x+16, 290, 'r16', C.sub, h.nobond ? 'single NIC' : 'bond primary');
+      o += spark(x+16, 312, w-32, 100, h.hist, h.stale?C.surf2:col);
+      // link-drop ticks on the sparkline
+      h.events.forEach(e => { const ex = x+16 + e*(w-32)/(h.hist.length-1);
+        o += `<line x1="${ex}" y1="${330}" x2="${ex}" y2="${412}" stroke="${C.red}" stroke-width="3"/><polygon points="${ex-6},${324} ${ex+6},${324} ${ex},${334}" fill="${C.red}"/>`; });
+      o += txt(x+16, 432, 'r14', C.muted, 'Mb/s · 60 min');
+      o += txt(x+w-16, 432, 'b14', C.text, `${Math.round(h.hist[h.hist.length-1])}`, 'end');
+      const warn = (h.lfcDelta||h.rxErr);
+      o += txt(x+16, 470, warn?'b16':'r16', warn?C.yellow:C.sub, h.nobond ? 'no bond' : `LFC ${h.lfc}${h.lfcDelta?` (+${h.lfcDelta})`:''}`);
+      o += txt(x+w-16, 470, h.rxErr?'b16':'r16', h.rxErr?C.yellow:C.sub, `rx err ${h.rxErr||0}`, 'end');
+      const pills=[['UDM',h.udm],['PEERS',h.peers],['WAN',h.wan]];
+      pills.forEach((p,j)=>{ const px = x+16+j*66, on = p[1] && !h.stale; o += pill(px, 500, 60, 26, on?C.teal:(h.stale?C.surf1:C.red), C.crust, p[0]); });
+      o += txt(x+16, 570, 'r14', C.muted, h.stale ? '—' : h.wan ? `WAN ${h.wanMs} ms` : h.udm ? `UDM ${h.udmMs.toFixed(1)} ms` : 'peers only');
+      o += txt(x+w-16, 570, 'r14', C.muted, `${h.age} s ago`, 'end');
+    });
+    return o;
+  }
+
+  /* ---------- C: Reach rings ---------- */
+  function cardC(s){
+    let o = `<defs>${hatch('hC')}</defs>` + frame();
+    const cx=632, cy=324, R=[100,172,244];
+    const lc = levelColor(s.level);
+    // left panel
+    o += txt(24, 56, 'b20', C.lavender, 'NETWORK');
+    o += txt(24, 110, 'b36', lc, s.verdict);
+    let why = s.why.split(' · '); why.forEach((w,i)=> o += txt(24, 140+i*22, 'r16', C.sub, w));
+    const left=[['WAN', s.wanUp?`${s.wanMs} ms`:'✕', okc(s.wanUp)],['UDM', s.udmUp?'0.4 ms':'✕', okc(s.udmUp)],['uplink', s.uplinkUp?`1G · ${Math.round(s.uplinkLoad*100)}%`:'✕', okc(s.uplinkUp)]];
+    left.forEach((t,i)=>{ const y=236+i*44; o += txt(24, y, 'r16', C.muted, t[0]) + txt(120, y, 'b20', t[2], t[1]); });
+    // rings
+    const ringC = [C.lavender, okc(s.udmUp), okc(s.wanUp)];
+    R.forEach((r,i)=> o += `<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${ringC[i]}" stroke-width="${i===0?2:1.5}" opacity="${i===0?.9:.55}"/>`);
+    const ringLbl=['fabric','gateway','internet'];
+    R.forEach((r,i)=>{ const a = Math.PI*0.78; const lx = cx + r*Math.cos(a), ly = cy + r*Math.sin(a);
+      o += `<rect x="${lx-34}" y="${ly-9}" width="68" height="18" rx="4" fill="${C.mantle}"/>` + txt(lx, ly+5, 'r14', C.muted, ringLbl[i], 'middle'); });
+    // sweep (one rotating arc)
+    o += `<g class="sweep"><path d="M ${cx} ${cy} L ${cx+R[2]} ${cy} A ${R[2]} ${R[2]} 0 0 1 ${cx+R[2]*Math.cos(0.5)} ${cy+R[2]*Math.sin(0.5)} Z" fill="${lc}" opacity=".10"/></g>`;
+    // hub
+    o += `<circle cx="${cx}" cy="${cy}" r="34" fill="${C.surf0}" stroke="${C.lavender}" stroke-width="3"/>` + txt(cx, cy+6, 'b16', C.lavender, '10G', 'middle');
+    // rays
+    const angles = [-150, -108, -72, -30, 90]; // kubs0 kubsdb kai gratch cleo
+    s.hosts.forEach((h,i)=>{
+      const a = angles[i]*Math.PI/180, ux=Math.cos(a), uy=Math.sin(a);
+      const col = legColor(h);
+      let reach = h.stale ? 0 : (h.peers ? 1 : 0) + (h.peers && h.udm ? 1 : 0) + (h.udm && h.wan ? 1 : 0);
+      const stopR = reach===0 ? 50 : R[reach-1];
+      const wdt = h.leg==='1g'?4 : h.leg==='down'?3 : 7;
+      // reached part
+      if (!h.stale && h.leg!=='down') o += `<line x1="${cx+34*ux}" y1="${cy+34*uy}" x2="${cx+stopR*ux}" y2="${cy+stopR*uy}" stroke="${col}" stroke-width="${wdt}" stroke-linecap="round"/>`;
+      // unreached part
+      if (reach<3) { o += dashedLine(cx+stopR*ux, cy+stopR*uy, cx+R[2]*ux, cy+R[2]*uy, h.stale?C.surf2:C.red, 2);
+        if (!h.stale) { const sx=cx+stopR*ux, sy=cy+stopR*uy; o += `<circle cx="${sx}" cy="${sy}" r="10" fill="${C.mantle}" stroke="${C.red}" stroke-width="3"/><line x1="${sx-5}" y1="${sy-5}" x2="${sx+5}" y2="${sy+5}" stroke="${C.red}" stroke-width="3"/><line x1="${sx+5}" y1="${sy-5}" x2="${sx-5}" y2="${sy+5}" stroke="${C.red}" stroke-width="3"/>`; } }
+      // node
+      const nr = R[2]+44, nx=cx+nr*ux, ny=cy+nr*uy;
+      o += `<circle cx="${nx}" cy="${ny}" r="26" fill="${h.stale?'url(#hC)':C.base}" stroke="${col}" stroke-width="3"/>` + txt(nx, ny+6, 'b16', col, legText(h), 'middle');
+      const lx = nx + (ux<-0.2? -34 : ux>0.2 ? 34 : 0), ly = ny + (Math.abs(ux)<=0.2 ? 48 : 6);
+      const anchor = ux<-0.2 ? 'end' : ux>0.2 ? 'start' : 'middle';
+      o += txt(lx, ly, 'b20', C.text, h.name, anchor);
+      const sub = h.stale ? `stale ${h.age} s` : h.lfcDelta ? `LFC +${h.lfcDelta}` : h.rxErr ? `rx ${h.rxErr}` : '';
+      if (sub) o += txt(lx, ly+20, 'r14', h.stale?C.red:C.yellow, sub, anchor);
+    });
+    // right panel table
+    const tx=980, ty=392; o += txt(tx, ty, 'r14', C.muted, 'host') + txt(tx+100, ty, 'r14', C.muted, 'leg') + txt(tx+165, ty, 'r14', C.muted, 'LFC') + txt(tx+225, ty, 'r14', C.muted, 'rx err');
+    o += `<line x1="${tx}" y1="${ty+10}" x2="1240" y2="${ty+10}" stroke="${C.surf1}"/>`;
+    s.hosts.forEach((h,i)=>{ const y=ty+38+i*34; const col=legColor(h);
+      o += txt(tx, y, 'b16', C.text, h.name) + txt(tx+100, y, 'b16', col, legText(h));
+      o += txt(tx+165, y, 'r16', h.lfcDelta?C.yellow:C.sub, h.nobond?'—':`${h.lfc}${h.lfcDelta?` +${h.lfcDelta}`:''}`);
+      o += txt(tx+225, y, 'r16', h.rxErr?C.yellow:C.sub, h.nobond?'—':`${h.rxErr}`); });
+    o += txt(1240, 40, 'r14', C.muted, s.hosts.some(h=>h.stale) ? 'gratch feed 94 s old' : 'all feeds < 10 s', 'end');
+    return o;
+  }
+
+  /* ---------- D: Pulse ---------- */
+  function cardD(s){
+    let o = `<defs>${hatch('hD')}<linearGradient id="gD" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${C.teal}" stop-opacity=".35"/><stop offset="1" stop-color="${C.teal}" stop-opacity="0"/></linearGradient></defs>` + frame();
+    const lc = levelColor(s.level);
+    o += `<rect x="24" y="24" width="8" height="120" rx="4" fill="${lc}"/>`;
+    o += txt(48, 66, 'b36', lc, s.verdict);
+    let why = s.why.split(' · '); why.forEach((w,i)=> o += txt(50, 104+i*22, 'r16', C.sub, w));
+    const rows=[['WAN', s.wanUp?`${s.wanMs} ms`:'✕', okc(s.wanUp)],['UDM', s.udmUp?'0.4 ms':'✕', okc(s.udmUp)],['uplink', s.uplinkUp?'1G':'✕', okc(s.uplinkUp)]];
+    rows.forEach((t,i)=>{ const y=210+i*56; o += txt(48, y, 'r16', C.muted, t[0]) + txt(170, y, 'b28', t[2], t[1]); });
+    // uplink load bar (the 1G uplink is the fabric's bottleneck)
+    o += txt(48, 390, 'r14', C.muted, 'uplink load');
+    o += `<rect x="48" y="400" width="340" height="14" rx="7" fill="${C.surf0}"/><rect x="48" y="400" width="${340*s.uplinkLoad}" height="14" rx="7" fill="${s.uplinkLoad>0.8?C.peach:C.lavender}"/>`;
+    o += txt(388, 390, 'b14', C.text, `${Math.round(s.uplinkLoad*1000)} Mb/s`, 'end');
+    o += txt(48, 600, 'r14', C.muted, s.hosts.some(h=>h.stale) ? 'gratch feed 94 s old' : 'feeds < 10 s · 10G fabric · 5 hosts');
+    // chips
+    const X0=460;
+    s.hosts.forEach((h,i)=>{ const x=X0+i*158, col=legColor(h);
+      o += `<rect x="${x}" y="24" width="146" height="84" rx="8" fill="${h.stale?'url(#hD)':C.base}" stroke="${h.stale?C.surf2:col}" stroke-width="2"/>`;
+      o += txt(x+12, 50, 'b16', C.text, h.name) + txt(x+134, 50, 'b16', col, legText(h), 'end');
+      const load = Math.min(1, h.hist[h.hist.length-1]/10000);
+      o += `<rect x="${x+12}" y="64" width="122" height="8" rx="4" fill="${C.surf0}"/><rect x="${x+12}" y="64" width="${Math.max(4,122*load)}" height="8" rx="4" fill="${h.stale?C.surf2:col}"/>`;
+      const sub = h.stale ? `stale ${h.age} s` : !h.udm ? 'no UDM' : !h.wan ? 'no WAN' : h.lfcDelta ? `LFC +${h.lfcDelta}` : h.rxErr ? `rx ${h.rxErr}` : `${Math.round(h.hist[h.hist.length-1])} Mb/s`;
+      o += txt(x+12, 96, 'r14', (h.stale||!h.udm||!h.wan)?C.red:(h.lfcDelta||h.rxErr)?C.yellow:C.muted, sub); });
+    // heartbeat trace: aggregate throughput, 60 min
+    const gx=460, gy=140, gw=780, gh=400;
+    o += `<rect x="${gx}" y="${gy}" width="${gw}" height="${gh}" rx="8" fill="${C.base}" stroke="${C.surf1}"/>`;
+    [0.25,0.5,0.75].forEach(f => o += `<line x1="${gx}" y1="${gy+gh*f}" x2="${gx+gw}" y2="${gy+gh*f}" stroke="${C.surf0}"/>`);
+    const n=60, agg=[]; for(let i=0;i<n;i++){ let v=0; s.hosts.forEach(h=>{ if(!h.stale) v+=h.hist[i]; }); agg.push(v); }
+    const mx=Math.max(...agg)*1.15; let pts='';
+    agg.forEach((v,i)=>{ pts += `${gx+16 + i*(gw-32)/(n-1)},${gy+gh-24 - v/mx*(gh-60)} `; });
+    o += `<polygon points="${gx+16},${gy+gh-24} ${pts}${gx+gw-16},${gy+gh-24}" fill="url(#gD)"/>`;
+    o += `<polyline points="${pts}" fill="none" stroke="${C.teal}" stroke-width="3" stroke-linejoin="round"/>`;
+    // event ticks
+    s.hosts.forEach(h => h.events.forEach(e => { const x = gx+16 + e*(gw-32)/(n-1);
+      o += `<line x1="${x}" y1="${gy+gh-24}" x2="${x}" y2="${gy+gh-60}" stroke="${C.red}" stroke-width="3"/>` + txt(x, gy+gh-66, 'b14', C.red, h.name[0], 'middle'); }));
+    if (!s.uplinkUp || !s.wanUp) { const x=gx+16+52*(gw-32)/(n-1); o += `<rect x="${x}" y="${gy+8}" width="${gx+gw-16-x}" height="${gh-32}" fill="${C.red}" opacity=".12"/>` + txt(x+8, gy+30, 'b14', C.red, s.uplinkUp?'WAN ✕':'UPLINK ✕'); }
+    o += `<line class="scan" x1="${gx+16}" y1="${gy+8}" x2="${gx+16}" y2="${gy+gh-8}" stroke="${lc}" stroke-width="2" opacity=".6"/>`;
+    o += txt(gx+16, gy+gh+22, 'r14', C.muted, '−60 min') + txt(gx+gw/2, gy+gh+22, 'r14', C.muted, 'fabric throughput, all hosts', 'middle') + txt(gx+gw-16, gy+gh+22, 'r14', C.muted, 'now', 'end');
+    o += txt(gx+gw-16, gy+28, 'b16', C.teal, `${(agg[n-1]/1000).toFixed(1)} Gb/s`, 'end');
+    return o;
+  }
+
+  const R = { cardA, cardB, cardC, cardD };
+  let state='healthy';
+  function render(){ const s = build(state); for (const id in R) document.getElementById(id).innerHTML = R[id](s); }
+  const bar = document.getElementById('bar');
+  bar.addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return;
+    if (b.dataset.state){ state=b.dataset.state; bar.querySelectorAll('[data-state]').forEach(x=>x.setAttribute('aria-pressed', x===b)); render(); }
+    if (b.dataset.scale){ document.body.classList.toggle('scaled', b.dataset.scale==='0.5'); bar.querySelectorAll('[data-scale]').forEach(x=>x.setAttribute('aria-pressed', x===b)); }
+  });
+  document.body.classList.add('scaled');
+  try { const raw = location.hash.replace('#',''); const [h, solo] = raw.split('.');
+    if (h && ['healthy','kai1g','flap','uplink','wan','stale'].includes(h)) { state=h; bar.querySelectorAll('[data-state]').forEach(x=>x.setAttribute('aria-pressed', x.dataset.state===h)); }
+    if (solo && R[solo]) { document.body.classList.add('solo'); document.body.classList.remove('scaled'); document.getElementById(solo).closest('section').classList.add('solo-on'); }
+  } catch(e){}
+  render();
+})();
+</script>

@@ -213,6 +213,30 @@ def log_path(ctx: click.Context) -> None:
 
 
 # ---------------------------------------------------------------------------
+# net (WI #4061)
+# ---------------------------------------------------------------------------
+
+
+@main.command("net")
+@click.pass_context
+def net(ctx: click.Context) -> None:
+    """Print one kdash:net record for this host, as the daemon would publish it.
+
+    Reads no Redis and leaves the daemon's history file alone, so the 24 h
+    deltas print as null — that is the honest answer for a one-shot read.
+    """
+    import time
+
+    from .net import NetCollector, NetHistory
+
+    cfg = _load_config(ctx.obj.get("config_path"))
+    collector = NetCollector(cfg.net, history=NetHistory(None))
+    collector.prime()
+    time.sleep(1)
+    click.echo(json.dumps(collector.collect(), indent=2))
+
+
+# ---------------------------------------------------------------------------
 # fortune (T054)
 # ---------------------------------------------------------------------------
 

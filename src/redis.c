@@ -5,10 +5,12 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 #include <unistd.h>
 
 #include "fortune.h"
 #include "memstat.h"
+#include "netstate.h"
 #include "protocol.h"
 #include "registry.h"
 #include "screenshot.h"
@@ -704,6 +706,8 @@ void redis_poll(void) {
     redis_poll_stale();
     /* Card eviction command (WI #374) */
     redis_poll_evict();
+    /* Network-health card (WI #4062) */
+    redis_poll_net();
     /* Self service card (WI #369) */
     redis_publish_self_service();
 
@@ -1227,4 +1231,41 @@ int redis_take_evict_targets(evict_target_t *out, int max) {
     (void)max;
     return 0;
 }
+#endif
+
+/* ============================================================
+ * WI #4062: network-health card (kdash:net:<host>, kdashdata CD-27)
+ * ============================================================ */
+
+#ifndef KPIDASH_TEST_STUBS
+void redis_poll_net(void) {
+    if (!g_ctx || g_ctx->err) return;
+    int n = net_host_count();
+    if (n <= 0) return;
+
+    char keys[NET_HOSTS_MAX][sizeof(KDASH_KEY_NET_PREFIX) + HOSTNAME_LEN];
+    const char *argv[NET_HOSTS_MAX + 1];
+    argv[0] = "MGET";
+    for (int i = 0; i < n; i++) {
+        snprintf(keys[i], sizeof(keys[i]), KDASH_KEY_NET_PREFIX "%s", net_host_at(i)->host);
+        argv[i + 1] = keys[i];
+    }
+    redisReply *r = redisCommandArgv(g_ctx, n + 1, argv, NULL);
+    if (!r || r->type != REDIS_REPLY_ARRAY || (int)r->elements != n) {
+        if (r) freeReplyObject(r);
+        return;
+    }
+    double now = (double)time(NULL);
+    /* Copy the names first: net_observe takes the host by name. */
+    char hosts[NET_HOSTS_MAX][HOSTNAME_LEN];
+    for (int i = 0; i < n; i++)
+        snprintf(hosts[i], sizeof(hosts[i]), "%s", net_host_at(i)->host);
+    for (int i = 0; i < n; i++) {
+        redisReply *e = r->element[i];
+        net_observe(hosts[i], (e && e->type == REDIS_REPLY_STRING) ? e->str : NULL, now);
+    }
+    freeReplyObject(r);
+}
+#else
+void redis_poll_net(void) { /* test stub */ }
 #endif

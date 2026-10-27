@@ -14,6 +14,8 @@ import tomllib
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from .net import NetConfig
+
 # How the host is expected to be present (WI #3132). `intermittent` is a host that
 # sleeps by design -- a Mac, a laptop -- and the dashboard renders its silence as
 # asleep rather than as a fault. Mirrors k-homelab inventory's `availability:`.
@@ -65,6 +67,11 @@ class ClientConfig:
     availability: str = "always"  # "always" | "intermittent" (AVAILABILITY_VALUES)
     disks: list[DiskConfig] = field(default_factory=list)
     repos: RepoConfig = field(default_factory=RepoConfig)
+    # WI #4061: kdash:net:{host}. On by default on Linux, the only platform
+    # whose inputs (/proc/net/bonding, /sys/class/net) the collector reads.
+    net: NetConfig = field(
+        default_factory=lambda: NetConfig(enabled=platform.system() == "Linux")
+    )
 
     @classmethod
     def load(cls, path: Path | None = None) -> ClientConfig:
@@ -127,6 +134,8 @@ class ClientConfig:
                 + ", ".join(AVAILABILITY_VALUES)
             )
 
+        net = _parse_net(data.get("net", {}), p)
+
         return cls(
             redis_host=redis_host,
             redis_port=redis_port,
@@ -140,4 +149,23 @@ class ClientConfig:
             availability=availability,
             disks=disks,
             repos=repos,
+            net=net,
         )
+
+
+def _parse_net(section: dict, p: Path) -> NetConfig:
+    """`[net]` — every key optional; the defaults describe the 10G fabric."""
+    cfg = NetConfig(enabled=platform.system() == "Linux")
+    if "enabled" in section:
+        cfg.enabled = bool(section["enabled"])
+    for key in ("bond", "udm", "wan", "nic", "state_dir"):
+        if key in section:
+            if not isinstance(section[key], str):
+                raise ConfigError(f"[net] {key} in {p} must be a string")
+            setattr(cfg, key, section[key])
+    if "peers" in section:
+        peers = section["peers"]
+        if not isinstance(peers, list) or not all(isinstance(x, str) for x in peers):
+            raise ConfigError(f"[net] peers in {p} must be a list of addresses")
+        cfg.peers = list(peers)
+    return cfg

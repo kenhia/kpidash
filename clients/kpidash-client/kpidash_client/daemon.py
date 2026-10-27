@@ -16,6 +16,7 @@ import time
 import psutil
 
 from .config import ClientConfig
+from .net import NetCollector
 from .redis_client import RedisClient, RedisClientError
 from .repos import scan_repos
 from .telemetry.disk import collect_disks
@@ -74,6 +75,25 @@ def _dev_telemetry_loop(rc: RedisClient, interval: int) -> None:
         _stop_event.wait(interval)
 
 
+def _net_loop(rc: RedisClient, config: ClientConfig) -> None:
+    """kdash:net:{host} (WI #4061). Its own thread, so the probes — bounded,
+    but up to a few seconds against a dead target — never delay telemetry."""
+    try:
+        collector = NetCollector(config.net)
+        collector.prime()
+    except Exception:
+        logger.exception("network health disabled: collector failed to start")
+        return
+    while not _stop_event.wait(config.telemetry_interval_s):
+        try:
+            rc.write_net(collector.collect())
+        except RedisClientError as e:
+            logger.warning("net write failed: %s", e)
+            rc.reconnect_on_failure()
+        except Exception:
+            logger.exception("net collect failed")
+
+
 def _repo_loop(rc: RedisClient, config: ClientConfig) -> None:
     while not _stop_event.is_set():
         try:
@@ -106,6 +126,10 @@ def run_daemon(config: ClientConfig) -> None:
         threading.Thread(target=_telemetry_loop, args=(rc, config), daemon=True),
         threading.Thread(target=_repo_loop, args=(rc, config), daemon=True),
     ]
+
+    if config.net.enabled:
+        logger.info("network health loop enabled (kdash:net:%s)", rc.hostname)
+        threads.append(threading.Thread(target=_net_loop, args=(rc, config), daemon=True))
 
     # Dev telemetry loop — only start if dev_interval_s is configured
     dev_interval = config.dev_interval_s

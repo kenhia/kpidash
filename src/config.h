@@ -18,6 +18,11 @@ typedef struct {
     char state_file[512]; /* from KPIDASH_STATE_FILE */
     char priority_clients[PRIORITY_CLIENTS_MAX][HOSTNAME_LEN]; /* from KPIDASH_PRIORITY_CLIENTS */
     int priority_client_count;
+    /* WI #4062: the network card's columns, in order (KPIDASH_NET_HOSTS). A
+     * fixed list rather than whoever publishes, because a host that never
+     * publishes must still get a "no feed" column rather than vanish. */
+    char net_hosts[NET_HOSTS_CONFIG_MAX][HOSTNAME_LEN];
+    int net_host_count;
 } kpidash_config_t;
 
 /**

@@ -33,6 +33,7 @@
 #include "widgets/dev_grid.h"
 #include "widgets/dev_textsize.h"
 #include "widgets/fortune.h"
+#include "widgets/net_card.h"
 #include "widgets/repo_status.h"
 #include "widgets/service_card.h"
 #include "widgets/status_bar.h"
@@ -49,6 +50,7 @@ static lv_obj_t *g_card_grid = NULL;
 static lv_obj_t *g_activities = NULL;
 static lv_obj_t *g_repo_status = NULL;
 static lv_obj_t *g_fortune = NULL;
+static lv_obj_t *g_netcard = NULL;
 static lv_obj_t *g_service_strip = NULL;  /* T013: footer Service-Strip container */
 static lv_obj_t *g_status_bar = NULL;
 static lv_obj_t *g_redis_err = NULL;
@@ -167,10 +169,18 @@ void ui_init(void) {
     lv_obj_add_flag(g_repo_status, LV_OBJ_FLAG_HIDDEN);
 #endif
 
+#if KPIDASH_WIDGET_FORTUNE
     /* T014: Fortune as 2×1 pool widget. */
     g_fortune = fortune_create(g_screen, 0, 0);
     fortune_set_widget(g_fortune);
     lv_obj_add_flag(g_fortune, LV_OBJ_FLAG_HIDDEN);
+#endif
+
+#if KPIDASH_WIDGET_NETCARD
+    /* WI #4062: the network-health card, in Fortune's pool slot. */
+    g_netcard = net_card_create(g_screen);
+    lv_obj_add_flag(g_netcard, LV_OBJ_FLAG_HIDDEN);
+#endif
 
     /* ---- Footer (FR-005): Service-Strip container ---- */
     g_service_strip = lv_obj_create(g_screen);
@@ -344,7 +354,12 @@ void ui_refresh(void) {
 #if KPIDASH_WIDGET_REPO_STATUS
         reqs[nreq++] = (widget_request_t){WIDGET_REPO_STATUS, WIDGET_CELLS_REPO_STATUS, NULL};
 #endif
+#if KPIDASH_WIDGET_FORTUNE
         reqs[nreq++] = (widget_request_t){WIDGET_FORTUNE, WIDGET_CELLS_FORTUNE, NULL};
+#endif
+#if KPIDASH_WIDGET_NETCARD
+        reqs[nreq++] = (widget_request_t){WIDGET_NETCARD, WIDGET_CELLS_NETCARD, NULL};
+#endif
 
         widget_request_t placed[GRAPH_HOST_MAX + 4];
         int nplaced = layout_pool_place(reqs, (size_t)nreq, placed,
@@ -354,6 +369,7 @@ void ui_refresh(void) {
          * dropped by the pool (e.g. exceeded the 12-cell budget). */
         bool host_placed[GRAPH_HOST_MAX] = {0};
         bool placed_acts = false, placed_repo = false, placed_fortune = false;
+        bool placed_netcard = false;
         int alloc_row = 1, alloc_col = 0;
         double now_s = (double)time(NULL);
         for (int i = 0; i < nplaced; i++) {
@@ -412,6 +428,12 @@ void ui_refresh(void) {
                     lv_obj_clear_flag(g_fortune, LV_OBJ_FLAG_HIDDEN);
                     placed_fortune = true;
                     break;
+                case WIDGET_NETCARD:
+                    lv_obj_set_pos(g_netcard, x, y);
+                    lv_obj_clear_flag(g_netcard, LV_OBJ_FLAG_HIDDEN);
+                    net_card_update(g_netcard, now_s);
+                    placed_netcard = true;
+                    break;
             }
         }
         /* Hide widgets for hosts that were dropped by the pool. */
@@ -424,7 +446,8 @@ void ui_refresh(void) {
         }
         if (!placed_acts && g_activities)  lv_obj_add_flag(g_activities, LV_OBJ_FLAG_HIDDEN);
         if (!placed_repo && g_repo_status) lv_obj_add_flag(g_repo_status, LV_OBJ_FLAG_HIDDEN);
-        if (!placed_fortune) lv_obj_add_flag(g_fortune, LV_OBJ_FLAG_HIDDEN);
+        if (!placed_fortune && g_fortune) lv_obj_add_flag(g_fortune, LV_OBJ_FLAG_HIDDEN);
+        if (!placed_netcard && g_netcard) lv_obj_add_flag(g_netcard, LV_OBJ_FLAG_HIDDEN);
     }
 
     /* WI #374: apply pending card-evict commands — destroy the card on the

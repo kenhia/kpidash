@@ -45,6 +45,26 @@ void config_load(kpidash_config_t *cfg) {
     parse_str_env("KPIDASH_STATE_FILE", "/var/lib/kpidash/admitted", cfg->state_file,
                   sizeof(cfg->state_file));
 
+    /* WI #4062: network-card hosts, comma-separated, card order. */
+    {
+        char buf[NET_HOSTS_CONFIG_MAX * HOSTNAME_LEN];
+        parse_str_env("KPIDASH_NET_HOSTS", NET_HOSTS_DEFAULT, buf, sizeof(buf));
+        char *save = NULL;
+        for (char *tok = strtok_r(buf, ",", &save);
+             tok && cfg->net_host_count < NET_HOSTS_CONFIG_MAX; tok = strtok_r(NULL, ",", &save)) {
+            while (*tok == ' ')
+                tok++;
+            size_t len = strnlen(tok, HOSTNAME_LEN - 1);
+            while (len > 0 && tok[len - 1] == ' ')
+                len--;
+            if (len == 0)
+                continue;
+            memcpy(cfg->net_hosts[cfg->net_host_count], tok, len);
+            cfg->net_hosts[cfg->net_host_count][len] = '\0';
+            cfg->net_host_count++;
+        }
+    }
+
     /* Parse priority clients: comma-separated hostnames */
     const char *pc = getenv("KPIDASH_PRIORITY_CLIENTS");
     if (pc) {

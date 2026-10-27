@@ -16,6 +16,10 @@
 #define MAX_DISKS 8
 #define ACTIVITY_MAX_DISPLAY 10
 #define PRIORITY_CLIENTS_MAX 16
+/* WI #4062: hosts the network card can be configured with (it draws the
+ * first five), and the default list — the fabric as of 2026-10-26. */
+#define NET_HOSTS_CONFIG_MAX 8
+#define NET_HOSTS_DEFAULT "kubs0,kubsdb,kai,gratch,cleo"
 
 /* ---- TTL constants (seconds) ---- */
 #define HEALTH_TTL_S 5
@@ -71,6 +75,11 @@
 /* WI #364: per-zone apartment temperature cards (one key per zone). */
 #define KPIDASH_KEY_APTTEMPS_PATTERN "kpidash:apttemps:*"
 #define KPIDASH_KEY_APTTEMPS_PREFIX  "kpidash:apttemps:"
+
+/* WI #4062: per-host network health, kdashdata contract v1 (CD-27), written
+ * by kpidash-client every ~5 s with EX 15. A v2 is a new segment
+ * (kdash:net:v2:<host>), which this exact-key read never sees. */
+#define KDASH_KEY_NET_PREFIX "kdash:net:"
 
 /* WI #1903: per-deployer host staleness flags, written by the fleet deployers
  * (agent-skills' fleet-deploy, k-homelab's apply/audit) through kdash-pub.

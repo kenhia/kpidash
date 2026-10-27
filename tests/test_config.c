@@ -34,6 +34,7 @@ static void clear_env(void) {
     unsetenv("KPIDASH_LOG_FILE");
     unsetenv("KPIDASH_STATE_FILE");
     unsetenv("KPIDASH_PRIORITY_CLIENTS");
+    unsetenv("KPIDASH_NET_HOSTS");
 }
 
 static void test_defaults(void) {
@@ -51,6 +52,10 @@ static void test_defaults(void) {
     /* WI #3012: the admitted-hosts file. */
     CHECK(strcmp(cfg.state_file, "/var/lib/kpidash/admitted") == 0);
     CHECK(cfg.priority_client_count == 0);
+    /* WI #4062: the network card's columns default to the fabric. */
+    CHECK(cfg.net_host_count == 5);
+    CHECK(strcmp(cfg.net_hosts[0], "kubs0") == 0);
+    CHECK(strcmp(cfg.net_hosts[4], "cleo") == 0);
 }
 
 static void test_overrides(void) {
@@ -111,12 +116,24 @@ static void test_priority_clients(void) {
     clear_env();
 }
 
+static void test_net_hosts(void) {
+    clear_env();
+    setenv("KPIDASH_NET_HOSTS", " kai , ,gratch,", 1);
+    kpidash_config_t cfg;
+    config_load(&cfg);
+    CHECK(cfg.net_host_count == 2);
+    CHECK(strcmp(cfg.net_hosts[0], "kai") == 0);
+    CHECK(strcmp(cfg.net_hosts[1], "gratch") == 0);
+    clear_env();
+}
+
 int main(void) {
     test_defaults();
     test_overrides();
     test_invalid_port();
     test_invalid_max_clients();
     test_priority_clients();
+    test_net_hosts();
 
     printf("test_config: %d passed, %d failed\n", passed, failed);
     return failed > 0 ? 1 : 0;
