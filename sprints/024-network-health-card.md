@@ -175,6 +175,16 @@ the dev graphs keep their cells (`test_netcard_takes_fortunes_slot`).
 - Docs: CLIENT-PROTOCOL.md §8d, an ARCHITECTURE.md data-flow entry, the client
   README, and a note that §6 Fortune is compiled out.
 
+## Overseer rulings (handoff korg:4086, clearance comment 4001)
+
+The overseer accepted all three flagged calls: "no feed" is not a fault, the
+design record is committed, and kai was upgraded by hand. The post-restart gap
+in the no-feed rule is filed as kpidash WI 4085, outside this program, with the
+admitted-hosts fix named. The Linux producer's LFC-increment drop detection is
+accepted as the better signal; that it differs from cleo's up→down is recorded on
+the program. Ken's cable pull is a same-day triggered test run from the overseer
+session, and its result lands on WI 4062. It does not gate this ship.
+
 ## Repaired in passing
 
 - `just check-client` read nothing from kdashdata before. It now depends on
