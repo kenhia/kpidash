@@ -296,6 +296,38 @@ static void test_hosts_are_capped_at_the_columns(void) {
     net_observe("g", rec("10g", 1, 1, 0, 0, 1, 1, 1, NULL, NOW), NOW); /* ignored */
 }
 
+/* WI #4090: the column draws the 24 h delta, never the cumulative counter.
+ * kubs0's frozen 587735 (a cable retired 2026-10-18) overflowed the column
+ * and meant nothing; the delta is the number that changes. */
+static void rx_case(const char *rx, const char *rx_d, const char *want) {
+    char json[512], buf[32];
+    snprintf(json, sizeof(json),
+             "{\"leg\":\"10g\",\"speed_mbps\":10000,\"bond\":true,\"lfc\":28,"
+             "\"lfc_delta_24h\":0,\"rx_errors\":%s,\"rx_errors_delta_24h\":%s,"
+             "\"reach\":{\"udm\":true,\"peers\":true,\"wan\":true},"
+             "\"rtt_ms\":{\"udm\":0.4,\"wan\":12.0},\"bytes_per_s\":1250000,"
+             "\"drops\":[],\"ts\":%.1f}",
+             rx, rx_d, NOW - 2);
+    net_set_hosts(HOSTS, 5);
+    net_observe("kubs0", json, NOW);
+    net_rx_text(host("kubs0"), buf, sizeof(buf));
+    if (strcmp(buf, want) != 0)
+        fprintf(stderr, "  rx_text(%s, %s) = \"%s\", want \"%s\"\n", rx, rx_d, buf, want);
+    CHECK(strcmp(buf, want) == 0);
+}
+
+static void test_rx_errors_show_the_24h_delta(void) {
+    rx_case("587735", "0", "rx err 0");
+    rx_case("587735", "1240", "rx err 1240");
+    rx_case("587735", "null", "rx err —");
+    rx_case("null", "null", "rx err —");
+
+    char buf[32];
+    net_set_hosts(HOSTS, 5); /* never published: no number to show */
+    net_rx_text(host("kubs0"), buf, sizeof(buf));
+    CHECK(strcmp(buf, "rx err —") == 0);
+}
+
 int main(void) {
     test_schema_examples();
     test_healthy();
@@ -308,6 +340,7 @@ int main(void) {
     test_down_and_no_path();
     test_throughput_history_is_per_minute();
     test_hosts_are_capped_at_the_columns();
+    test_rx_errors_show_the_24h_delta();
     printf("test_netstate: %d passed, %d failed\n", passed, failed);
     return failed ? 1 : 0;
 }

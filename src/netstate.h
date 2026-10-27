@@ -114,5 +114,9 @@ void net_derive(double now, net_summary_t *out);
 const char *net_leg_text(net_leg_t leg); /* "10G" "5G" "1G" "DOWN" */
 /* Column subtitle; *bold set when it is an attention line. */
 void net_subtitle(const net_host_t *h, double now, char *buf, size_t n, bool *bold);
+/* The rx-error line: the 24 h delta, never the cumulative counter (WI #4090)
+ * — a cumulative count frozen since an old fault never changes and does not
+ * fit the column. "rx err —" when there is no feed or the delta is null. */
+void net_rx_text(const net_host_t *h, char *buf, size_t n);
 
 #endif /* NETSTATE_H */

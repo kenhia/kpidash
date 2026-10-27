@@ -368,7 +368,7 @@ static void col_create(netcol_t *c, int i) {
     set_color(c->mbps, WS_COLOR_FG);
 
     put_rich(&c->lfc, c->col, WS_FONT_SMALL, 16, 318, LV_TEXT_ALIGN_LEFT, 120);
-    put_rich(&c->rx, c->col, WS_FONT_SMALL, COL_W - 16, 318, LV_TEXT_ALIGN_RIGHT, 90);
+    put_rich(&c->rx, c->col, WS_FONT_SMALL, COL_W - 16, 318, LV_TEXT_ALIGN_RIGHT, 120);
 
     for (int j = 0; j < 3; j++) {
         c->pill[j] = rect(c->col, 16 + j * 66, 348, 60, 26, LV_RADIUS_CIRCLE);
@@ -534,10 +534,7 @@ static void col_update(netcol_t *c, const net_host_t *h, double now) {
              &lv_font_montserrat_bold_16, lfc_warn ? WS_COLOR_YELLOW : NC_SUBTEXT, false);
 
     const bool rx_warn = live && r->rx_errors_delta_24h > 0;
-    if (nofeed || r->rx_errors < 0)
-        snprintf(buf, sizeof(buf), "rx err —");
-    else
-        snprintf(buf, sizeof(buf), "rx err %ld", r->rx_errors);
+    net_rx_text(h, buf, sizeof(buf));
     rich_set(&c->rx, buf, rx_warn ? &lv_font_montserrat_bold_16 : WS_FONT_SMALL,
              &lv_font_montserrat_bold_16, rx_warn ? WS_COLOR_YELLOW : NC_SUBTEXT, false);
 
