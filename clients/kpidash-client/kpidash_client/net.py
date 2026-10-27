@@ -240,15 +240,13 @@ def probe_all(targets: list[str], deadline_s: float = PROBE_DEADLINE_S) -> dict[
 def _delta(samples: list[tuple[float, int]], now: float) -> int | None:
     """Rise of a cumulative counter over the trailing 24 h.
 
-    A decrease is a counter reset (bond re-created, reboot) and is counted
-    from the reset, never negative (CD-27). None with fewer than two samples:
-    there is no window to measure, and 0 would claim one.
+    The baseline is the oldest sample INSIDE the window — the rule slice 3.5's
+    Windows producer follows too (korg:4066 comment 3995), so the two agree. A
+    decrease is a counter reset (bond re-created, reboot) and is counted from
+    the reset, never negative (CD-27). None with fewer than two samples: there
+    is no window to measure, and 0 would claim one.
     """
     window = [(ts, v) for ts, v in samples if now - ts <= DAY_S]
-    # The newest sample older than the window anchors its start.
-    older = [(ts, v) for ts, v in samples if now - ts > DAY_S]
-    if older:
-        window.insert(0, older[-1])
     if len(window) < 2:
         return None
     total = 0
@@ -263,6 +261,12 @@ class NetHistory:
     `observe()` appends the latest counters and returns the drop events the
     increment implies. The file is rewritten only when a sample is kept or a
     drop recorded — about every five minutes on a quiet host.
+
+    The last LINK STATE (the drop counter a drop is diffed against) is
+    deliberately NOT persisted: a drop is a change seen between two ticks of
+    this process. Persisting it would log a phantom drop on every boot, when
+    the bond comes up with its counter re-initialised (korg:4066 comment
+    3995, the ruling both producers follow).
     """
 
     def __init__(self, path: Path | None) -> None:
@@ -282,10 +286,6 @@ class NetHistory:
             self.lfc = [(float(t), int(v)) for t, v in data.get("lfc", [])]
             self.rx = [(float(t), int(v)) for t, v in data.get("rx", [])]
             self.drops = [float(t) for t in data.get("drops", [])]
-            c = data.get("drop_counter")
-            self.last_drop_counter = int(c) if c is not None else None
-            t = data.get("drop_counter_ts")
-            self.last_drop_ts = float(t) if t is not None else None
         except FileNotFoundError:
             pass
         except (OSError, ValueError, TypeError, AttributeError) as e:
@@ -298,8 +298,6 @@ class NetHistory:
             "lfc": self.lfc,
             "rx": self.rx,
             "drops": self.drops,
-            "drop_counter": self.last_drop_counter,
-            "drop_counter_ts": self.last_drop_ts,
         }
         try:
             self._path.parent.mkdir(parents=True, exist_ok=True)
@@ -339,9 +337,10 @@ class NetHistory:
         dirty = self._keep(self.lfc, now, lfc) | self._keep(self.rx, now, rx)
 
         # Drops: increments of the link's failure counter (the primary slave's
-        # LFC on a bond, carrier_down_count on a single NIC). An increment seen
-        # across a gap longer than an hour is older than the window and is not
-        # placed; a reset counts from zero, like the deltas.
+        # LFC on a bond, carrier_down_count on a single NIC) between two ticks
+        # of THIS process. The first tick after a start only sets the baseline.
+        # An increment seen across a gap longer than an hour is not placed; a
+        # decrease is a reset and counts from zero, like the deltas.
         if drop_counter is not None:
             prev, prev_ts = self.last_drop_counter, self.last_drop_ts
             if prev is not None and prev_ts is not None and now - prev_ts <= HOUR_S:

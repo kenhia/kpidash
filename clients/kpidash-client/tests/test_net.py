@@ -21,6 +21,7 @@ import pytest
 from kpidash_client import net
 from kpidash_client.config import ClientConfig, ConfigError
 from kpidash_client.net import (
+    DAY_S,
     NetCollector,
     NetConfig,
     NetHistory,
@@ -226,6 +227,27 @@ def test_history_survives_a_restart(tmp_path):
     mem = h2.observe(T0 + 410, lfc=13, rx=0, drop_counter=13)
     assert mem["lfc_delta_24h"] == 3
     assert mem["drops"] == [T0 + 400] * 3
+
+
+def test_a_restart_never_logs_a_phantom_drop(tmp_path):
+    """The last link state is not persisted (korg:4066 comment 3995): a bond
+    that comes back up after a reboot with its counter re-initialised is not a
+    drop. The first tick of a process only sets the baseline."""
+    p = tmp_path / "h.json"
+    h = NetHistory(p)
+    h.observe(T0, lfc=0, rx=0, drop_counter=0)
+    h.observe(T0 + 5, lfc=0, rx=0, drop_counter=0)
+    assert "drop_counter" not in json.loads(p.read_text())
+    h2 = NetHistory(p)  # reboot: the bond counted one failure coming up
+    assert h2.observe(T0 + 60, lfc=1, rx=0, drop_counter=1)["drops"] == []
+    assert h2.observe(T0 + 65, lfc=2, rx=0, drop_counter=2)["drops"] == [T0 + 65]
+
+
+def test_delta_baseline_is_the_oldest_sample_inside_the_window(tmp_path):
+    h = NetHistory(tmp_path / "h.json")
+    h.lfc = [(T0, 0), (T0 + 600, 5), (T0 + DAY_S + 300, 7)]
+    # T0 is outside the window at T0+DAY_S+300; the +5 before T0+600 is not counted.
+    assert net._delta(h.lfc, T0 + DAY_S + 300) == 2
 
 
 def test_drops_are_counter_increments_within_the_hour(tmp_path):
