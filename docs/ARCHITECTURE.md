@@ -130,9 +130,16 @@ LVGL/DRM/KMS with no mouse or keyboard interaction.
    value=JSON, EX 30 s). Dashboard shows repos where branch ≠ default or
    is_dirty. Expanded fields include ahead/behind counts, untracked/changed/
    deleted/renamed counts, detached head, last commit timestamp.
-6. **Fortune**: rotation timer in dashboard runs `fortune` popen every 300 s
-   and caches in `kpidash:fortune:current`. Clients can push an override via
+6. **Fortune** (compiled out since sprint 024 — the network card has its
+   cell; `KPIDASH_WIDGET_FORTUNE` in `src/ui.h` brings it back): rotation
+   timer in dashboard runs `fortune` popen every 300 s and caches in
+   `kpidash:fortune:current`. Clients can push an override via
    `kpidash:fortune:pushed` with TTL.
+6a. **Network health** (sprint 024): each Linux client writes
+   `kdash:net:{host}` (kdashdata CD-27) every ~5 s, EX 15; the dashboard MGETs
+   the configured hosts each poll into `netstate.c` (pure model) and draws
+   `widgets/net_card.c` in the rows-2-3 pool where Fortune was. See
+   CLIENT-PROTOCOL.md §8d.
 7. **Status**: dashboard pushes warning/error messages to
    `kpidash:status:current`. Client CLIs read and acknowledge via
    `kpidash:status:ack:{id}`.

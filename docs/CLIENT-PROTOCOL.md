@@ -244,6 +244,10 @@ repos on their default branch are removed with `HDEL`.
 
 ## 6. Fortune
 
+> **Compiled out since sprint 024** (`KPIDASH_WIDGET_FORTUNE 0` in `src/ui.h`):
+> the network-health card (§8d) took its cell. The keys below are unread
+> until it returns.
+
 | Key | Type | Written by | Read by | TTL |
 |-----|------|-----------|---------|-----|
 | `kpidash:fortune:current` | STRING (JSON) | dashboard | dashboard | none |
@@ -490,6 +494,64 @@ Temperature colour: Blue `<65.0` · Green `65.0–75.0` · Orange `75.1–79.9` 
 Red `>79.9`; the card goes GRAY when `(now − ts) ≥ 300 s`. Keys are published by
 the separate **apt-temps** project; the dashboard only reads them. Delete a
 key to remove its card.
+
+---
+
+## 8d. Network-Health Card (Sprint 024, WI #4061 / #4062)
+
+| Key | Type | Written by | Read by | TTL |
+|-----|------|-----------|---------|-----|
+| `kdash:net:{host}` | STRING (JSON) | kpidash-client (Linux), kpidash-client-win (cleo) | dashboard | 15 s |
+
+**The contract is kdashdata's, not this file's**: schema
+`lib/kdashdata/contracts/schemas/kdash-net.schema.json`, rulings in CD-27 of
+`lib/kdashdata/docs/architecture.md`. Field names are pinned; a breaking change
+lands as `kdash:net:v2:{host}`. Both ends are gated against that schema:
+`clients/kpidash-client/tests/test_net.py` validates every record shape the
+producer builds with kdashdata's own validator, and `tests/test_netstate.c`
+requires the reader to accept every schema example and refuse every
+counterexample.
+
+**Producer** (`kpidash_client/net.py`, Linux only, on by default there): every
+telemetry interval (~5 s), `SET … EX 15`, from its own daemon thread. Each host
+probes its own path — one ICMP echo each to the UDM (`192.168.1.1`), every
+fabric peer's bond address except its own, and an Internet target
+(`1.1.1.1`), concurrently under a 2.5 s deadline. `[net]` in config.toml
+overrides any of it:
+
+```toml
+[net]
+enabled = true                      # default: true on Linux, false elsewhere
+bond    = "bond0"
+udm     = "192.168.1.1"
+wan     = "1.1.1.1"
+peers   = ["192.168.1.235", "192.168.1.60", "192.168.1.111", "192.168.1.200"]
+nic     = "AQC113"                  # display label; detected from the PCI id if omitted
+```
+
+`lfc_delta_24h`, `rx_errors_delta_24h` and `drops` need memory across
+restarts, so the producer keeps `net-history.json` under its state dir
+(`$STATE_DIRECTORY`, else `$XDG_STATE_HOME/kpidash-client`, else
+`~/.local/state/kpidash-client`): 24 h of counter samples, one kept per five
+minutes, and the last hour of drop events. A restart therefore never reports
+`(+0)` for a window it did not see; a delta is `null` only before the first
+window exists. `kpidash-client net` prints one record without touching Redis
+or that file.
+
+**Reader**: one `MGET` per second for the hosts in `KPIDASH_NET_HOSTS`
+(default `kubs0,kubsdb,kai,gratch,cleo`, card order, first five drawn). Same
+freshness convention as the host cards: a key that is absent this poll means
+the publisher is gone, and the column keeps the last record and renders it
+hatched `STALE · n s` — never healthy. A host that has not published since the
+dashboard started is **no feed** (grey, hatched, not a fault). A record that
+fails the contract is treated as absent. The panel derives the verdict,
+uplink-lost (live hosts reach peers but none reaches the UDM), WAN-down, the
+header RTT tiles (medians) and a 60-minute, per-minute throughput history.
+
+```bash
+# What the card reads for one host (rpi53 Redis needs auth)
+redis-cli -h rpi53 GET kdash:net:kai | jq .
+```
 
 ---
 

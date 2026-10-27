@@ -17,6 +17,7 @@
 #include "logfilter.h"
 #include "lvgl.h"
 #include "memstat.h"
+#include "netstate.h"
 #include "protocol.h"
 #include "redis.h"
 #include "registry.h"
@@ -139,6 +140,9 @@ int main(void) {
                 g_config.state_file);
     }
 
+    /* WI #4062: the network card's columns, before the first poll. */
+    net_set_hosts(g_config.net_hosts, g_config.net_host_count);
+
     /* Build UI — must be after LVGL display init */
     ui_init();
 
@@ -160,8 +164,10 @@ int main(void) {
     memstat_sample_now();
     lv_timer_create(memstat_timer_cb, 60000, NULL);
 
+#if KPIDASH_WIDGET_FORTUNE
     /* Fortune (after ui_init so widget exists) */
     fortune_init(&g_config);
+#endif
 
     printf("kpidash: running (Redis %s:%d, DRM %s)\n", g_config.redis_host, g_config.redis_port,
            g_config.drm_dev);

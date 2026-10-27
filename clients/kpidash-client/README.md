@@ -116,6 +116,15 @@ shows its card as grey **asleep** instead of red **offline**. The default, `alwa
 leaves the payload unchanged. Any other value is a config error, so a typo cannot hide
 an outage.
 
+### Network health (Linux)
+
+On Linux the daemon also publishes `kdash:net:<host>` for the panel's network
+card: which bond leg is carrying traffic, the 10G slave's Link Failure Count and
+rx errors, and this host's own probes to the UDM, its fabric peers and the
+Internet. It needs no configuration on the fleet; `[net]` overrides any default
+(see `docs/CLIENT-PROTOCOL.md` §8d), and `[net] enabled = false` turns it off.
+`kpidash-client net` prints one record without touching Redis.
+
 ### Windows
 
 Create `%APPDATA%\kpidash-client\config.toml`:

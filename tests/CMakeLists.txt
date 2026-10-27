@@ -153,3 +153,17 @@ if(TARGET lvgl)
     target_compile_options(test_widget_leak PRIVATE -Wall -Wextra -Wno-unused-parameter)
     add_test(NAME test_widget_leak COMMAND test_widget_leak)
 endif()
+
+# WI #4062: the network card's model. Pure — no LVGL, no Redis — and held to
+# the contract: it reads kdashdata's kdash-net.schema.json at run time and
+# requires every example to parse and every counterexample to be distrusted.
+add_executable(test_netstate
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_netstate.c
+    ${CMAKE_SOURCE_DIR}/src/netstate.c
+)
+target_include_directories(test_netstate PRIVATE ${CMAKE_SOURCE_DIR}/src ${CJSON_INCLUDE_DIRS})
+target_link_libraries(test_netstate ${CJSON_LIBRARIES})
+target_compile_options(test_netstate PRIVATE -Wall -Wextra -Wno-unused-parameter)
+target_compile_definitions(test_netstate PRIVATE
+    KDASH_NET_SCHEMA="${CMAKE_SOURCE_DIR}/lib/kdashdata/contracts/schemas/kdash-net.schema.json")
+add_test(NAME test_netstate COMMAND test_netstate)

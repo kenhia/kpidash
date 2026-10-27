@@ -219,6 +219,12 @@ typedef struct {
 #define EVICT_TARGETS_MAX 16
 /* GETDEL kpidash:cmd:services:evict and stash any targets for the UI to apply. */
 void redis_poll_evict(void);
+
+/* WI #4062: one MGET of kdash:net:<host> for the network card's hosts, fed to
+ * netstate. A missing key is reported as absent (the publisher is gone); a
+ * failed command is not reported at all, so a Redis hiccup never turns every
+ * column stale. */
+void redis_poll_net(void);
 /* Copy pending evict targets into out[] (up to max) and clear them; returns count. */
 int redis_take_evict_targets(evict_target_t *out, int max);
 

@@ -26,6 +26,11 @@
 #define WS_COLOR_YELLOW lv_color_hex(0xF9E2AF)   /* Yellow */
 #define WS_COLOR_SURFACE0 lv_color_hex(0x313244) /* Surface0 */
 #define WS_COLOR_SURFACE1 lv_color_hex(0x45475A) /* Surface1 */
+/* WI #4062: the network card's extension (design record korg:4059). Teal is
+ * the healthy-fabric colour, chosen to read apart from the host cards' green. */
+#define WS_COLOR_TEAL lv_color_hex(0x94E2D5)     /* Teal: 10G */
+#define WS_COLOR_SAPPHIRE lv_color_hex(0x74C7EC) /* Sapphire: 5G */
+#define WS_COLOR_LAVENDER lv_color_hex(0xB4BEFE) /* Lavender: structure */
 
 /* ---- Shared font pointers ---- */
 #define WS_FONT_HDR (&lv_font_montserrat_bold_20)
