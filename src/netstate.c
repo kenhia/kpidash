@@ -259,6 +259,13 @@ void net_subtitle(const net_host_t *h, double now, char *buf, size_t n, bool *bo
     }
 }
 
+void net_rx_text(const net_host_t *h, char *buf, size_t n) {
+    if (h->state == NET_COL_NOFEED || h->rec.rx_errors_delta_24h < 0)
+        snprintf(buf, n, "rx err —");
+    else
+        snprintf(buf, n, "rx err %ld", h->rec.rx_errors_delta_24h);
+}
+
 static int cmp_double(const void *a, const void *b) {
     double x = *(const double *)a, y = *(const double *)b;
     return (x > y) - (x < y);
