@@ -308,7 +308,7 @@ static void spark_draw_cb(lv_event_t *e) {
 /* ---- The card ---- */
 
 typedef struct {
-    lv_obj_t *col, *frame, *band, *tick, *name, *nic, *num, *mbps, *pill[3], *pill_lbl[3],
+    lv_obj_t *col, *hatch, *frame, *band, *tick, *name, *nic, *num, *mbps, *pill[3], *pill_lbl[3],
         *spark, *foot_r;
     rich_t sub, unit, lfc, rx, foot_l;
     spark_t sd;
@@ -329,7 +329,12 @@ static void col_create(netcol_t *c, int i) {
 
     c->col = rect(g.root, x, COL_Y, COL_W, COL_H, 10);
     lv_obj_set_style_clip_corner(c->col, true, 0);
-    lv_obj_set_style_bg_image_tiled(c->col, true, 0);
+    /* The hatch is a child layer, not c->col's own bg image: clip_corner
+     * clips children to the radius but not the object's own image. */
+    c->hatch = rect(c->col, 0, 0, COL_W, COL_H, 0);
+    lv_obj_set_style_bg_opa(c->hatch, LV_OPA_TRANSP, 0);
+    lv_obj_set_style_bg_image_src(c->hatch, &g_hatch, 0);
+    lv_obj_set_style_bg_image_tiled(c->hatch, true, 0);
     /* The frame is its own border-only object, so a 3 px attention frame
      * never moves the column's contents the way a border on c->col would. */
     c->frame = rect(c->col, 0, 0, COL_W, COL_H, 10);
@@ -464,7 +469,10 @@ static void col_update(netcol_t *c, const net_host_t *h, double now) {
                                   0);
     lv_obj_set_style_border_width(c->frame, attn ? 3 : 1, 0);
     lv_obj_set_style_bg_color(c->col, WS_COLOR_BG, 0);
-    lv_obj_set_style_bg_image_src(c->col, grey ? &g_hatch : NULL, 0);
+    if (grey)
+        lv_obj_remove_flag(c->hatch, LV_OBJ_FLAG_HIDDEN);
+    else
+        lv_obj_add_flag(c->hatch, LV_OBJ_FLAG_HIDDEN);
 
     set_text(c->name, h->host);
     set_text(c->nic, nofeed ? "" : r->nic);
