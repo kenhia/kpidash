@@ -139,6 +139,13 @@ class RedisClient:
             ex=5,  # short TTL — only useful while graph is active
         )
 
+    # ---- Network health (WI #4061) ----
+
+    def write_net(self, record: dict) -> None:
+        """kdash:net:{host} v1 (kdashdata CD-27): the host-card convention,
+        written every ~5 s with EX 15, so absence means the publisher is gone."""
+        self._cmd("set", f"kdash:net:{self._hostname}", json.dumps(record), ex=15)
+
     # ---- Repos ----
 
     def write_repos(self, repo_statuses: list[dict]) -> None:

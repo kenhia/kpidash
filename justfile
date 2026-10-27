@@ -117,8 +117,10 @@ check-scripts:
 check-fonts:
     ./tests/shell/test_font_coverage.sh
 
-# Gate: the Python client (lint + tests)
-check-client:
+# Gate: the Python client (lint + tests). Needs lib/kdashdata too: test_net.py
+# validates every kdash:net record against the contract's own schema with
+# kdashdata's own validator, and FAILS (never skips) when it is absent.
+check-client: _kdash
     cd clients/kpidash-client && uv run --extra dev ruff check .
     cd clients/kpidash-client && uv run --extra dev pytest -q
 
