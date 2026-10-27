@@ -225,14 +225,18 @@ static void spark_draw_cb(lv_event_t *e) {
     const int32_t w = lv_area_get_width(&a) - 1, h = lv_area_get_height(&a) - 1;
     const int32_t base = a.y1 + h;
 
-    if (s->n >= 2) {
+    if (s->n >= 1) {
         float mx = 0;
         for (int i = 0; i < s->n; i++)
             mx = s->v[i] > mx ? s->v[i] : mx;
         mx = mx > 0.5f ? mx * 1.1f : 1.0f;
         float px[NET_HIST_N + 1], py[NET_HIST_N + 1];
+        /* Right-anchored on a fixed hour: the newest point is "now" at the
+         * right edge, one step per minute, so a young history fills from the
+         * right and x means the same time the drop ticks do. */
+        const float step = (float)w / (float)NET_HIST_N;
         for (int i = 0; i < s->n; i++) {
-            px[i] = (float)a.x1 + (float)i * (float)w / (float)(s->n - 1);
+            px[i] = (float)(a.x1 + w) - (float)(s->n - 1 - i) * step;
             py[i] = (float)base - s->v[i] / mx * (float)h;
         }
 
@@ -242,7 +246,7 @@ static void spark_draw_cb(lv_event_t *e) {
         fill.bg_color = s->color;
         fill.bg_opa = (lv_opa_t)46; /* the mock-up's .18 */
         int seg = 0;
-        for (int32_t x = a.x1; x <= a.x1 + w; x += 2) {
+        for (int32_t x = (int32_t)px[0]; s->n >= 2 && x <= a.x1 + w; x += 2) {
             while (seg < s->n - 2 && (float)x > px[seg + 1])
                 seg++;
             float t = (px[seg + 1] > px[seg]) ? ((float)x - px[seg]) / (px[seg + 1] - px[seg]) : 0;
