@@ -92,3 +92,29 @@ None filed. The intermittent list now exists in two places, k-homelab
 `inventory.yml` and `INTERMITTENT_HOSTS_DEFAULT`. That is accepted by WI 4111
 ("a kpidash config list … is acceptable"), and the comment names the source of
 truth.
+
+## Deployed
+
+2026-10-27 18:04 PDT, from kai, to rpi53. Ran on the ship turn, after the
+overseer's clearance (korg:4114 comment 4043) and the squash merge `636bea7`
+(PR #27).
+
+- **`scripts/deploy.sh` from merged `main`.** Only `kpidash.service`
+  restarted; Redis did not. The service is active with `NRestarts=0`, and
+  the dashboard reports version `636bea7 (2026-10-28)`, which the panel's own
+  rpidash card also shows. The aarch64 link printed no warnings
+  (`.scratch/deploy.log`, grepped).
+- **Live check, from kai against rpi53 Redis.** Auth was resolved on the Pi
+  through `kpidash-auth.sh`. The two controls behaved as expected:
+  `redis-cli ping` without auth returned `NOAUTH`, and with auth returned
+  `PONG`. Before the test there were no `kdash:stale:*` keys at all, so no
+  real komarchy flag older than 7 days could confound it.
+  1. `kdash:stale:komarchy:test` with `since` = now (`1793149499`):
+     **no card**. The footer showed only the services and apt-temps cards.
+  2. The same key with `since` = now − 8 d (`1792458312`): **the
+     `komarchy stale` card appeared**, listing `test`, in its usual slot
+     between the services and apt-temps cards.
+  3. `DEL` returned 1, and 0 `kdash:stale:*` keys remain. The card was gone
+     on the next screenshot.
+
+  Each state was captured with `krpidss`: `.scratch/live-026-{recent,8d,cleared}.png`.
