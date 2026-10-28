@@ -35,6 +35,7 @@ static void clear_env(void) {
     unsetenv("KPIDASH_STATE_FILE");
     unsetenv("KPIDASH_PRIORITY_CLIENTS");
     unsetenv("KPIDASH_NET_HOSTS");
+    unsetenv("KPIDASH_INTERMITTENT_HOSTS");
 }
 
 static void test_defaults(void) {
@@ -56,6 +57,10 @@ static void test_defaults(void) {
     CHECK(cfg.net_host_count == 5);
     CHECK(strcmp(cfg.net_hosts[0], "kubs0") == 0);
     CHECK(strcmp(cfg.net_hosts[4], "cleo") == 0);
+    /* WI #4111: the hosts k-homelab's inventory marks intermittent. */
+    CHECK(cfg.intermittent_host_count == 4);
+    CHECK(strcmp(cfg.intermittent_hosts[0], "komarchy") == 0);
+    CHECK(strcmp(cfg.intermittent_hosts[3], "thrall") == 0);
 }
 
 static void test_overrides(void) {
@@ -127,6 +132,22 @@ static void test_net_hosts(void) {
     clear_env();
 }
 
+/* WI #4111: set-but-empty means "no intermittent hosts", not the default. */
+static void test_intermittent_hosts(void) {
+    clear_env();
+    setenv("KPIDASH_INTERMITTENT_HOSTS", " kbook2 ,kimac", 1);
+    kpidash_config_t cfg;
+    config_load(&cfg);
+    CHECK(cfg.intermittent_host_count == 2);
+    CHECK(strcmp(cfg.intermittent_hosts[0], "kbook2") == 0);
+    CHECK(strcmp(cfg.intermittent_hosts[1], "kimac") == 0);
+
+    setenv("KPIDASH_INTERMITTENT_HOSTS", "", 1);
+    config_load(&cfg);
+    CHECK(cfg.intermittent_host_count == 0);
+    clear_env();
+}
+
 int main(void) {
     test_defaults();
     test_overrides();
@@ -134,6 +155,7 @@ int main(void) {
     test_invalid_max_clients();
     test_priority_clients();
     test_net_hosts();
+    test_intermittent_hosts();
 
     printf("test_config: %d passed, %d failed\n", passed, failed);
     return failed > 0 ? 1 : 0;

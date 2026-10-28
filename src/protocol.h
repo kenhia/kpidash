@@ -20,6 +20,12 @@
  * first five), and the default list — the fabric as of 2026-10-26. */
 #define NET_HOSTS_CONFIG_MAX 8
 #define NET_HOSTS_DEFAULT "kubs0,kubsdb,kai,gratch,cleo"
+/* WI #4111: hosts that sleep or travel by design — the `availability:
+ * intermittent` entries in k-homelab's inventory.yml as of 2026-10-27. The
+ * staleness flag carries no availability, and the deployers that write it are
+ * deliberately left alone (korg:4023 decision 2(i)), so the list lives here. */
+#define INTERMITTENT_HOSTS_MAX 8
+#define INTERMITTENT_HOSTS_DEFAULT "komarchy,kbook2,kimac,thrall"
 
 /* ---- TTL constants (seconds) ---- */
 #define HEALTH_TTL_S 5
@@ -108,6 +114,12 @@
 /* Shown in place of a deployer name when the key is off-contract (no deployer
  * segment, or too many). The host is still raised — see CD-18 above. */
 #define STALE_DEPLOYER_UNKNOWN "(unknown)"
+
+/* WI #4111: an intermittent host's card stays hidden until its OLDEST flag is
+ * MORE than this old. A closed laptop is not a call for attention; one closed
+ * for over a week is. This is the same number as kmon's KMON_ABSENCE_DAYS
+ * (kmon/satellite.py, DEFAULT_ABSENCE_DAYS = 7) — change them together. */
+#define STALE_INTERMITTENT_GRACE_S (7 * 86400)
 
 #define CMD_TTL_S 300
 

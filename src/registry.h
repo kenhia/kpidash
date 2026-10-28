@@ -469,6 +469,19 @@ void stale_registry_observe(const char *host, const char *deployer, double since
  * them, so their LVGL cards can be destroyed on the LVGL thread. */
 void stale_registry_commit_cycle(void);
 
+/* As stale_registry_commit_cycle, with the clock supplied. That variant reads
+ * time(NULL) and calls this one; the split exists so the WI #4111 grace is
+ * testable without sleeping a week. */
+void stale_registry_commit_cycle_at(double now);
+
+/* WI #4111: the hosts that sleep or travel by design. An intermittent host is
+ * left out of the live set while every one of its flags has a readable
+ * `since` no more than STALE_INTERMITTENT_GRACE_S old; once its OLDEST flag
+ * passes that, it is shown exactly as an always-on host is. An unreadable
+ * `since` cannot prove the flag is young, so it disqualifies the grace
+ * (CD-18: unknown is stale). Copies the list; n <= 0 or NULL clears it. */
+void stale_registry_set_intermittent(const char (*hosts)[HOSTNAME_LEN], int n);
+
 /* Discard the pending set; the live set is unchanged. Call this instead of
  * commit whenever the scan did not complete. */
 void stale_registry_abort_cycle(void);

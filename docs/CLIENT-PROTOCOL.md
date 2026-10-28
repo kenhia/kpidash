@@ -628,6 +628,21 @@ host's last key does.
 **`rpi53` is excluded**: it is the panel's own host, and if it is behind there
 is no dashboard to say so.
 
+**Intermittent hosts wait out a week** (sprint 026, WI #4111, k-homelab
+korg:4023 decision 2(i)). For a host in `KPIDASH_INTERMITTENT_HOSTS` — default
+`komarchy,kbook2,kimac,thrall`, the `availability: intermittent` entries of
+k-homelab's `inventory.yml` — the card stays hidden until the host's **oldest**
+flag's `since` is **more than 7 days** old (`STALE_INTERMITTENT_GRACE_S`, the
+same number as kmon's `KMON_ABSENCE_DAYS`). A closed laptop is not a call for
+attention; one closed for over a week is. Every other host's card shows
+immediately, as before.
+
+The grace is the reader's alone. The keys stay exactly as truthful as before,
+no writer changed, and the flag carries no availability — hence the config
+list. An unreadable `since` cannot prove a flag is young, so it voids the grace
+and the card shows (CD-18: unknown is stale). Set `KPIDASH_INTERMITTENT_HOSTS=`
+(empty) to turn the grace off.
+
 Limits: `STALE_REGISTRY_MAX` hosts (8) and `STALE_DEPLOYERS_MAX` deployers per
 host (8); anything beyond is dropped rather than overflowing the card.
 

@@ -23,6 +23,30 @@ static void parse_str_env(const char *name, const char *default_val, char *out, 
     out[out_len - 1] = '\0';
 }
 
+/* Comma-separated hostnames into out[], spaces trimmed, empty tokens dropped.
+ * Returns the count. A variable set to "" yields zero hosts, not the default. */
+static int parse_host_list_env(const char *name, const char *default_val,
+                               char (*out)[HOSTNAME_LEN], int max) {
+    char buf[16 * HOSTNAME_LEN];
+    parse_str_env(name, default_val, buf, sizeof(buf));
+    int count = 0;
+    char *save = NULL;
+    for (char *tok = strtok_r(buf, ",", &save); tok && count < max;
+         tok = strtok_r(NULL, ",", &save)) {
+        while (*tok == ' ')
+            tok++;
+        size_t len = strnlen(tok, HOSTNAME_LEN - 1);
+        while (len > 0 && tok[len - 1] == ' ')
+            len--;
+        if (len == 0)
+            continue;
+        memcpy(out[count], tok, len);
+        out[count][len] = '\0';
+        count++;
+    }
+    return count;
+}
+
 void config_load(kpidash_config_t *cfg) {
     memset(cfg, 0, sizeof(*cfg));
 
@@ -46,24 +70,13 @@ void config_load(kpidash_config_t *cfg) {
                   sizeof(cfg->state_file));
 
     /* WI #4062: network-card hosts, comma-separated, card order. */
-    {
-        char buf[NET_HOSTS_CONFIG_MAX * HOSTNAME_LEN];
-        parse_str_env("KPIDASH_NET_HOSTS", NET_HOSTS_DEFAULT, buf, sizeof(buf));
-        char *save = NULL;
-        for (char *tok = strtok_r(buf, ",", &save);
-             tok && cfg->net_host_count < NET_HOSTS_CONFIG_MAX; tok = strtok_r(NULL, ",", &save)) {
-            while (*tok == ' ')
-                tok++;
-            size_t len = strnlen(tok, HOSTNAME_LEN - 1);
-            while (len > 0 && tok[len - 1] == ' ')
-                len--;
-            if (len == 0)
-                continue;
-            memcpy(cfg->net_hosts[cfg->net_host_count], tok, len);
-            cfg->net_hosts[cfg->net_host_count][len] = '\0';
-            cfg->net_host_count++;
-        }
-    }
+    cfg->net_host_count = parse_host_list_env("KPIDASH_NET_HOSTS", NET_HOSTS_DEFAULT,
+                                              cfg->net_hosts, NET_HOSTS_CONFIG_MAX);
+
+    /* WI #4111: intermittent hosts, comma-separated. */
+    cfg->intermittent_host_count =
+        parse_host_list_env("KPIDASH_INTERMITTENT_HOSTS", INTERMITTENT_HOSTS_DEFAULT,
+                            cfg->intermittent_hosts, INTERMITTENT_HOSTS_MAX);
 
     /* Parse priority clients: comma-separated hostnames */
     const char *pc = getenv("KPIDASH_PRIORITY_CLIENTS");

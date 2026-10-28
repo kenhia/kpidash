@@ -23,6 +23,10 @@ typedef struct {
      * publishes must still get a "no feed" column rather than vanish. */
     char net_hosts[NET_HOSTS_CONFIG_MAX][HOSTNAME_LEN];
     int net_host_count;
+    /* WI #4111: hosts whose staleness card waits out STALE_INTERMITTENT_GRACE_S
+     * (KPIDASH_INTERMITTENT_HOSTS). */
+    char intermittent_hosts[INTERMITTENT_HOSTS_MAX][HOSTNAME_LEN];
+    int intermittent_host_count;
 } kpidash_config_t;
 
 /**
