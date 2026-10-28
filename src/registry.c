@@ -3,6 +3,7 @@
 #include <pthread.h>
 #include <stdio.h>
 #include <string.h>
+#include <time.h>
 
 /* WI #2244: the shared apartment-temperature band classifier and its default
  * thresholds. kpidash links kdash_core only — the pure logic, no sockets. */
@@ -608,8 +609,56 @@ static void stale_sort_deployers(stale_deployer_t *d, int n) {
     }
 }
 
-void stale_registry_commit_cycle(void) {
+static char g_stale_intermittent[INTERMITTENT_HOSTS_MAX][HOSTNAME_LEN];
+static int g_stale_intermittent_count = 0;
+
+void stale_registry_set_intermittent(const char (*hosts)[HOSTNAME_LEN], int n) {
     pthread_mutex_lock(&g_stale_mutex);
+    g_stale_intermittent_count = 0;
+    for (int i = 0; hosts && i < n && i < INTERMITTENT_HOSTS_MAX; i++) {
+        memcpy(g_stale_intermittent[i], hosts[i], HOSTNAME_LEN);
+        g_stale_intermittent[i][HOSTNAME_LEN - 1] = '\0';
+        g_stale_intermittent_count++;
+    }
+    pthread_mutex_unlock(&g_stale_mutex);
+}
+
+/* WI #4111. Caller holds g_stale_mutex. */
+static bool stale_pending_in_grace(const stale_pending_t *p, double now) {
+    bool intermittent = false;
+    for (int i = 0; i < g_stale_intermittent_count; i++) {
+        if (strncmp(g_stale_intermittent[i], p->host, HOSTNAME_LEN) == 0) {
+            intermittent = true;
+            break;
+        }
+    }
+    if (!intermittent) return false;
+    for (int i = 0; i < p->deployer_count; i++) {
+        if (!p->deployers[i].since_known) return false;
+        if (now - p->deployers[i].since > STALE_INTERMITTENT_GRACE_S) return false;
+    }
+    return true;
+}
+
+void stale_registry_commit_cycle(void) {
+    stale_registry_commit_cycle_at((double)time(NULL));
+}
+
+void stale_registry_commit_cycle_at(double now) {
+    pthread_mutex_lock(&g_stale_mutex);
+
+    /* WI #4111: an intermittent host inside its grace is treated exactly as
+     * one with no flags — dropped from the pending set, so a card already up
+     * goes through the ordinary empty-then-reap path. */
+    {
+        int kept = 0;
+        for (int i = 0; i < g_stale_pending_count; i++) {
+            if (stale_pending_in_grace(&g_stale_pending[i], now)) continue;
+            if (kept != i) g_stale_pending[kept] = g_stale_pending[i];
+            kept++;
+        }
+        g_stale_pending_count = kept;
+    }
 
     /* Stable, name-ascending host order so the snapshot (and the cards built
      * from it) do not depend on SCAN order. */

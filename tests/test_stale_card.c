@@ -504,6 +504,93 @@ static void test_capacity_limits_do_not_overflow(void) {
     CHECK(e && e->deployer_count == STALE_DEPLOYERS_MAX);
 }
 
+/* ---- 4. Intermittent-host grace (WI #4111, korg:4023 decision 2(i)) --- */
+
+#define DAY_S 86400.0
+#define NOW_S 1800000000.0
+
+static void set_intermittent_komarchy(void) {
+    const char hosts[1][HOSTNAME_LEN] = {"komarchy"};
+    stale_registry_set_intermittent(hosts, 1);
+}
+
+static int commit_one(const char *host, double age_s, bool since_known) {
+    reset_registry();
+    stale_registry_begin_cycle();
+    stale_registry_observe(host, "k-homelab", NOW_S - age_s, since_known);
+    stale_registry_commit_cycle_at(NOW_S);
+    stale_entry_t snap[STALE_REGISTRY_MAX];
+    int n = stale_registry_snapshot(snap, STALE_REGISTRY_MAX);
+    return find_host(snap, n, host) && find_host(snap, n, host)->deployer_count > 0;
+}
+
+/* A closed laptop is not a call for attention until it has been closed for
+ * longer than the shared absence window. */
+static void test_intermittent_six_day_flag_is_hidden(void) {
+    set_intermittent_komarchy();
+    CHECK(!commit_one("komarchy", 6 * DAY_S, true));
+}
+
+static void test_intermittent_eight_day_flag_is_shown(void) {
+    set_intermittent_komarchy();
+    CHECK(commit_one("komarchy", 8 * DAY_S, true));
+}
+
+/* "More than 7 days": exactly at the window is still inside it. */
+static void test_intermittent_boundary_is_exclusive(void) {
+    set_intermittent_komarchy();
+    CHECK(!commit_one("komarchy", STALE_INTERMITTENT_GRACE_S, true));
+    CHECK(commit_one("komarchy", STALE_INTERMITTENT_GRACE_S + 1, true));
+}
+
+static void test_always_on_one_minute_flag_is_shown(void) {
+    set_intermittent_komarchy();
+    CHECK(commit_one("kubs0", 60.0, true));
+}
+
+/* CD-18 still wins: an unreadable `since` cannot prove the flag is young, so
+ * the grace cannot apply and the host is raised. */
+static void test_intermittent_unknown_since_is_shown(void) {
+    set_intermittent_komarchy();
+    CHECK(commit_one("komarchy", 60.0, false));
+}
+
+/* The OLDEST flag decides: a fresh second deployer does not hide a host the
+ * first one has been skipping for over a week. */
+static void test_intermittent_oldest_deployer_decides(void) {
+    set_intermittent_komarchy();
+    reset_registry();
+    stale_registry_begin_cycle();
+    stale_registry_observe("komarchy", "agent-skills", NOW_S - 60.0, true);
+    stale_registry_observe("komarchy", "k-homelab", NOW_S - 8 * DAY_S, true);
+    stale_registry_commit_cycle_at(NOW_S);
+    stale_entry_t snap[STALE_REGISTRY_MAX];
+    int n = stale_registry_snapshot(snap, STALE_REGISTRY_MAX);
+    const stale_entry_t *e = find_host(snap, n, "komarchy");
+    CHECK(e && e->deployer_count == 2);
+}
+
+/* A card already up when the host is (re)classified intermittent comes down
+ * through the ordinary reap, so its LVGL card is destroyed, not orphaned. */
+static void test_hidden_live_card_is_reaped(void) {
+    stale_registry_set_intermittent(NULL, 0);
+    reset_registry();
+    stale_registry_begin_cycle();
+    stale_registry_observe("komarchy", "k-homelab", NOW_S - DAY_S, true);
+    stale_registry_commit_cycle_at(NOW_S);
+    stale_entry_t snap[STALE_REGISTRY_MAX];
+    CHECK(stale_registry_snapshot(snap, STALE_REGISTRY_MAX) == 1);
+
+    set_intermittent_komarchy();
+    stale_registry_begin_cycle();
+    stale_registry_observe("komarchy", "k-homelab", NOW_S - DAY_S, true);
+    stale_registry_commit_cycle_at(NOW_S);
+    void *cs[STALE_REGISTRY_MAX];
+    CHECK(stale_registry_reap(cs, STALE_REGISTRY_MAX) == 1);
+    CHECK(stale_registry_snapshot(snap, STALE_REGISTRY_MAX) == 0);
+    stale_registry_set_intermittent(NULL, 0);
+}
+
 int main(void) {
     test_key_split_contract_shape();
     test_key_split_off_contract_still_raises_host();
@@ -529,6 +616,13 @@ int main(void) {
     test_observe_rejects_empty_host();
     test_format_title_and_body();
     test_capacity_limits_do_not_overflow();
+    test_intermittent_six_day_flag_is_hidden();
+    test_intermittent_eight_day_flag_is_shown();
+    test_intermittent_boundary_is_exclusive();
+    test_always_on_one_minute_flag_is_shown();
+    test_intermittent_unknown_since_is_shown();
+    test_intermittent_oldest_deployer_decides();
+    test_hidden_live_card_is_reaped();
 
     fprintf(stderr, "test_stale_card: %d passed, %d failed\n", passed, failed);
     return failed == 0 ? 0 : 1;

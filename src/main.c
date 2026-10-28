@@ -143,6 +143,10 @@ int main(void) {
     /* WI #4062: the network card's columns, before the first poll. */
     net_set_hosts(g_config.net_hosts, g_config.net_host_count);
 
+    /* WI #4111: whose staleness card waits out the absence window. */
+    stale_registry_set_intermittent(g_config.intermittent_hosts,
+                                    g_config.intermittent_host_count);
+
     /* Build UI — must be after LVGL display init */
     ui_init();
 
