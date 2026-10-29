@@ -124,6 +124,9 @@ rx errors, and this host's own probes to the UDM, its fabric peers and the
 Internet. It needs no configuration on the fleet; `[net]` overrides any default
 (see `docs/CLIENT-PROTOCOL.md` §8d), and `[net] enabled = false` turns it off.
 `kpidash-client net` prints one record without touching Redis.
+`kpidash-client net ack <host> [--by NAME]` (1.4.0) clears a reviewed yellow
+column on the card from any host: it records the host's live counters as a 24 h
+baseline, and anything after it turns the column yellow again.
 
 ### Windows
 

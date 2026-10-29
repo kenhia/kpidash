@@ -146,6 +146,34 @@ class RedisClient:
         written every ~5 s with EX 15, so absence means the publisher is gone."""
         self._cmd("set", f"kdash:net:{self._hostname}", json.dumps(record), ex=15)
 
+    def ack_net(self, host: str, by: str) -> dict:
+        """Clear a reviewed warning on the network card (WI #4143).
+
+        Writes kdash:net:ack:{host} (kdashdata kdash-net-ack, the CD-27
+        addendum): the host's current `lfc` and `rx_errors`, read from its
+        live kdash:net record, as the baseline the panel subtracts. EX 86400
+        is the delta window — an older ack has nothing left to suppress.
+
+        Refuses when there is no live record: a stale host is red, and an ack
+        never clears red. Returns the ack written.
+        """
+        if not by or len(by) > 64:
+            raise RedisClientError("--by must be 1..64 characters")
+        raw = self._cmd("get", f"kdash:net:{host}")
+        if raw is None:
+            raise RedisClientError(
+                f"no live kdash:net:{host} record — nothing to baseline "
+                "(a stale host reads red, and an ack never clears red)"
+            )
+        try:
+            rec = json.loads(raw)
+            lfc, rx = rec["lfc"], rec["rx_errors"]
+        except (ValueError, KeyError, TypeError) as e:
+            raise RedisClientError(f"kdash:net:{host} is not a v1 record: {e}") from e
+        ack = {"lfc": lfc, "rx_errors": rx, "by": by, "ts": time.time()}
+        self._cmd("set", f"kdash:net:ack:{host}", json.dumps(ack), ex=86400)
+        return ack
+
     # ---- Repos ----
 
     def write_repos(self, repo_statuses: list[dict]) -> None:

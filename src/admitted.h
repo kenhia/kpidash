@@ -13,8 +13,21 @@
  * `kpidash:client:*` namespace that kdeskdash also reads, and no change any
  * publisher has to ship.
  *
- * Shape: one lowercase hostname per line, newline-terminated, no header. Small
- * enough to read and repair with `cat` — which is most of why it is not JSON.
+ * Shape: one lowercase hostname per line, newline-terminated. Small enough to
+ * read and repair with `cat` — which is most of why it is not JSON.
+ *
+ * Sections (WI #4085): the headerless lines at the top are the host cards'
+ * set, so a file written before sections existed loads unchanged. A `[net]`
+ * line starts the network card's set — hosts that have published
+ * `kdash:net:{host}` at least once. A future card that needs the same memory
+ * adds a section, not a file. A section this build does not know is skipped
+ * on load and not written back.
+ *
+ *     kai
+ *     kubs0
+ *     [net]
+ *     kai
+ *     kubs0
  *
  * It is append-only, exactly like `kpidash:clients` itself: a host is never
  * removed, so a machine that comes back years later still has its card the
@@ -45,7 +58,16 @@
  * collapsed. */
 int admitted_load(const char *path, char out[][HOSTNAME_LEN], int max);
 
-/* Write `count` hostnames to the admitted-hosts file.
+/* The same, for one named section (WI #4085): "net" for the network card.
+ * NULL or "" is the headerless top, which is what admitted_load() reads. A
+ * file with no such section loads as 0, like a missing file. */
+int admitted_load_section(const char *path, const char *section, char out[][HOSTNAME_LEN],
+                          int max);
+
+/* Write the admitted-hosts file: `count` host-card names headerless at the
+ * top, then `net_count` names under `[net]` (omitted when there are none).
+ * Both sets are written every time — the file is the whole state — so a
+ * caller saving because one set grew passes the other one too.
  *
  * Atomic: writes `<path>.tmp` in the same directory, fsyncs, then renames. A
  * panel loses power mid-write often enough to care, and a half-written file
@@ -57,7 +79,8 @@ int admitted_load(const char *path, char out[][HOSTNAME_LEN], int max);
  * Returns true on success. A failure is worth logging and not worth
  * crashing over: the panel renders correctly all the way up to the next
  * restart. */
-bool admitted_save(const char *path, const char hosts[][HOSTNAME_LEN], int count);
+bool admitted_save(const char *path, const char hosts[][HOSTNAME_LEN], int count,
+                   const char net[][HOSTNAME_LEN], int net_count);
 
 /* True if `name` is a syntactically valid hostname for this file: 1..63
  * bytes of [a-z0-9.-], per the protocol's "lowercase, matching the system

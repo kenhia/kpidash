@@ -10,6 +10,13 @@
 static net_host_t g_hosts[NET_HOSTS_MAX];
 static int g_nhosts = 0;
 
+/* WI #4085: hosts that have ever published, across restarts. Append-only,
+ * like the host cards' admitted set, and wider than the card: a host dropped
+ * from KPIDASH_NET_HOSTS keeps its line so re-adding it starts STALE. */
+static char g_admitted[MAX_CLIENTS][HOSTNAME_LEN];
+static int g_nadmitted = 0;
+static bool g_admitted_dirty = false;
+
 /* ---- Parse ---- */
 
 /* A nullable non-negative integer: -1 for null. Returns false when the field
@@ -130,11 +137,61 @@ done:
     return rc;
 }
 
+int net_parse_ack_json(const char *json, net_ack_t *out) {
+    if (!json || !out)
+        return -1;
+    cJSON *root = cJSON_Parse(json);
+    if (!root)
+        return -1;
+    net_ack_t a;
+    memset(&a, 0, sizeof(a));
+    int rc = -1;
+
+    if (!get_nullable_long(root, "lfc", &a.lfc) || !get_nullable_long(root, "rx_errors", &a.rx_errors))
+        goto done;
+    const cJSON *by = cJSON_GetObjectItemCaseSensitive(root, "by");
+    if (!cJSON_IsString(by) || !by->valuestring || !by->valuestring[0] ||
+        strlen(by->valuestring) >= sizeof(a.by))
+        goto done; /* an anonymous ack is a warning cleared by nobody */
+    memcpy(a.by, by->valuestring, strlen(by->valuestring) + 1);
+    const cJSON *ts = cJSON_GetObjectItemCaseSensitive(root, "ts");
+    if (!cJSON_IsNumber(ts) || ts->valuedouble <= 0 || ts->valuedouble > 1e11)
+        goto done;
+    a.ts = ts->valuedouble;
+
+    *out = a;
+    rc = 0;
+done:
+    cJSON_Delete(root);
+    return rc;
+}
+
+/* min(delta, counter − baseline); the live counter itself after a reset.
+ * A null delta, counter or baseline leaves the delta as the producer sent it. */
+static long effective_delta(long delta, long counter, long base) {
+    if (delta < 0 || counter < 0 || base < 0)
+        return delta;
+    long since = counter >= base ? counter - base : counter;
+    return since < delta ? since : delta;
+}
+
+void net_apply_ack(net_record_t *r, const net_ack_t *a) {
+    r->lfc_delta_24h = effective_delta(r->lfc_delta_24h, r->lfc, a->lfc);
+    r->rx_errors_delta_24h = effective_delta(r->rx_errors_delta_24h, r->rx_errors, a->rx_errors);
+    int k = 0;
+    for (int i = 0; i < r->ndrops; i++)
+        if (r->drops[i] > a->ts)
+            r->drops[k++] = r->drops[i];
+    r->ndrops = k;
+}
+
 /* ---- Registry ---- */
 
 void net_set_hosts(const char hosts[][HOSTNAME_LEN], int n) {
     memset(g_hosts, 0, sizeof(g_hosts));
     g_nhosts = 0;
+    g_nadmitted = 0;
+    g_admitted_dirty = false;
     for (int i = 0; i < n && g_nhosts < NET_HOSTS_MAX; i++) {
         if (!hosts[i][0])
             continue;
@@ -150,6 +207,59 @@ const net_host_t *net_host_at(int i) {
     return (i >= 0 && i < g_nhosts) ? &g_hosts[i] : NULL;
 }
 
+bool net_is_admitted(const char *host) {
+    for (int i = 0; i < g_nadmitted; i++)
+        if (strncmp(g_admitted[i], host, HOSTNAME_LEN) == 0)
+            return true;
+    return false;
+}
+
+static void admit(const char *host) {
+    if (net_is_admitted(host) || g_nadmitted >= MAX_CLIENTS)
+        return;
+    size_t len = strnlen(host, HOSTNAME_LEN - 1);
+    memcpy(g_admitted[g_nadmitted], host, len);
+    g_admitted[g_nadmitted][len] = '\0';
+    g_nadmitted++;
+}
+
+void net_seed_admitted(const char hosts[][HOSTNAME_LEN], int n) {
+    for (int i = 0; i < n; i++)
+        if (hosts[i][0])
+            admit(hosts[i]);
+    g_admitted_dirty = false; /* the file already says this */
+    for (int i = 0; i < g_nhosts; i++)
+        if (g_hosts[i].state == NET_COL_NOFEED && net_is_admitted(g_hosts[i].host))
+            g_hosts[i].state = NET_COL_STALE;
+}
+
+int net_admitted_snapshot(char out[][HOSTNAME_LEN], int max) {
+    int n = g_nadmitted < max ? g_nadmitted : max;
+    for (int i = 0; i < n; i++)
+        memcpy(out[i], g_admitted[i], HOSTNAME_LEN);
+    return n;
+}
+
+bool net_admitted_take_dirty(void) {
+    bool d = g_admitted_dirty;
+    g_admitted_dirty = false;
+    return d;
+}
+
+static net_host_t *find_host(const char *host) {
+    for (int i = 0; i < g_nhosts; i++)
+        if (strncmp(g_hosts[i].host, host, HOSTNAME_LEN) == 0)
+            return &g_hosts[i];
+    return NULL;
+}
+
+void net_observe_ack(const char *host, const char *json) {
+    net_host_t *h = find_host(host);
+    if (!h)
+        return;
+    h->has_ack = json && net_parse_ack_json(json, &h->ack) == 0;
+}
+
 static void hist_push(net_host_t *h, float v) {
     if (h->hist_n == NET_HIST_N) {
         memmove(h->hist, h->hist + 1, sizeof(h->hist[0]) * (NET_HIST_N - 1));
@@ -159,24 +269,25 @@ static void hist_push(net_host_t *h, float v) {
 }
 
 void net_observe(const char *host, const char *json, double now) {
-    net_host_t *h = NULL;
-    for (int i = 0; i < g_nhosts; i++) {
-        if (strncmp(g_hosts[i].host, host, HOSTNAME_LEN) == 0) {
-            h = &g_hosts[i];
-            break;
-        }
-    }
+    net_host_t *h = find_host(host);
     if (!h)
         return;
 
     net_record_t r;
     if (!json || net_parse_json(json, &r) != 0) {
-        if (h->state == NET_COL_LIVE)
+        if (h->state == NET_COL_LIVE || net_is_admitted(h->host))
             h->state = NET_COL_STALE;
         return; /* history freezes while stale: there is nothing to add */
     }
+    if (h->has_ack)
+        net_apply_ack(&r, &h->ack);
     h->rec = r;
+    h->has_rec = true;
     h->state = NET_COL_LIVE;
+    if (!net_is_admitted(h->host)) {
+        admit(h->host);
+        g_admitted_dirty = true;
+    }
 
     /* Per-minute means: 60 samples are the hour the card's label promises. */
     if (h->acc_n == 0 && h->minute_start <= 0)
@@ -194,7 +305,7 @@ void net_observe(const char *host, const char *json, double now) {
 /* ---- Derivation ---- */
 
 bool net_is_flapping(const net_host_t *h) {
-    if (h->state == NET_COL_NOFEED || h->rec.leg == NET_LEG_1G || h->rec.leg == NET_LEG_DOWN)
+    if (!h->has_rec || h->rec.leg == NET_LEG_1G || h->rec.leg == NET_LEG_DOWN)
         return false;
     return h->rec.ndrops >= 2 || h->rec.lfc_delta_24h >= 2;
 }
@@ -238,6 +349,8 @@ void net_subtitle(const net_host_t *h, double now, char *buf, size_t n, bool *bo
     *bold = true;
     if (h->state == NET_COL_NOFEED)
         snprintf(buf, n, "NO FEED");
+    else if (h->state == NET_COL_STALE && !h->has_rec)
+        snprintf(buf, n, "STALE · no record yet");
     else if (h->state == NET_COL_STALE)
         snprintf(buf, n, "STALE · %ld s", age_s(h, now));
     else if (r->leg == NET_LEG_DOWN)
@@ -260,7 +373,7 @@ void net_subtitle(const net_host_t *h, double now, char *buf, size_t n, bool *bo
 }
 
 void net_rx_text(const net_host_t *h, char *buf, size_t n) {
-    if (h->state == NET_COL_NOFEED || h->rec.rx_errors_delta_24h < 0)
+    if (!h->has_rec || h->rec.rx_errors_delta_24h < 0)
         snprintf(buf, n, "rx err —");
     else
         snprintf(buf, n, "rx err %ld", h->rec.rx_errors_delta_24h);
@@ -295,7 +408,10 @@ static void host_headline(const net_host_t *h, double now, net_summary_t *s) {
     if (h->state == NET_COL_STALE) {
         s->level = NET_LEVEL_WARN;
         snprintf(s->verdict, sizeof(s->verdict), "%s STALE", h->host);
-        snprintf(s->why, sizeof(s->why), "no feed for %ld s", age_s(h, now));
+        if (h->has_rec)
+            snprintf(s->why, sizeof(s->why), "no feed for %ld s", age_s(h, now));
+        else
+            snprintf(s->why, sizeof(s->why), "no record since the panel restarted");
     } else if (r->leg == NET_LEG_DOWN) {
         s->level = NET_LEVEL_CRIT;
         snprintf(s->verdict, sizeof(s->verdict), "%s DOWN", h->host);

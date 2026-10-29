@@ -33,9 +33,26 @@ static bool already_have(char out[][HOSTNAME_LEN], int n, const char *name) {
     return false;
 }
 
+/* A `[name]` line names the section the lines after it belong to (WI #4085).
+ * Writes the name into `name` and returns true; false for any other line. */
+static bool section_header(const char *line, char *name, size_t n) {
+    size_t len = strlen(line);
+    if (len < 3 || line[0] != '[' || line[len - 1] != ']' || len - 2 >= n)
+        return false;
+    memcpy(name, line + 1, len - 2);
+    name[len - 2] = '\0';
+    return true;
+}
+
 int admitted_load(const char *path, char out[][HOSTNAME_LEN], int max) {
+    return admitted_load_section(path, NULL, out, max);
+}
+
+int admitted_load_section(const char *path, const char *section, char out[][HOSTNAME_LEN],
+                          int max) {
     if (!path || !path[0] || !out || max <= 0)
         return 0;
+    const char *want = section ? section : "";
 
     FILE *f = fopen(path, "r");
     if (!f) {
@@ -49,6 +66,9 @@ int admitted_load(const char *path, char out[][HOSTNAME_LEN], int max) {
      * recognisably over-long rather than silently truncated into a valid
      * name — truncation would admit a host that does not exist. */
     char line[HOSTNAME_LEN + 2];
+    /* The headerless lines at the top are section "": the host cards' set,
+     * exactly as every file written before sections existed. */
+    char cur[HOSTNAME_LEN] = "";
 
     while (n < max && fgets(line, (int)sizeof(line), f)) {
         size_t len = strlen(line);
@@ -72,6 +92,10 @@ int admitted_load(const char *path, char out[][HOSTNAME_LEN], int max) {
         if (len > 0 && line[len - 1] == '\r')
             line[--len] = '\0';
 
+        if (section_header(line, cur, sizeof(cur)))
+            continue;
+        if (strcmp(cur, want) != 0)
+            continue;
         if (!admitted_valid_hostname(line))
             continue;
         if (already_have(out, n, line))
@@ -111,12 +135,35 @@ static void ensure_parent_dir(const char *path) {
     }
 }
 
-bool admitted_save(const char *path, const char hosts[][HOSTNAME_LEN], int count) {
+/* One section's names, validated and deduped on the way out as well as the
+ * way in: the file is small enough to be hand-edited, so it is worth being
+ * the same shape whichever side produced it. False on a write error. */
+static bool write_names(FILE *f, const char hosts[][HOSTNAME_LEN], int count) {
+    char seen[MAX_CLIENTS][HOSTNAME_LEN];
+    int nseen = 0;
+
+    for (int i = 0; i < count && nseen < MAX_CLIENTS; i++) {
+        if (!admitted_valid_hostname(hosts[i]))
+            continue;
+        if (already_have(seen, nseen, hosts[i]))
+            continue;
+        if (fprintf(f, "%s\n", hosts[i]) < 0)
+            return false;
+        /* Both are char[HOSTNAME_LEN] and the name was validated above, so
+         * this is an exact element copy. See the note in admitted_load(). */
+        memcpy(seen[nseen], hosts[i], HOSTNAME_LEN);
+        nseen++;
+    }
+    return true;
+}
+
+bool admitted_save(const char *path, const char hosts[][HOSTNAME_LEN], int count,
+                   const char net[][HOSTNAME_LEN], int net_count) {
     if (!path || !path[0])
         return false;
-    if (count < 0)
+    if (count < 0 || net_count < 0)
         return false;
-    if (count > 0 && !hosts)
+    if ((count > 0 && !hosts) || (net_count > 0 && !net))
         return false;
 
     char tmp[600];
@@ -131,27 +178,11 @@ bool admitted_save(const char *path, const char hosts[][HOSTNAME_LEN], int count
         return false;
     }
 
-    /* Written names are validated and deduped on the way out as well as the
-     * way in: the file is small enough to be hand-edited, so it is worth
-     * being the same shape whichever side produced it. */
-    char seen[MAX_CLIENTS][HOSTNAME_LEN];
-    int nseen = 0;
-    bool ok = true;
-
-    for (int i = 0; i < count && nseen < MAX_CLIENTS; i++) {
-        if (!admitted_valid_hostname(hosts[i]))
-            continue;
-        if (already_have(seen, nseen, hosts[i]))
-            continue;
-        if (fprintf(f, "%s\n", hosts[i]) < 0) {
-            ok = false;
-            break;
-        }
-        /* Both are char[HOSTNAME_LEN] and the name was validated above, so
-         * this is an exact element copy. See the note in admitted_load(). */
-        memcpy(seen[nseen], hosts[i], HOSTNAME_LEN);
-        nseen++;
-    }
+    /* Host cards first and headerless, so a binary from before sections
+     * reads its own set unchanged. An empty [net] is not written at all. */
+    bool ok = write_names(f, hosts, count);
+    if (ok && net_count > 0)
+        ok = fprintf(f, "[net]\n") >= 0 && write_names(f, net, net_count);
 
     /* fflush before fsync: fsync knows nothing about stdio's buffer, and a
      * panel loses power often enough for the difference to be real. */

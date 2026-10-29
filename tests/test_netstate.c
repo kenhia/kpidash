@@ -92,6 +92,44 @@ static void test_schema_examples(void) {
     cJSON_Delete(schema);
 }
 
+/* WI #4143: the ack contract, held the same way. */
+static void test_ack_schema_examples(void) {
+    char *text = slurp(KDASH_NET_ACK_SCHEMA);
+    CHECK(text != NULL);
+    if (!text)
+        return;
+    cJSON *schema = cJSON_Parse(text);
+    free(text);
+    CHECK(schema != NULL);
+    if (!schema)
+        return;
+    const cJSON *ex;
+    int n = 0;
+    cJSON_ArrayForEach(ex, cJSON_GetObjectItem(schema, "examples")) {
+        char *js = cJSON_PrintUnformatted(ex);
+        net_ack_t a;
+        CHECK(net_parse_ack_json(js, &a) == 0);
+        free(js);
+        n++;
+    }
+    CHECK(n >= 2);
+    const cJSON *cx;
+    int m = 0;
+    cJSON_ArrayForEach(cx, cJSON_GetObjectItem(schema, "x-counterexamples")) {
+        char *js = cJSON_PrintUnformatted(cJSON_GetObjectItem(cx, "record"));
+        net_ack_t a;
+        int rc = net_parse_ack_json(js, &a);
+        if (rc == 0)
+            fprintf(stderr, "ack counterexample parsed: %s\n",
+                    cJSON_GetStringValue(cJSON_GetObjectItem(cx, "why")));
+        CHECK(rc != 0);
+        free(js);
+        m++;
+    }
+    CHECK(m >= 3);
+    cJSON_Delete(schema);
+}
+
 /* ---- Fixtures ---- */
 
 static char g_buf[1024];
@@ -328,8 +366,154 @@ static void test_rx_errors_show_the_24h_delta(void) {
     CHECK(strcmp(buf, "rx err —") == 0);
 }
 
+/* ---- WI #4085: net-admitted hosts read STALE after a restart ---- */
+
+static void test_admitted_host_with_no_key_is_stale(void) {
+    static const char seed[][HOSTNAME_LEN] = {"kubsdb", "gone-from-card"};
+    net_set_hosts(HOSTS, 5);
+    net_seed_admitted(seed, 2);
+    CHECK(!net_admitted_take_dirty()); /* seeding is not growth */
+
+    /* Before the first poll: already STALE, already counts. */
+    const net_host_t *d = host("kubsdb");
+    CHECK(d->state == NET_COL_STALE);
+    CHECK(!d->has_rec);
+    CHECK(host("kai")->state == NET_COL_NOFEED);
+
+    for (int i = 0; i < 5; i++)
+        if (strcmp(HOSTS[i], "kubsdb") != 0 && strcmp(HOSTS[i], "cleo") != 0)
+            net_observe(HOSTS[i], rec("10g", 1, 1, 0, 0, 1, 1, 1, NULL, NOW - 1), NOW);
+    net_observe("kubsdb", NULL, NOW);
+    net_observe("cleo", NULL, NOW); /* not admitted: still the calm rollout state */
+
+    CHECK(d->state == NET_COL_STALE);
+    CHECK(net_column_attn(d) == NET_ATTN_CRIT); /* like any other stale column */
+    CHECK(host("cleo")->state == NET_COL_NOFEED);
+    CHECK(net_column_attn(host("cleo")) == NET_ATTN_NONE);
+
+    char sub[64], rx[32];
+    bool bold;
+    net_subtitle(d, NOW, sub, sizeof(sub), &bold);
+    CHECK(strcmp(sub, "STALE · no record yet") == 0);
+    net_rx_text(d, rx, sizeof(rx));
+    CHECK(strcmp(rx, "rx err —") == 0);
+    CHECK(!net_is_flapping(d));
+
+    net_summary_t s;
+    net_derive(NOW, &s);
+    CHECK(s.level == NET_LEVEL_WARN);
+    CHECK(strcmp(s.verdict, "kubsdb STALE") == 0);
+    CHECK(strcmp(s.why, "no record since the panel restarted") == 0);
+}
+
+static void test_live_admits_once(void) {
+    net_set_hosts(HOSTS, 5);
+    net_observe("kai", rec("10g", 1, 1, 0, 0, 1, 1, 1, NULL, NOW - 1), NOW);
+    CHECK(net_is_admitted("kai"));
+    CHECK(net_admitted_take_dirty());
+    net_observe("kai", rec("10g", 1, 1, 0, 0, 1, 1, 1, NULL, NOW), NOW + 1);
+    CHECK(!net_admitted_take_dirty()); /* steady state: no save */
+    net_observe("kubs0", rec("10g", 1, 1, 0, 0, 1, 1, 1, NULL, NOW), NOW + 1);
+    CHECK(net_admitted_take_dirty());
+
+    char out[MAX_CLIENTS][HOSTNAME_LEN];
+    CHECK(net_admitted_snapshot(out, MAX_CLIENTS) == 2);
+    CHECK(strcmp(out[0], "kai") == 0 && strcmp(out[1], "kubs0") == 0);
+
+    /* A seeded host that was dropped from the card's list is kept. */
+    static const char seed[][HOSTNAME_LEN] = {"oldhost"};
+    net_set_hosts(HOSTS, 5);
+    net_seed_admitted(seed, 1);
+    net_observe("kai", rec("10g", 1, 1, 0, 0, 1, 1, 1, NULL, NOW), NOW);
+    CHECK(net_admitted_snapshot(out, MAX_CLIENTS) == 2);
+    CHECK(strcmp(out[0], "oldhost") == 0);
+}
+
+/* ---- WI #4143: clearing a reviewed warning ---- */
+
+static const char *ack(long lfc, long rx, double ts) {
+    static char b[160];
+    snprintf(b, sizeof(b), "{\"lfc\":%ld,\"rx_errors\":%ld,\"by\":\"claude-kai\",\"ts\":%.1f}",
+             lfc, rx, ts);
+    return b;
+}
+
+static void test_ack_clears_and_a_new_event_returns(void) {
+    all_healthy(NOW - 10);
+    /* kubsdb: one drop 20 min ago, LFC 8 (+1 in 24 h). Yellow. */
+    net_observe("kubsdb", rec("10g", 1, 8, 1, 0, 1, 1, 1, "[1793061600.0]", NOW - 1), NOW);
+    CHECK(net_column_attn(host("kubsdb")) == NET_ATTN_WARN);
+
+    /* Acked at LFC 8: teal on the next tick. */
+    net_observe_ack("kubsdb", ack(8, 0, NOW - 5));
+    net_observe("kubsdb", rec("10g", 1, 8, 1, 0, 1, 1, 1, "[1793061600.0]", NOW), NOW + 1);
+    const net_host_t *d = host("kubsdb");
+    CHECK(net_column_attn(d) == NET_ATTN_NONE);
+    CHECK(d->rec.lfc_delta_24h == 0 && d->rec.ndrops == 0);
+    net_summary_t s;
+    net_derive(NOW + 1, &s);
+    CHECK(s.level == NET_LEVEL_OK);
+
+    /* A fresh LFC increment after the ack: yellow again. */
+    net_observe_ack("kubsdb", ack(8, 0, NOW - 5));
+    net_observe("kubsdb", rec("10g", 1, 9, 2, 0, 1, 1, 1, "[1793061600.0,1793062805.0]", NOW + 6),
+                NOW + 6);
+    CHECK(net_column_attn(d) == NET_ATTN_WARN);
+    CHECK(d->rec.lfc_delta_24h == 1 && d->rec.ndrops == 1);
+    CHECK(!net_is_flapping(d)); /* the acked drop no longer counts toward two */
+
+    /* The ack expires (key gone): the producer's own 24 h delta again. */
+    net_observe_ack("kubsdb", NULL);
+    net_observe("kubsdb", rec("10g", 1, 9, 2, 0, 1, 1, 1, NULL, NOW + 11), NOW + 11);
+    CHECK(d->rec.lfc_delta_24h == 2);
+}
+
+static void test_ack_never_clears_red_or_1g(void) {
+    all_healthy(NOW - 10);
+    net_observe_ack("kubsdb", ack(5, 0, NOW - 5));
+    net_observe("kubsdb", rec("down", 1, 5, 1, 0, 0, 0, 0, NULL, NOW - 1), NOW);
+    CHECK(net_column_attn(host("kubsdb")) == NET_ATTN_CRIT);
+    net_observe_ack("kubsdb", ack(5, 0, NOW - 5));
+    net_observe("kubsdb", rec("1g", 1, 5, 1, 0, 1, 1, 1, NULL, NOW), NOW + 1);
+    CHECK(net_column_attn(host("kubsdb")) == NET_ATTN_WARN); /* still on the backup leg */
+    net_observe_ack("kubsdb", ack(5, 0, NOW - 5));
+    net_observe("kubsdb", NULL, NOW + 30);
+    CHECK(net_column_attn(host("kubsdb")) == NET_ATTN_CRIT); /* stale */
+}
+
+static void test_ack_arithmetic(void) {
+    net_record_t r;
+    memset(&r, 0, sizeof(r));
+    net_ack_t a = {.lfc = 8, .rx_errors = 100, .ts = 1000.0};
+    /* Counter reset since the ack (reboot): count from the reset. */
+    r.lfc = 2, r.lfc_delta_24h = 5, r.rx_errors = 130, r.rx_errors_delta_24h = 300;
+    net_apply_ack(&r, &a);
+    CHECK(r.lfc_delta_24h == 2);
+    CHECK(r.rx_errors_delta_24h == 30);
+    /* The 24 h delta is already smaller (ack older than the window's start). */
+    r.lfc = 20, r.lfc_delta_24h = 1;
+    net_apply_ack(&r, &a);
+    CHECK(r.lfc_delta_24h == 1);
+    /* Nulls pass through: a no-bond host's lfc, an ack taken when rx was null. */
+    net_ack_t b = {.lfc = -1, .rx_errors = -1, .ts = 1000.0};
+    r.lfc = -1, r.lfc_delta_24h = -1, r.rx_errors = 50, r.rx_errors_delta_24h = 4;
+    net_apply_ack(&r, &b);
+    CHECK(r.lfc_delta_24h == -1);
+    CHECK(r.rx_errors_delta_24h == 4);
+    /* A garbage ack is no ack. */
+    net_ack_t c;
+    CHECK(net_parse_ack_json("{\"lfc\":1}", &c) != 0);
+    CHECK(net_parse_ack_json("not json", &c) != 0);
+}
+
 int main(void) {
     test_schema_examples();
+    test_ack_schema_examples();
+    test_admitted_host_with_no_key_is_stale();
+    test_live_admits_once();
+    test_ack_clears_and_a_new_event_returns();
+    test_ack_never_clears_red_or_1g();
+    test_ack_arithmetic();
     test_healthy();
     test_host_on_1g();
     test_flapping();

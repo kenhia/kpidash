@@ -217,7 +217,7 @@ def log_path(ctx: click.Context) -> None:
 # ---------------------------------------------------------------------------
 
 
-@main.command("net")
+@main.group("net", invoke_without_command=True)
 @click.pass_context
 def net(ctx: click.Context) -> None:
     """Print one kdash:net record for this host, as the daemon would publish it.
@@ -225,6 +225,8 @@ def net(ctx: click.Context) -> None:
     Reads no Redis and leaves the daemon's history file alone, so the 24 h
     deltas print as null — that is the honest answer for a one-shot read.
     """
+    if ctx.invoked_subcommand is not None:
+        return
     import time
 
     from .net import NetCollector, NetHistory
@@ -234,6 +236,39 @@ def net(ctx: click.Context) -> None:
     collector.prime()
     time.sleep(1)
     click.echo(json.dumps(collector.collect(), indent=2))
+
+
+@net.command("ack")
+@click.argument("host")
+@click.option(
+    "--by",
+    default=None,
+    help="Who reviewed it: `ken`, or an agent identity such as `claude-kai` "
+    "(default: the login name).",
+)
+@click.pass_context
+def net_ack(ctx: click.Context, host: str, by: str | None) -> None:
+    """Clear HOST's reviewed warning on the network card (WI #4143).
+
+    Records HOST's current LFC and rx-error counters as a baseline; the panel
+    counts only what happens after it, so a new event turns the column yellow
+    again. Expires after 24 h. Never clears a red state. Runs from any host.
+    """
+    import getpass
+
+    cfg = _load_config(ctx.obj.get("config_path"))
+    client = _make_client(cfg)
+    try:
+        ack = client.ack_net(host.lower(), by or getpass.getuser())
+    except RedisClientError as e:
+        click.echo(f"Error: {e}", err=True)
+        sys.exit(1)
+    finally:
+        client.disconnect()
+    click.echo(
+        f"Acked kdash:net:ack:{host.lower()}: lfc={ack['lfc']} rx_errors={ack['rx_errors']} "
+        f"by={ack['by']} (expires in 24 h)"
+    )
 
 
 # ---------------------------------------------------------------------------

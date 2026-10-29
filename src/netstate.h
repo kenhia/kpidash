@@ -14,7 +14,20 @@
  * written every ~5 s with EX 15, so a key that is ABSENT this poll means the
  * publisher is gone. The column keeps the last record it saw and renders it
  * stale (`STALE · now - ts`), never as healthy. A host that has never
- * published this run is "no feed" — a grey column, not a fault.
+ * published is "no feed" — a grey column, not a fault.
+ *
+ * "Has published" outlives the process (WI #4085): hosts that have ever
+ * written their key are the net-admitted set, persisted as the `[net]`
+ * section of the admitted-hosts file. An admitted host with no key after a
+ * restart is STALE with "no record yet", not NO FEED — otherwise a producer
+ * that died before the restart would read calmer than one that died after.
+ *
+ * A reviewed warning can be cleared (WI #4143, CD-27 addendum): an ack record
+ * `kdash:net:ack:{host}` holds the counter baseline at ack time, and the panel
+ * applies it — effective delta = min(delta_24h, counter − baseline), and only
+ * drops after the ack count. Time clears a warning by construction (the
+ * producer's deltas are 24 h). Neither ever clears a red state, nor "on 1G
+ * backup", which is a condition still true now rather than a past event.
  *
  * Touched only from the LVGL thread (the 1 s poll and ui_refresh both run in
  * main.c's timer callback), so there is no lock.
@@ -53,10 +66,25 @@ typedef struct {
  * the contract says a reader distrusts it rather than guessing. */
 int net_parse_json(const char *json, net_record_t *out);
 
+/* One decoded kdash:net:ack record (kdash-net-ack schema). Negative = null. */
+typedef struct {
+    long lfc, rx_errors;
+    double ts;
+    char by[65];
+} net_ack_t;
+
+/* Parse an ack payload. 0 on success; -1 when it cannot be trusted (the
+ * schema's counterexamples), and an untrusted ack is no ack. */
+int net_parse_ack_json(const char *json, net_ack_t *out);
+
+/* Apply an ack to a record, in place: the record's 24 h deltas become the
+ * effective ones, and drops at or before the ack are forgotten. Pure. */
+void net_apply_ack(net_record_t *r, const net_ack_t *a);
+
 typedef enum {
-    NET_COL_NOFEED = 0, /* never published this run: grey, "no publisher" */
+    NET_COL_NOFEED = 0, /* never published (not net-admitted): grey, "no publisher" */
     NET_COL_LIVE,       /* key present this poll */
-    NET_COL_STALE,      /* published before, key gone now */
+    NET_COL_STALE,      /* published before — this run or an earlier one — key gone now */
 } net_col_state_t;
 
 typedef enum { NET_ATTN_NONE = 0, NET_ATTN_WARN, NET_ATTN_CRIT } net_attn_t;
@@ -64,7 +92,10 @@ typedef enum { NET_ATTN_NONE = 0, NET_ATTN_WARN, NET_ATTN_CRIT } net_attn_t;
 typedef struct {
     char host[HOSTNAME_LEN];
     net_col_state_t state;
-    net_record_t rec; /* last record seen; valid unless state == NOFEED */
+    bool has_rec;     /* a record has been seen this run */
+    net_record_t rec; /* last record seen, ack applied; valid only if has_rec */
+    bool has_ack;     /* an ack record was present on the last poll */
+    net_ack_t ack;
     /* Throughput history, Mb/s, oldest first: per-minute means. */
     float hist[NET_HIST_N];
     int hist_n;
@@ -73,14 +104,29 @@ typedef struct {
     int acc_n;
 } net_host_t;
 
-/* Set the host list (card order). Resets all state. */
+/* Set the host list (card order). Resets all state, the admitted set too. */
 void net_set_hosts(const char hosts[][HOSTNAME_LEN], int n);
+
+/* The net-admitted set (WI #4085), bounded by MAX_CLIENTS. Seed it from the
+ * admitted file after net_set_hosts(); a column whose host is admitted
+ * starts STALE rather than NOFEED. A LIVE observation admits a host that was
+ * not already, and sets the dirty flag main.c saves on. */
+void net_seed_admitted(const char hosts[][HOSTNAME_LEN], int n);
+bool net_is_admitted(const char *host);
+int net_admitted_snapshot(char out[][HOSTNAME_LEN], int max);
+/* True once per growth of the set; clears the flag. */
+bool net_admitted_take_dirty(void);
 int net_host_count(void);
 const net_host_t *net_host_at(int i);
 
 /* Feed one poll's result for one host. `json` NULL means the key was
  * absent; an untrustworthy payload counts as absent too. */
 void net_observe(const char *host, const char *json, double now);
+
+/* Feed one poll's ack key for one host, BEFORE that poll's net_observe():
+ * the record is stored with the ack applied. NULL (absent, i.e. never acked
+ * or expired) or an untrustworthy payload clears the ack. */
+void net_observe_ack(const char *host, const char *json);
 
 /* Column attention, per the design record (korg:4059): red = stale, no link,
  * or no path to UDM/peers/Internet; yellow = on 1G, a link drop in 24 h or

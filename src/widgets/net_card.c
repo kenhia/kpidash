@@ -459,6 +459,9 @@ static void col_update(netcol_t *c, const net_host_t *h, double now) {
     const bool live = h->state == NET_COL_LIVE;
     const bool grey = !live;
     const bool nofeed = h->state == NET_COL_NOFEED;
+    /* STALE with no record this run (WI #4085): nothing to draw but the
+     * subtitle, so the data fields read like no feed. */
+    const bool norec = !h->has_rec;
     const net_attn_t at = net_column_attn(h);
     const bool attn = live && at != NET_ATTN_NONE;
     const lv_color_t at_c = at == NET_ATTN_CRIT ? WS_COLOR_RED : WS_COLOR_YELLOW;
@@ -479,7 +482,7 @@ static void col_update(netcol_t *c, const net_host_t *h, double now) {
         lv_obj_add_flag(c->hatch, LV_OBJ_FLAG_HIDDEN);
 
     set_text(c->name, h->host);
-    set_text(c->nic, nofeed ? "" : r->nic);
+    set_text(c->nic, norec ? "" : r->nic);
     set_color(c->num, legc);
     set_text(c->num, grey ? "—" : net_leg_text(r->leg));
 
@@ -512,7 +515,7 @@ static void col_update(netcol_t *c, const net_host_t *h, double now) {
     s->color = grey ? NC_SURFACE2 : legc;
     lv_obj_invalidate(c->spark);
 
-    if (nofeed)
+    if (norec)
         set_text(c->mbps, "—");
     else {
         snprintf(buf, sizeof(buf), "%.0f", r->bytes_per_s * 8.0 / 1e6);
@@ -520,7 +523,7 @@ static void col_update(netcol_t *c, const net_host_t *h, double now) {
     }
 
     const bool lfc_warn = live && (r->lfc_delta_24h > 0 || r->ndrops > 0);
-    if (nofeed)
+    if (norec)
         snprintf(buf, sizeof(buf), "LFC —");
     else if (!r->bond)
         snprintf(buf, sizeof(buf), "no bond");
@@ -555,7 +558,7 @@ static void col_update(netcol_t *c, const net_host_t *h, double now) {
         snprintf(buf, sizeof(buf), "%s", r->reach_peers ? "peers only" : "no path");
     rich_set(&c->foot_l, buf, WS_FONT_TINY, &lv_font_montserrat_bold_14, WS_COLOR_MUTED, false);
 
-    if (nofeed)
+    if (norec)
         set_text(c->foot_r, "");
     else {
         double age = now - r->ts;

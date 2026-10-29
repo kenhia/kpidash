@@ -75,7 +75,7 @@ static void test_valid_hostname(void) {
 /* --- round trip --------------------------------------------------------- */
 static void test_round_trip(void) {
     char in[4][HOSTNAME_LEN] = {"kai", "kubs0", "kubsdb", "rpi53"};
-    CHECK(admitted_save(g_path, in, 4));
+    CHECK(admitted_save(g_path, in, 4, NULL, 0));
 
     char out[MAX_CLIENTS][HOSTNAME_LEN];
     int n = admitted_load(g_path, out, MAX_CLIENTS);
@@ -90,7 +90,7 @@ static void test_round_trip(void) {
 /* Saving nothing is legal and produces a file that loads as nothing. */
 static void test_empty_save(void) {
     char in[1][HOSTNAME_LEN] = {""};
-    CHECK(admitted_save(g_path, in, 0));
+    CHECK(admitted_save(g_path, in, 0, NULL, 0));
 
     char out[MAX_CLIENTS][HOSTNAME_LEN];
     CHECK(admitted_load(g_path, out, MAX_CLIENTS) == 0);
@@ -115,8 +115,8 @@ static void test_null_and_empty_path(void) {
     CHECK(admitted_load(g_path, out, 0) == 0);
 
     char in[1][HOSTNAME_LEN] = {"kai"};
-    CHECK(!admitted_save(NULL, in, 1));
-    CHECK(!admitted_save("", in, 1));
+    CHECK(!admitted_save(NULL, in, 1, NULL, 0));
+    CHECK(!admitted_save("", in, 1, NULL, 0));
 }
 
 static void test_corrupt_lines_are_skipped_individually(void) {
@@ -199,7 +199,7 @@ static void test_save_skips_invalid_and_duplicates(void) {
     strcpy(in[2], "kai");
     strcpy(in[3], "");
     strcpy(in[4], "kubs0");
-    CHECK(admitted_save(g_path, in, 5));
+    CHECK(admitted_save(g_path, in, 5, NULL, 0));
 
     char out[MAX_CLIENTS][HOSTNAME_LEN];
     int n = admitted_load(g_path, out, MAX_CLIENTS);
@@ -211,7 +211,7 @@ static void test_save_skips_invalid_and_duplicates(void) {
 /* --- the write is atomic and leaves no litter --------------------------- */
 static void test_save_is_atomic_and_tidy(void) {
     char in[2][HOSTNAME_LEN] = {"kai", "kubs0"};
-    CHECK(admitted_save(g_path, in, 2));
+    CHECK(admitted_save(g_path, in, 2, NULL, 0));
 
     char tmp[600];
     snprintf(tmp, sizeof(tmp), "%s.tmp", g_path);
@@ -219,7 +219,7 @@ static void test_save_is_atomic_and_tidy(void) {
 
     /* Overwriting in place keeps exactly one file's worth of content. */
     char in2[1][HOSTNAME_LEN] = {"rpi53"};
-    CHECK(admitted_save(g_path, in2, 1));
+    CHECK(admitted_save(g_path, in2, 1, NULL, 0));
     char out[MAX_CLIENTS][HOSTNAME_LEN];
     int n = admitted_load(g_path, out, MAX_CLIENTS);
     CHECK(n == 1);
@@ -236,7 +236,7 @@ static void test_save_creates_the_parent_directory(void) {
     rmdir(subdir);
 
     char in[1][HOSTNAME_LEN] = {"kai"};
-    CHECK(admitted_save(path, in, 1));
+    CHECK(admitted_save(path, in, 1, NULL, 0));
 
     struct stat st;
     CHECK(stat(subdir, &st) == 0 && S_ISDIR(st.st_mode));
@@ -251,7 +251,70 @@ static void test_save_creates_the_parent_directory(void) {
 /* An unwritable destination is reported, not fatal, and not silent. */
 static void test_unwritable_destination_reports_false(void) {
     char in[1][HOSTNAME_LEN] = {"kai"};
-    CHECK(!admitted_save("/proc/kpidash-cannot-exist/admitted", in, 1));
+    CHECK(!admitted_save("/proc/kpidash-cannot-exist/admitted", in, 1, NULL, 0));
+}
+
+/* --- sections (WI #4085) ------------------------------------------------ */
+
+/* The file already on rpi53 has no sections: it must load unchanged as the
+ * host cards' set, and as an empty [net]. */
+static void test_legacy_file_has_no_net_section(void) {
+    const char legacy[] = "kai\nkubs0\n";
+    write_file(legacy, sizeof(legacy) - 1);
+    char out[MAX_CLIENTS][HOSTNAME_LEN];
+    CHECK(admitted_load(g_path, out, MAX_CLIENTS) == 2);
+    CHECK(admitted_load_section(g_path, "net", out, MAX_CLIENTS) == 0);
+}
+
+static void test_sectioned_round_trip(void) {
+    char hosts[3][HOSTNAME_LEN] = {"kai", "kubs0", "rpi53"};
+    char net[2][HOSTNAME_LEN] = {"kubsdb", "kai"};
+    CHECK(admitted_save(g_path, hosts, 3, net, 2));
+
+    /* Headerless first, so a pre-section binary still reads its own set. */
+    char buf[128] = {0};
+    FILE *f = fopen(g_path, "r");
+    CHECK(f != NULL);
+    if (f) {
+        size_t got = fread(buf, 1, sizeof(buf) - 1, f);
+        buf[got] = '\0';
+        fclose(f);
+    }
+    CHECK(strcmp(buf, "kai\nkubs0\nrpi53\n[net]\nkubsdb\nkai\n") == 0);
+
+    char out[MAX_CLIENTS][HOSTNAME_LEN];
+    int n = admitted_load(g_path, out, MAX_CLIENTS);
+    CHECK(n == 3);
+    CHECK(!has_host(out, n, "kubsdb")); /* [net] lines are not host-card admissions */
+    n = admitted_load_section(g_path, "net", out, MAX_CLIENTS);
+    CHECK(n == 2);
+    CHECK(has_host(out, n, "kubsdb") && has_host(out, n, "kai"));
+    CHECK(!has_host(out, n, "rpi53"));
+}
+
+static void test_unknown_sections_are_skipped(void) {
+    const char text[] = "kai\n[future]\nzzz\n[net]\nkubsdb\n[Bad Header\nkubs0\n";
+    write_file(text, sizeof(text) - 1);
+    char out[MAX_CLIENTS][HOSTNAME_LEN];
+    int n = admitted_load(g_path, out, MAX_CLIENTS);
+    CHECK(n == 1 && has_host(out, n, "kai"));
+    n = admitted_load_section(g_path, "net", out, MAX_CLIENTS);
+    /* A malformed header is just an invalid line: it does not end [net]. */
+    CHECK(n == 2 && has_host(out, n, "kubsdb") && has_host(out, n, "kubs0"));
+    CHECK(admitted_load_section(g_path, "nope", out, MAX_CLIENTS) == 0);
+}
+
+static void test_empty_net_writes_no_header(void) {
+    char hosts[1][HOSTNAME_LEN] = {"kai"};
+    CHECK(admitted_save(g_path, hosts, 1, NULL, 0));
+    char buf[64] = {0};
+    FILE *f = fopen(g_path, "r");
+    if (f) {
+        size_t got = fread(buf, 1, sizeof(buf) - 1, f);
+        buf[got] = '\0';
+        fclose(f);
+    }
+    CHECK(strcmp(buf, "kai\n") == 0);
 }
 
 int main(void) {
@@ -274,6 +337,10 @@ int main(void) {
     test_save_is_atomic_and_tidy();
     test_save_creates_the_parent_directory();
     test_unwritable_destination_reports_false();
+    test_legacy_file_has_no_net_section();
+    test_sectioned_round_trip();
+    test_unknown_sections_are_skipped();
+    test_empty_net_writes_no_header();
 
     unlink(g_path);
     rmdir(g_dir);

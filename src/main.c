@@ -40,13 +40,20 @@ static void sigint_handler(int sig) {
  * bool read on the LVGL thread and no disk I/O at all. It fires once per new
  * host, ever. */
 static void save_admitted_if_changed(void) {
-    if (!registry_admitted_take_dirty())
+    /* Both flags are taken every poll: a short-circuit would leave the second
+     * one set and save it a poll late. The file holds both sets (WI #4085),
+     * so either one growing rewrites both. */
+    bool hosts_grew = registry_admitted_take_dirty();
+    bool net_grew = net_admitted_take_dirty();
+    if (!hosts_grew && !net_grew)
         return;
 
     char hosts[MAX_CLIENTS][HOSTNAME_LEN];
     int n = registry_admitted_snapshot(hosts, MAX_CLIENTS);
-    if (admitted_save(g_config.state_file, hosts, n)) {
-        fprintf(stderr, "kpidash: admitted set now %d host(s), saved to %s\n", n,
+    char net[MAX_CLIENTS][HOSTNAME_LEN];
+    int nn = net_admitted_snapshot(net, MAX_CLIENTS);
+    if (admitted_save(g_config.state_file, hosts, n, net, nn)) {
+        fprintf(stderr, "kpidash: admitted set now %d host(s), %d net, saved to %s\n", n, nn,
                 g_config.state_file);
     } else {
         /* Not fatal, and deliberately not retried: the panel renders
@@ -140,8 +147,17 @@ int main(void) {
                 g_config.state_file);
     }
 
-    /* WI #4062: the network card's columns, before the first poll. */
+    /* WI #4062: the network card's columns, before the first poll. Then
+     * WI #4085: which of them have published before, so a producer that died
+     * before this start reads STALE, not NO FEED. After net_set_hosts, which
+     * resets the set. */
     net_set_hosts(g_config.net_hosts, g_config.net_host_count);
+    {
+        char admitted[MAX_CLIENTS][HOSTNAME_LEN];
+        int n = admitted_load_section(g_config.state_file, "net", admitted, MAX_CLIENTS);
+        net_seed_admitted(admitted, n);
+        fprintf(stderr, "kpidash: %d previously net-admitted host(s)\n", n);
+    }
 
     /* WI #4111: whose staleness card waits out the absence window. */
     stale_registry_set_intermittent(g_config.intermittent_hosts,
