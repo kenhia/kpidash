@@ -51,7 +51,8 @@ for u in "${UNITS[@]}"; do
         continue
     fi
 
-    # kstudiodash measured this on systemd 259 and it cost a sprint to find:
+    # kstudiodash (since retired) measured this on systemd 259 and it cost a
+    # sprint to find:
     # EnvironmentFile= is read by PID 1 before User= is applied, so a system
     # unit needs no membership; and a SupplementaryGroups= naming a group that
     # does not exist stops the unit starting at all, which turns an optional
