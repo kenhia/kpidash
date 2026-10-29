@@ -138,8 +138,11 @@ LVGL/DRM/KMS with no mouse or keyboard interaction.
 6a. **Network health** (sprint 024): each Linux client writes
    `kdash:net:{host}` (kdashdata CD-27) every ~5 s, EX 15; the dashboard MGETs
    the configured hosts each poll into `netstate.c` (pure model) and draws
-   `widgets/net_card.c` in the rows-2-3 pool where Fortune was. See
-   CLIENT-PROTOCOL.md §8d.
+   `widgets/net_card.c` in the rows-2-3 pool where Fortune was. The same MGET
+   reads each host's `kdash:net:ack:{host}` (sprint 027), which the panel
+   applies to clear a reviewed warning; hosts that have ever published are
+   persisted as the `[net]` section of the admitted-hosts file, so they read
+   STALE rather than no feed after a restart. See CLIENT-PROTOCOL.md §8d.
 7. **Status**: dashboard pushes warning/error messages to
    `kpidash:status:current`. Client CLIs read and acknowledge via
    `kpidash:status:ack:{id}`.

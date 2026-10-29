@@ -165,5 +165,6 @@ target_include_directories(test_netstate PRIVATE ${CMAKE_SOURCE_DIR}/src ${CJSON
 target_link_libraries(test_netstate ${CJSON_LIBRARIES})
 target_compile_options(test_netstate PRIVATE -Wall -Wextra -Wno-unused-parameter)
 target_compile_definitions(test_netstate PRIVATE
-    KDASH_NET_SCHEMA="${CMAKE_SOURCE_DIR}/lib/kdashdata/contracts/schemas/kdash-net.schema.json")
+    KDASH_NET_SCHEMA="${CMAKE_SOURCE_DIR}/lib/kdashdata/contracts/schemas/kdash-net.schema.json"
+    KDASH_NET_ACK_SCHEMA="${CMAKE_SOURCE_DIR}/lib/kdashdata/contracts/schemas/kdash-net-ack.schema.json")
 add_test(NAME test_netstate COMMAND test_netstate)

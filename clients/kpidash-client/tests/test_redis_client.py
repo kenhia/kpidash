@@ -210,3 +210,46 @@ def test_every_connect_re_resolves_the_endpoint(tmp_path, monkeypatch):
     assert redis_ctor.call_args_list[0].kwargs["host"] == "rpi53"
     assert redis_ctor.call_args_list[1].kwargs["host"] == "kubsdb"
     assert redis_ctor.call_args_list[1].kwargs["port"] == 6390
+
+
+# ---- WI #4143: net ack ----
+
+NET_REC = {
+    "leg": "10g", "speed_mbps": 10000, "bond": True, "lfc": 7, "lfc_delta_24h": 1,
+    "rx_errors": 12, "rx_errors_delta_24h": 0,
+}
+
+
+def test_ack_net_baselines_the_live_counters(tmp_path):
+    client, mock_r = make_client(tmp_path)
+    mock_r.get.return_value = json.dumps(NET_REC)
+    ack = client.ack_net("kubsdb", "claude-kai")
+    mock_r.get.assert_called_once_with("kdash:net:kubsdb")
+    key, payload = mock_r.set.call_args.args
+    assert key == "kdash:net:ack:kubsdb"
+    assert mock_r.set.call_args.kwargs["ex"] == 86400
+    written = json.loads(payload)
+    assert written == ack
+    assert (written["lfc"], written["rx_errors"], written["by"]) == (7, 12, "claude-kai")
+    assert written["ts"] > 1e9
+
+
+def test_ack_net_keeps_null_counters_null(tmp_path):
+    client, mock_r = make_client(tmp_path)
+    mock_r.get.return_value = json.dumps({**NET_REC, "bond": False, "lfc": None})
+    assert client.ack_net("cleo", "ken")["lfc"] is None
+
+
+def test_ack_net_refuses_a_stale_host(tmp_path):
+    import pytest  # noqa: PLC0415
+
+    from kpidash_client.redis_client import RedisClientError  # noqa: PLC0415
+
+    client, mock_r = make_client(tmp_path)
+    mock_r.get.return_value = None
+    with pytest.raises(RedisClientError, match="no live"):
+        client.ack_net("kubsdb", "ken")
+    mock_r.set.assert_not_called()
+    mock_r.get.return_value = json.dumps(NET_REC)
+    with pytest.raises(RedisClientError):
+        client.ack_net("kubsdb", "")

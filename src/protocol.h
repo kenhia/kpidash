@@ -87,6 +87,11 @@
  * (kdash:net:v2:<host>), which this exact-key read never sees. */
 #define KDASH_KEY_NET_PREFIX "kdash:net:"
 
+/* WI #4143: a reviewed warning's ack, kdashdata kdash-net-ack (CD-27
+ * addendum). Written by `kpidash-client net ack <host>` or a plain SET, with
+ * EX 86400; applied on the panel, never by a producer. */
+#define KDASH_KEY_NET_ACK_PREFIX "kdash:net:ack:"
+
 /* WI #1903: per-deployer host staleness flags, written by the fleet deployers
  * (agent-skills' fleet-deploy, k-homelab's apply/audit) through kdash-pub.
  *

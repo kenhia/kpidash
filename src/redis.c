@@ -1243,15 +1243,21 @@ void redis_poll_net(void) {
     int n = net_host_count();
     if (n <= 0) return;
 
-    char keys[NET_HOSTS_MAX][sizeof(KDASH_KEY_NET_PREFIX) + HOSTNAME_LEN];
-    const char *argv[NET_HOSTS_MAX + 1];
+    /* One MGET for both families: the records, then (WI #4143) each host's
+     * ack key. The acks go to netstate first, so this poll's records are
+     * stored with them applied. */
+    char keys[2 * NET_HOSTS_MAX][sizeof(KDASH_KEY_NET_ACK_PREFIX) + HOSTNAME_LEN];
+    const char *argv[2 * NET_HOSTS_MAX + 1];
     argv[0] = "MGET";
     for (int i = 0; i < n; i++) {
         snprintf(keys[i], sizeof(keys[i]), KDASH_KEY_NET_PREFIX "%s", net_host_at(i)->host);
+        snprintf(keys[n + i], sizeof(keys[n + i]), KDASH_KEY_NET_ACK_PREFIX "%s",
+                 net_host_at(i)->host);
         argv[i + 1] = keys[i];
+        argv[n + i + 1] = keys[n + i];
     }
-    redisReply *r = redisCommandArgv(g_ctx, n + 1, argv, NULL);
-    if (!r || r->type != REDIS_REPLY_ARRAY || (int)r->elements != n) {
+    redisReply *r = redisCommandArgv(g_ctx, 2 * n + 1, argv, NULL);
+    if (!r || r->type != REDIS_REPLY_ARRAY || (int)r->elements != 2 * n) {
         if (r) freeReplyObject(r);
         return;
     }
@@ -1261,6 +1267,8 @@ void redis_poll_net(void) {
     for (int i = 0; i < n; i++)
         snprintf(hosts[i], sizeof(hosts[i]), "%s", net_host_at(i)->host);
     for (int i = 0; i < n; i++) {
+        redisReply *a = r->element[n + i];
+        net_observe_ack(hosts[i], (a && a->type == REDIS_REPLY_STRING) ? a->str : NULL);
         redisReply *e = r->element[i];
         net_observe(hosts[i], (e && e->type == REDIS_REPLY_STRING) ? e->str : NULL, now);
     }

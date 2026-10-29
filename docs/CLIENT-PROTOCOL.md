@@ -68,8 +68,8 @@ starts still gets its card and goes RED.
 | | |
 |---|---|
 | **Path** | `/var/lib/kpidash/admitted`, overridable with `KPIDASH_STATE_FILE` |
-| **Format** | one lowercase hostname per line, no header — readable and repairable with `cat` |
-| **Written** | only when a host is admitted that was not admitted before; never on a timer |
+| **Format** | one lowercase hostname per line — readable and repairable with `cat`. The headerless lines at the top are the host cards' set; a `[net]` line starts the network card's (§8d, WI #4085). A section a build does not know is skipped |
+| **Written** | only when a host is admitted that was not admitted before (to either set); never on a timer. Both sets are rewritten together |
 | **Bound** | `MAX_CLIENTS`, the same bound as the card grid |
 | **Pruning** | none, like the set itself |
 | **Missing or corrupt** | starts empty; individual bad lines are skipped, not fatal |
@@ -542,9 +542,17 @@ or that file.
 (default `kubs0,kubsdb,kai,gratch,cleo`, card order, first five drawn). Same
 freshness convention as the host cards: a key that is absent this poll means
 the publisher is gone, and the column keeps the last record and renders it
-hatched `STALE · n s` — never healthy. A host that has not published since the
-dashboard started is **no feed** (grey, hatched, not a fault). A record that
-fails the contract is treated as absent. The panel derives the verdict,
+hatched `STALE · n s` — never healthy. A host that has **never** published is
+**no feed** (grey, hatched, not a fault: its client is not installed yet). A
+record that fails the contract is treated as absent.
+
+"Has published" outlives the process (WI #4085): a host's first live record
+admits it to the `[net]` section of the admitted-hosts file (§1). After a
+restart, an admitted host with no key reads `STALE · no record yet` and counts
+in the headline like any other stale column — so a producer that died *before*
+the restart no longer reads calmer than one that died after. A host in
+`KPIDASH_NET_HOSTS` that was never admitted stays no feed. Admission is
+append-only; a host dropped from the list keeps its line. The panel derives the verdict,
 uplink-lost (live hosts reach peers but none reaches the UDM), WAN-down, the
 header RTT tiles (medians) and a 60-minute, per-minute throughput history.
 
@@ -552,6 +560,44 @@ header RTT tiles (medians) and a 60-minute, per-minute throughput history.
 # What the card reads for one host (rpi53 Redis needs auth)
 redis-cli -h rpi53 GET kdash:net:kai | jq .
 ```
+
+### Clearing a reviewed warning (WI #4143)
+
+| Key | Type | Written by | Read by | TTL |
+|-----|------|-----------|---------|-----|
+| `kdash:net:ack:{host}` | STRING (JSON) | `kpidash-client net ack`, or a plain `SET` | dashboard | 86400 s |
+
+Contract: `lib/kdashdata/contracts/schemas/kdash-net-ack.schema.json`, the
+CD-27 addendum. A yellow column clears two ways:
+
+- **Time** — by construction: yellow comes from the producer's 24 h deltas
+  and the last hour's `drops`, so a single event stays yellow for 24 h (the
+  red drop tick for 1 h) and then clears on its own.
+- **An ack** — the host's `lfc` and `rx_errors` at review time, plus `by` and
+  `ts`. **The panel applies it**, not the producer: each effective delta is
+  `min(<counter>_delta_24h, <counter> − ack.<counter>)` (the live counter
+  itself if it fell below the baseline, i.e. reset), and only `drops` after
+  `ack.ts` count. Anything that happens after the ack turns the column yellow
+  again on the next tick. The 24 h EX matches the delta window, so an expired
+  ack changes nothing.
+
+An ack **never clears red** (stale, no link, no path) and never clears "10G
+down · on 1G backup" — that is a condition still true now, not a past event,
+and time does not clear it either. Acking a stale host is refused: there is no
+live record to baseline.
+
+```bash
+# From any host with kpidash-client >= 1.4.0 and REDISCLI_AUTH
+kpidash-client net ack kubsdb --by claude-kai
+
+# The documented plain SET, for an agent with redis-cli on rpi53. Copy lfc and
+# rx_errors from the host's live record (null stays null); ts is unix seconds.
+redis-cli GET kdash:net:kubsdb | jq '{lfc, rx_errors}'
+redis-cli SET kdash:net:ack:kubsdb '{"lfc":7,"rx_errors":0,"by":"claude-kai","ts":1793080000}' EX 86400
+```
+
+The card shows no "ack'd" marker: a cleared column looks like one that never
+warned. `redis-cli GET kdash:net:ack:{host}` says whether, and by whom.
 
 ---
 
@@ -806,7 +852,7 @@ Pi's own `/etc/khomelab/secrets.env` — not carried across from this host.
 
 | Key | Type | Written by | Read by | TTL |
 |-----|------|-----------|---------|-----|
-| `kpidash:cmd:services:evict` | STRING (JSON array) | `kpidash-cards` / manual | dashboard | none (consumed) |
+| `kpidash:cmd:services:evict` | STRING (JSON array) | `kpidash-cards` / manual; apt-temps (automatic, `kind: apttemps` only) | dashboard | `EX 60` by convention (consumed) |
 
 Drops one or more cards from the dashboard's **in-memory** registries without a
 restart. The dashboard consumes the key with `GETDEL` each 1 s poll and, on the
@@ -833,8 +879,16 @@ redis-cli SET kpidash:cmd:services:evict '[{"kind":"service","name":"ufw","host"
 ```
 
 The `scripts/kpidash-cards` helper does both (list cards with age; prune
-interactively or via `--service NAME[:HOST]` / `--zone SLUG`). Eviction is
-manual by design — a stopped service may stay as a reminder.
+interactively or via `--service NAME[:HOST]` / `--zone SLUG`). **Service**
+eviction is manual by design — a stopped service may stay as a reminder.
+
+**apt-temps evicts its own zones automatically** (apt-temps sprint 007): when
+its reconcile drops a zone it deletes the zone key and `SET`s this command — a
+JSON list of `{"kind":"apttemps",…}` targets, `EX 60`, at most one command per
+reconcile cycle. The key is shared with `kpidash-cards`, and each writer
+replaces the whole value: if both write inside the same 1 s poll, the earlier
+command is lost and its card lingers until a re-run or a restart. That race is
+rare and is **noted, not guarded**.
 
 ---
 
