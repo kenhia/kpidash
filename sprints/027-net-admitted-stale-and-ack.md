@@ -143,3 +143,44 @@ tree at `-O2 -Werror`).
 
 None filed. The optional "ack'd" marker is an offer in the wrap-up (overseer
 call).
+
+## Deployed
+
+2026-10-28 19:25 PDT (02:25 UTC 10-29), from kai, to rpi53. This ran on the
+ship turn after the overseer's clearance (korg:4158 comment 4150, which
+accepted all three contract readings) and the squash merge `f5bd6fa` (PR #29).
+
+- **`scripts/deploy.sh` from merged `main`.** Only `kpidash.service`
+  restarted. It is active with `NRestarts=0`, and the dashboard reports
+  version `f5bd6fa (2026-10-29)`. The rpidash card on the panel shows the
+  same version. The aarch64 build and link printed no warnings
+  (`.scratch/deploy.log`, grepped).
+- **The `[net]` section.** Before the deploy, `/var/lib/kpidash/admitted`
+  held the seven host-card lines and nothing else. The journal shows the new
+  binary loaded `7 previously-admitted host(s)` and `0 previously
+  net-admitted`. One second later it logged `admitted set now 7 host(s), 5
+  net`. The file now ends `[net]` / `kubs0 kubsdb kai gratch cleo`. The
+  one-time NO FEED window was therefore about 1 s, not 5 s: every producer
+  had written within its 15 s TTL.
+- **Live ack check, run from kai against rpi53 Redis.** Auth went through
+  `kpidash-auth.sh`. Screenshots are `.scratch/live-027-*.png`.
+  1. **Before**: kubsdb was still yellow from the real 2026-10-28 03:46 X550
+     drop (`lfc 0`, `lfc_delta_24h 1` after a counter reset). The headline
+     read `kubsdb LINK DROP` and the column showed `LFC 0 (+1)`.
+  2. **`kpidash-client net ack kubsdb --by claude-kai`** (1.4.0 from the repo
+     checkout) wrote `{"lfc":0,"rx_errors":0,"by":"claude-kai",…}` with TTL
+     86392. On the next screenshot the kubsdb column was **teal** and the
+     headline read `ALL 10G`.
+  3. **Synthetic counter bump**: one `SET kdash:net:kubsdb` with `lfc 1`,
+     `lfc_delta_24h 2`, written right after a real producer write. The column
+     turned **yellow again** with `LFC 1 (+1)`, which is the effective delta
+     `min(2, 1 − 0)`, and the headline went back to `kubsdb LINK DROP`. The
+     producer's next write (≤5 s) restored the real record.
+  4. **After**: teal and `ALL 10G` again. The ack stays in place. kubsdb's
+     drop was investigated (klams 01a1836c), and this is exactly the clear
+     WI 4143 says that session would have issued. It expires on its own at
+     about 02:27 UTC on 10-30.
+- **`just publish`**: kpidash-client **1.4.0** is in the package store
+  (wheel and sdist). Fleet hosts do not need to upgrade, because the daemon's
+  behaviour is unchanged. 1.4.0 is only needed wherever someone wants to run
+  `net ack`.
