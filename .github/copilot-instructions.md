@@ -1,4 +1,5 @@
 <!-- kproject:begin — managed by kprojects; do not edit inside this block -->
+
 ## kproject conventions
 
 This project uses the kproject minimal harness
@@ -58,6 +59,7 @@ over ceremony.
 - No formatter in the gate: `clang-format` asserts nothing without a
   committed `.clang-format`. Add `just fmt` once the repo has one
 - License is MIT unless specifically directed otherwise
+
 <!-- kproject:end -->
 
 ## Project
