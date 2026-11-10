@@ -170,6 +170,11 @@ class RedisClient:
         written every ~5 s with EX 15, so absence means the publisher is gone."""
         self._cmd("set", f"kdash:net:{self._hostname}", json.dumps(record), ex=15)
 
+    def write_nas(self, record: dict, cadence_s: int) -> None:
+        """kdash:nas:{host} v1 (WI #3956): EX 3x the cadence, so absence means
+        the publisher is gone and `ts` gives the panel its stale label."""
+        self._cmd("set", f"kdash:nas:{self._hostname}", json.dumps(record), ex=3 * cadence_s)
+
     def ack_net(self, host: str, by: str) -> dict:
         """Clear a reviewed warning on the network card (WI #4143).
 

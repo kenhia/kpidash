@@ -14,6 +14,7 @@ import tomllib
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from .nas import NasConfig
 from .net import NetConfig
 
 # How the host is expected to be present (WI #3132). `intermittent` is a host that
@@ -72,6 +73,9 @@ class ClientConfig:
     net: NetConfig = field(
         default_factory=lambda: NetConfig(enabled=platform.system() == "Linux")
     )
+    # WI #3956: kdash:nas:{host}. Auto by default — only a host where gratch-ui's
+    # collector file appears ever publishes.
+    nas: NasConfig = field(default_factory=NasConfig)
 
     @classmethod
     def load(cls, path: Path | None = None) -> ClientConfig:
@@ -135,6 +139,7 @@ class ClientConfig:
             )
 
         net = _parse_net(data.get("net", {}), p)
+        nas = _parse_nas(data.get("nas", {}), p)
 
         return cls(
             redis_host=redis_host,
@@ -150,6 +155,7 @@ class ClientConfig:
             disks=disks,
             repos=repos,
             net=net,
+            nas=nas,
         )
 
 
@@ -168,4 +174,16 @@ def _parse_net(section: dict, p: Path) -> NetConfig:
         if not isinstance(peers, list) or not all(isinstance(x, str) for x in peers):
             raise ConfigError(f"[net] peers in {p} must be a list of addresses")
         cfg.peers = list(peers)
+    return cfg
+
+
+def _parse_nas(section: dict, p: Path) -> NasConfig:
+    """`[nas]` — `enabled` (absent = auto) and `source`, both optional."""
+    cfg = NasConfig()
+    if "enabled" in section:
+        cfg.enabled = bool(section["enabled"])
+    if "source" in section:
+        if not isinstance(section["source"], str):
+            raise ConfigError(f"[nas] source in {p} must be a string")
+        cfg.source = section["source"]
     return cfg

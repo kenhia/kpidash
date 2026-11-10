@@ -18,6 +18,7 @@ import psutil
 
 from .config import ClientConfig
 from .endpoint import khlenv_on_fallback
+from .nas import NasCollector
 from .net import NetCollector
 from .redis_client import RedisClient, RedisClientError
 from .repos import scan_repos
@@ -112,6 +113,23 @@ def _khlenv_loop(rc: RedisClient) -> None:
             logger.exception("khlenv retry failed")
 
 
+def _nas_loop(rc: RedisClient, config: ClientConfig) -> None:
+    """kdash:nas:{host} (WI #3956). Re-reads gratch-ui's collector file each
+    tick; on any host where that file never appears this publishes nothing."""
+    collector = NasCollector(config.nas)
+    while not _stop_event.is_set():
+        try:
+            record = collector.collect()
+            if record is not None:
+                rc.write_nas(record, config.telemetry_interval_s)
+        except RedisClientError as e:
+            logger.warning("nas write failed: %s", e)
+            rc.reconnect_on_failure()
+        except Exception:
+            logger.exception("nas collect failed")
+        _stop_event.wait(config.telemetry_interval_s)
+
+
 def _repo_loop(rc: RedisClient, config: ClientConfig) -> None:
     while not _stop_event.is_set():
         try:
@@ -144,6 +162,9 @@ def run_daemon(config: ClientConfig) -> None:
         threading.Thread(target=_telemetry_loop, args=(rc, config), daemon=True),
         threading.Thread(target=_repo_loop, args=(rc, config), daemon=True),
     ]
+
+    if config.nas.enabled is not False:
+        threads.append(threading.Thread(target=_nas_loop, args=(rc, config), daemon=True))
 
     if not config.redis_host:
         threads.append(threading.Thread(target=_khlenv_loop, args=(rc,), daemon=True))

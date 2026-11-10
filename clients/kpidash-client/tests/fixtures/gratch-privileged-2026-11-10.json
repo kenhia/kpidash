@@ -1,0 +1,227 @@
+{
+ "collected_at": "2026-11-10T01:56:56.005347577Z",
+ "version": "0.1.0-7f28ad6",
+ "disks": [
+  {
+   "device": "/dev/sda",
+   "type": "sat",
+   "protocol": "ATA",
+   "model": "Samsung SSD 860 EVO 500GB",
+   "capacity_bytes": 500107862016,
+   "rotational": false,
+   "power_state": "active",
+   "smart_read_at": "2026-11-10T01:56:56.005347577Z",
+   "smart_passed": true,
+   "temp_c": 23,
+   "power_on_hours": 66149,
+   "reallocated_sectors": 0
+  },
+  {
+   "device": "/dev/sdb",
+   "type": "sat",
+   "protocol": "ATA",
+   "model": "ST8000VN0022-2EL112",
+   "capacity_bytes": 8001563222016,
+   "rotational": true,
+   "power_state": "standby",
+   "smart_read_at": "2026-11-06T20:30:11.078850155Z",
+   "smart_passed": true,
+   "temp_c": 26,
+   "power_on_hours": 65279,
+   "reallocated_sectors": 0,
+   "pending_sectors": 0,
+   "offline_uncorrectable": 0
+  },
+  {
+   "device": "/dev/sdc",
+   "type": "sat",
+   "protocol": "ATA",
+   "model": "ST8000VN0022-2EL112",
+   "capacity_bytes": 8001563222016,
+   "rotational": true,
+   "power_state": "active",
+   "smart_read_at": "2026-11-10T01:51:55.984952943Z",
+   "smart_passed": true,
+   "temp_c": 24,
+   "power_on_hours": 66230,
+   "reallocated_sectors": 8,
+   "pending_sectors": 0,
+   "offline_uncorrectable": 0
+  },
+  {
+   "device": "/dev/sdd",
+   "type": "sat",
+   "protocol": "ATA",
+   "model": "ST8000VN0022-2EL112",
+   "capacity_bytes": 8001563222016,
+   "rotational": true,
+   "power_state": "standby",
+   "smart_read_at": "2026-11-05T23:25:07.285018804Z",
+   "smart_passed": true,
+   "temp_c": 26,
+   "power_on_hours": 56348,
+   "reallocated_sectors": 0,
+   "pending_sectors": 0,
+   "offline_uncorrectable": 0
+  },
+  {
+   "device": "/dev/nvme0",
+   "type": "nvme",
+   "protocol": "NVMe",
+   "model": "CT4000T710SSD8",
+   "capacity_bytes": 4000787030016,
+   "rotational": false,
+   "power_state": "active",
+   "smart_read_at": "2026-11-10T01:56:56.005347577Z",
+   "smart_passed": true,
+   "temp_c": 30,
+   "power_on_hours": 4794,
+   "media_errors": 0,
+   "percentage_used": 0
+  },
+  {
+   "device": "/dev/nvme1",
+   "type": "nvme",
+   "protocol": "NVMe",
+   "model": "WD_BLACK SN7100 4TB",
+   "capacity_bytes": 4000787030016,
+   "rotational": false,
+   "power_state": "active",
+   "smart_read_at": "2026-11-10T01:56:56.005347577Z",
+   "smart_passed": true,
+   "temp_c": 28,
+   "power_on_hours": 4390,
+   "media_errors": 0,
+   "percentage_used": 0
+  },
+  {
+   "device": "/dev/nvme2",
+   "type": "nvme",
+   "protocol": "NVMe",
+   "model": "Samsung SSD 990 PRO 1TB",
+   "capacity_bytes": 1000204886016,
+   "rotational": false,
+   "power_state": "active",
+   "smart_read_at": "2026-11-10T01:56:56.005347577Z",
+   "smart_passed": true,
+   "temp_c": 36,
+   "power_on_hours": 1140,
+   "media_errors": 0,
+   "percentage_used": 0
+  },
+  {
+   "device": "/dev/nvme3",
+   "type": "nvme",
+   "protocol": "NVMe",
+   "model": "Samsung SSD 990 EVO Plus 4TB",
+   "capacity_bytes": 4000787030016,
+   "rotational": false,
+   "power_state": "active",
+   "smart_read_at": "2026-11-10T01:56:56.005347577Z",
+   "smart_passed": true,
+   "temp_c": 29,
+   "power_on_hours": 6,
+   "media_errors": 0,
+   "percentage_used": 0
+  }
+ ],
+ "pools": [
+  {
+   "name": "nas",
+   "size_bytes": 11991548690432,
+   "alloc_bytes": 1977499598848,
+   "free_bytes": 10014049091584,
+   "capacity_pct": 16,
+   "frag_pct": 0,
+   "health": "ONLINE",
+   "usable_bytes": 5858335391744,
+   "used_bytes": 988749795328,
+   "avail_bytes": 4869585596416,
+   "compress_ratio": 1.07,
+   "error_count": 0,
+   "vdevs": [
+    {
+     "name": "raidz1-0",
+     "type": "raidz",
+     "class": "normal",
+     "state": "ONLINE",
+     "errors": {
+      "read": 0,
+      "write": 0,
+      "checksum": 0
+     },
+     "members": [
+      {
+       "name": "nvme-CT4000T710SSD8_2543541E4554",
+       "path": "/dev/disk/by-id/nvme-CT4000T710SSD8_2543541E4554-part1",
+       "state": "ONLINE",
+       "errors": {
+        "read": 0,
+        "write": 0,
+        "checksum": 0
+       }
+      },
+      {
+       "name": "nvme-Samsung_SSD_990_EVO_Plus_4TB_S7U8NJ0Y600122J",
+       "path": "/dev/disk/by-id/nvme-Samsung_SSD_990_EVO_Plus_4TB_S7U8NJ0Y600122J-part1",
+       "state": "ONLINE",
+       "errors": {
+        "read": 0,
+        "write": 0,
+        "checksum": 0
+       }
+      },
+      {
+       "name": "nvme-WD_BLACK_SN7100_4TB_26011E802115",
+       "path": "/dev/disk/by-id/nvme-WD_BLACK_SN7100_4TB_26011E802115-part1",
+       "state": "ONLINE",
+       "errors": {
+        "read": 0,
+        "write": 0,
+        "checksum": 0
+       }
+      }
+     ]
+    }
+   ],
+   "scan": {
+    "function": "SCRUB",
+    "state": "FINISHED",
+    "start": "2026-11-08T00:24:02Z",
+    "end": "2026-11-08T00:33:01Z",
+    "to_examine": 1973442772992,
+    "skipped": 5824512,
+    "issued": 1973436940288,
+    "processed": 0,
+    "errors": 0
+   },
+   "expansion": {
+    "vdev": "raidz1",
+    "state": "FINISHED",
+    "start": "2026-10-21T23:05:16Z",
+    "end": "2026-10-21T23:17:03Z",
+    "to_reflow": 1977499598848,
+    "reflowed": 1912441958400
+   },
+   "datasets": [
+    {
+     "name": "nas",
+     "used_bytes": 988749795328,
+     "avail_bytes": 4869585596416,
+     "refer_bytes": 98304,
+     "compress_ratio": 1.07,
+     "mountpoint": "/nas"
+    },
+    {
+     "name": "nas/Backup",
+     "used_bytes": 149871726592,
+     "avail_bytes": 4869585596416,
+     "refer_bytes": 149871726592,
+     "compress_ratio": 1.33,
+     "mountpoint": "/mnt/user/Backup"
+    }
+   ]
+  }
+ ],
+ "stale": false
+}
