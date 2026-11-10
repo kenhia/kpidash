@@ -187,3 +187,67 @@ void stale_card_update(struct stale_entry *e) {
         lv_label_set_text(e->body_label, buf);
     }
 }
+
+/* ---- WI #3642: update-issue card ----
+ *
+ * The staleness card above with the issue lines as its body. Lines are up to
+ * 200 characters by contract, so the body drops to 16 px and wraps; on a
+ * 220x240 card that holds roughly three typical lines. There is no input to
+ * scroll with, so an overlong body is clipped — the oldest issue is first,
+ * which is the one to see. */
+
+#define UPDATE_BODY_BUF (UPDATE_KINDS_MAX * (UPDATE_ISSUE_LEN + 1) + 64)
+
+lv_obj_t *update_card_create(lv_obj_t *parent, struct update_entry *e) {
+    if (!parent || !e) return NULL;
+
+    lv_obj_t *cont = lv_obj_create(parent);
+    lv_obj_clear_flag(cont, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_size(cont, SC_WIDTH, SC_HEIGHT);
+    lv_obj_set_style_bg_color(cont, lv_color_hex(0x181825), 0);
+    lv_obj_set_style_radius(cont, SC_RADIUS, 0);
+    lv_obj_set_style_border_color(cont, color_for(SERVICE_COLOR_YELLOW), 0);
+    lv_obj_set_style_border_width(cont, SC_BORDER_THICK, 0);
+    lv_obj_set_style_pad_all(cont, SC_PAD, 0);
+    lv_obj_set_flex_flow(cont, LV_FLEX_FLOW_COLUMN);
+    lv_obj_set_flex_align(cont, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER,
+                          LV_FLEX_ALIGN_CENTER);
+
+    static char buf[UPDATE_BODY_BUF];
+
+    lv_obj_t *title = lv_label_create(cont);
+    lv_obj_set_style_text_font(title, &lv_font_montserrat_bold_24, 0);
+    lv_obj_set_style_text_color(title, WS_COLOR_FG, 0);
+    lv_label_set_long_mode(title, LV_LABEL_LONG_WRAP);
+    lv_obj_set_width(title, LV_PCT(100));
+    lv_obj_set_style_text_align(title, LV_TEXT_ALIGN_CENTER, 0);
+    update_format_title(e, buf, sizeof(buf));
+    lv_label_set_text(title, buf);
+
+    lv_obj_t *body = lv_label_create(cont);
+    lv_obj_set_style_text_font(body, &lv_font_montserrat_bold_16, 0);
+    lv_obj_set_style_text_color(body, lv_color_hex(0xA6ADC8), 0);
+    lv_label_set_long_mode(body, LV_LABEL_LONG_WRAP);
+    lv_obj_set_width(body, LV_PCT(100));
+    lv_obj_set_style_text_align(body, LV_TEXT_ALIGN_CENTER, 0);
+    update_format_body(e, buf, sizeof(buf));
+    lv_label_set_text(body, buf);
+
+    e->container = cont;
+    e->title_label = title;
+    e->body_label = body;
+    return cont;
+}
+
+void update_card_update(struct update_entry *e) {
+    if (!e || !e->container) return;
+    static char buf[UPDATE_BODY_BUF];
+    if (e->title_label) {
+        update_format_title(e, buf, sizeof(buf));
+        lv_label_set_text(e->title_label, buf);
+    }
+    if (e->body_label) {
+        update_format_body(e, buf, sizeof(buf));
+        lv_label_set_text(e->body_label, buf);
+    }
+}

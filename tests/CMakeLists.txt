@@ -102,6 +102,14 @@ add_kpidash_test(test_stale_card
 )
 target_compile_definitions(test_stale_card PRIVATE KPIDASH_TEST_STUBS=1)
 
+# WI #3642: the update-issue feed reader (kdash:update:<host>:<kind>).
+add_kpidash_test(test_update_card
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_update_card.c
+    ${CMAKE_SOURCE_DIR}/src/registry.c
+    ${CMAKE_SOURCE_DIR}/src/redis.c
+)
+target_compile_definitions(test_update_card PRIVATE KPIDASH_TEST_STUBS=1)
+
 # WI #3012: the admitted-hosts file. Pure file I/O with no LVGL and no Redis,
 # so the load side -- which must never fail, because it runs at startup on a
 # panel with no keyboard -- is reachable from the gate.

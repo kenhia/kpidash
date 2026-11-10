@@ -538,8 +538,31 @@ void ui_refresh(void) {
         }
     }
 
+    /* ---- WI #3642: update-issue cards — after the staleness cards, before
+     * apt-temps, by the same move-to-last walk (see the block above). Both
+     * are "a host needs Ken" cards, so they sit together. ---- */
+    {
+        void *dead[UPDATE_REGISTRY_MAX];
+        int ndead = update_registry_reap(dead, UPDATE_REGISTRY_MAX);
+        for (int i = 0; i < ndead; i++)
+            if (dead[i]) lv_obj_delete((lv_obj_t *)dead[i]);
+
+        update_entry_t up[UPDATE_REGISTRY_MAX];
+        int nup = update_registry_snapshot(up, UPDATE_REGISTRY_MAX);
+        for (int i = 0; i < nup; i++) {
+            update_entry_t *live = update_registry_find(up[i].host);
+            if (!live) continue;
+            if (!live->container) {
+                update_card_create(g_service_strip, live);
+            }
+            update_card_update(live);
+            lv_obj_move_to_index(live->container,
+                                 (int32_t)lv_obj_get_child_count(g_service_strip) - 1);
+        }
+    }
+
     /* ---- WI #364: Apt-Temps per-zone cards, painted into the footer strip
-     * last — after the service cards and after any staleness cards. ---- */
+     * last — after the service cards and after any staleness and update cards. ---- */
     {
         apttemps_entry_t ats[APTTEMPS_REGISTRY_MAX];
         int nat = apttemps_registry_snapshot(ats, APTTEMPS_REGISTRY_MAX);

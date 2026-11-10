@@ -704,6 +704,8 @@ void redis_poll(void) {
     redis_poll_apttemps();
     /* Host staleness cards (WI #1903) */
     redis_poll_stale();
+    /* Update-issue cards (WI #3642) */
+    redis_poll_update();
     /* Card eviction command (WI #374) */
     redis_poll_evict();
     /* Network-health card (WI #4062) */
@@ -1180,6 +1182,133 @@ void redis_poll_stale(void) {
 }
 #else
 void redis_poll_stale(void) { /* test stub */ }
+#endif
+
+/* ============================================================
+ * WI #3642: update-issue cards (kdash:update:<host>:<kind>)
+ * ============================================================
+ *
+ * The staleness reader's rules, unchanged (CD-18): the KEY raises the host,
+ * the payload only describes it, and every failure path falls back to
+ * "flagged, detail unknown". An unknown {kind} is not a failure at all — the
+ * vocabulary is open, and the card renders the `issue` line, not the kind.
+ */
+
+int redis_parse_update_key(const char *key, char *host, size_t host_n, char *kind,
+                           size_t kind_n) {
+    if (!key || !host || !kind || host_n == 0 || kind_n == 0) return -1;
+    const size_t plen = strlen(KDASH_KEY_UPDATE_PREFIX);
+    if (strncmp(key, KDASH_KEY_UPDATE_PREFIX, plen) != 0) return -1;
+
+    const char *after = key + plen;
+    const char *sep = strchr(after, ':');
+    size_t host_len = sep ? (size_t)(sep - after) : strlen(after);
+    if (host_len == 0) return -1;
+    if (host_len >= host_n) return -1; /* truncating would invent a hostname */
+
+    const char *k = UPDATE_KIND_UNKNOWN;
+    if (sep) {
+        const char *rest = sep + 1;
+        if (*rest && !strchr(rest, ':')) k = rest;
+    }
+    if (strlen(k) >= kind_n) return -1;
+
+    memcpy(host, after, host_len);
+    host[host_len] = '\0';
+    strncpy(kind, k, kind_n - 1);
+    kind[kind_n - 1] = '\0';
+    return 0;
+}
+
+int redis_parse_update_payload(const char *json, double *since, bool *since_known, char *issue,
+                               size_t issue_n) {
+    if (since_known) *since_known = false;
+    if (issue && issue_n) issue[0] = '\0';
+    if (!json || !*json || !since || !since_known || !issue || issue_n == 0) return -1;
+    cJSON *root = cJSON_Parse(json);
+    if (!root) return -1;
+    if (!cJSON_IsObject(root)) {
+        cJSON_Delete(root);
+        return -1;
+    }
+    /* Each field is read on its own, so a bad `since` costs the ordering and
+     * keeps the line, and a bad `issue` costs the line and keeps the order. */
+    cJSON *s = cJSON_GetObjectItemCaseSensitive(root, "since");
+    if (cJSON_IsNumber(s)) {
+        *since = s->valuedouble;
+        *since_known = true;
+    }
+    cJSON *line = cJSON_GetObjectItemCaseSensitive(root, "issue");
+    if (cJSON_IsString(line) && line->valuestring && *line->valuestring) {
+        strncpy(issue, line->valuestring, issue_n - 1);
+        issue[issue_n - 1] = '\0';
+    }
+    cJSON_Delete(root);
+    return 0;
+}
+
+int redis_update_apply_record(const char *key, const char *payload) {
+    char host[64];
+    char kind[64];
+    if (redis_parse_update_key(key, host, sizeof(host), kind, sizeof(kind)) != 0) return -1;
+
+    double since = 0.0;
+    bool since_known = false;
+    char issue[UPDATE_ISSUE_LEN];
+    issue[0] = '\0';
+    if (payload)
+        redis_parse_update_payload(payload, &since, &since_known, issue, sizeof(issue));
+
+    /* Raised either way. An unreadable payload costs the detail, not the flag. */
+    update_registry_observe(host, kind, since, since_known, issue);
+    return 0;
+}
+
+#ifndef KPIDASH_TEST_STUBS
+void redis_poll_update(void) {
+    if (!g_ctx || g_ctx->err) return;
+
+    update_registry_begin_cycle();
+    char cursor[32] = "0";
+    do {
+        redisReply *sr = redisCommand(g_ctx, "SCAN %s MATCH %s COUNT 100", cursor,
+                                      KDASH_KEY_UPDATE_PATTERN);
+        if (!sr || sr->type != REDIS_REPLY_ARRAY || sr->elements != 2) {
+            if (sr) freeReplyObject(sr);
+            update_registry_abort_cycle();
+            return;
+        }
+        if (sr->element[0]->type == REDIS_REPLY_STRING) {
+            strncpy(cursor, sr->element[0]->str, sizeof(cursor) - 1);
+            cursor[sizeof(cursor) - 1] = '\0';
+        }
+        redisReply *keys = sr->element[1];
+        if (keys && keys->type == REDIS_REPLY_ARRAY) {
+            for (size_t i = 0; i < keys->elements; i++) {
+                const char *key = keys->element[i]->str;
+                if (!key) continue;
+                redisReply *gr = redisCommand(g_ctx, "GET %s", key);
+                if (!gr) {
+                    freeReplyObject(sr);
+                    update_registry_abort_cycle();
+                    return;
+                }
+                if (gr->type == REDIS_REPLY_NIL) {
+                    /* DELeted between SCAN and GET: a real all-clear. */
+                    freeReplyObject(gr);
+                    continue;
+                }
+                redis_update_apply_record(key, gr->type == REDIS_REPLY_STRING ? gr->str : NULL);
+                freeReplyObject(gr);
+            }
+        }
+        freeReplyObject(sr);
+    } while (strcmp(cursor, "0") != 0);
+
+    update_registry_commit_cycle();
+}
+#else
+void redis_poll_update(void) { /* test stub */ }
 #endif
 
 /* ============================================================

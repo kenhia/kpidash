@@ -702,6 +702,71 @@ redis-cli --scan --pattern 'kdash:stale:*'
 
 ---
 
+## 8e. Update-Issue Cards (Sprint 028, WI #3642)
+
+| Key | Type | Written by | Read by | TTL |
+|-----|------|-----------|---------|-----|
+| `kdash:update:{host}:{kind}` | STRING (JSON) | k-homelab's apt runner, through `kdash-pub` | dashboard | **none, ever** |
+
+Registered in **kdashdata** (sprint 020, schema `contracts/schemas/kdash-update.schema.json`);
+the dashboard is a consumer. One key per **(host, kind)** — a held package and a pending
+reboot on one host coexist and clear independently — and one card per *host*.
+
+```json
+{ "since": 1793581200.0, "ts": 1793667600.4,
+  "issue": "rpi53: reboot needed for linux-image 6.12.48 (apt run 2026-11-02)",
+  "ref": "korg:3627" }
+```
+
+| Field | Type | Required | Notes |
+|-------|------|----------|-------|
+| `since` | number | yes | Unix **seconds**. When the issue was *first* raised; carried, never restamped. Orders the card body |
+| `ts` | number | yes | Unix seconds of the latest run that found it. Not rendered |
+| `issue` | string | yes | ≤200 chars. **The line the card renders**, verbatim |
+| `ref` | string | no | `korg:<id>`. Not rendered today |
+
+`{kind}` is an **open vocabulary** — `ring-stopped`, `reboot-awaiting`, `held`,
+`gate-failed` today. The card renders the `issue` line, not the kind, so a kind
+this build has never heard of shows exactly like a known one.
+
+**Presence-owned, exactly as §8c.** The key is the flag, `DEL` is the only
+all-clear, and every failure path falls back to *flagged, detail unknown*
+(kdashdata CD-18): an unreadable or absent payload, or a missing `issue`,
+renders `<kind>: detail unknown`; a bad `since` only loses the ordering; a key
+with a missing or extra segment shows kind `(unknown)`; a `SCAN` that fails
+part-way abandons the cycle and leaves the previous cards up.
+
+### Render
+
+`SCAN MATCH kdash:update:*` in the same once-a-second cycle as §8c. One card per
+host in the footer strip, **after the staleness cards and before apt-temps**,
+same 220×240 footprint and warn band:
+
+```
+      rpi53 update
+  rpi53: reboot needed for
+  linux-image 6.12.48 (apt
+     run 2026-11-02)
+```
+
+Body: one `issue` line per kind, **oldest `since` first** (unknown `since` last,
+ties by kind), set at 16 px and wrapped. There is no input to scroll with, so a
+body longer than the card is clipped at the bottom — the oldest issue is the one
+kept in view. Hosts sorted by name.
+
+**`rpi53` is included** — unlike §8c. "The panel needs a reboot" is exactly
+what this card is for, and rpi53 is in the Pi update ring.
+
+Limits: `UPDATE_REGISTRY_MAX` hosts (8), `UPDATE_KINDS_MAX` issues per host (6).
+
+```bash
+redis-cli --scan --pattern 'kdash:update:*'
+# The apt runner raises and clears these. A hand-written key proves the card
+# renders, not that the feed works — delete it afterwards.
+```
+
+---
+
 ## 9. Dev Commands (Sprint 002)
 
 Command keys enable/disable developer overlay widgets. All keys use JSON

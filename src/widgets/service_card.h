@@ -5,6 +5,7 @@
 
 struct service_entry;
 struct stale_entry;
+struct update_entry;
 
 /* Build the service card (border + icon + name + text) inside parent.
  * Stores LVGL handles on the entry. */
@@ -22,5 +23,11 @@ void service_card_update(struct service_entry *e, double now);
  * freshness window, so the card's colour never depends on the clock. */
 lv_obj_t *stale_card_create(lv_obj_t *parent, struct stale_entry *e);
 void stale_card_update(struct stale_entry *e);
+
+/* WI #3642: the update-issue card — "<host> update" over each issue's line.
+ * The staleness card's footprint and warn band; the body is the payload's
+ * `issue` text, which is longer than a deployer name, so it is set smaller. */
+lv_obj_t *update_card_create(lv_obj_t *parent, struct update_entry *e);
+void update_card_update(struct update_entry *e);
 
 #endif /* WIDGETS_SERVICE_CARD_H */
