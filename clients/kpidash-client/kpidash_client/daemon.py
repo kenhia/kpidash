@@ -4,6 +4,7 @@ Runs concurrent health-ping and telemetry loops.
 Health: every config.health_interval_s (default 3s)
 Telemetry: every config.telemetry_interval_s (default 5s, A1)
 Repo scan: every config.repo_scan_interval_s (default 30s)
+khlenv retry: every KHLENV_RETRY_S while the endpoint came from a fallback
 """
 
 from __future__ import annotations
@@ -16,6 +17,7 @@ import time
 import psutil
 
 from .config import ClientConfig
+from .endpoint import khlenv_on_fallback
 from .net import NetCollector
 from .redis_client import RedisClient, RedisClientError
 from .repos import scan_repos
@@ -26,6 +28,11 @@ from .telemetry.system import collect_os_name, collect_system
 logger = logging.getLogger(__name__)
 
 _stop_event = threading.Event()
+
+#: How often to re-ask khlenv while running on a cached or default endpoint.
+#: Each attempt is one GET with khlenv's 2 s timeout, and the loop stops
+#: asking the moment an answer is live, so a short interval costs nothing.
+KHLENV_RETRY_S = 60
 
 
 def _uptime() -> float | None:
@@ -94,6 +101,17 @@ def _net_loop(rc: RedisClient, config: ClientConfig) -> None:
             logger.exception("net collect failed")
 
 
+def _khlenv_loop(rc: RedisClient) -> None:
+    """Self-heal a boot-time khlenv fallback without a restart (WI 4353)."""
+    while not _stop_event.wait(KHLENV_RETRY_S):
+        try:
+            # khlenv logs each failed attempt itself; say only the recovery.
+            if rc.refresh_endpoint_if_fallback() and not khlenv_on_fallback():
+                logger.info("khlenv answered live again (endpoint %s)", rc.endpoint)
+        except Exception:
+            logger.exception("khlenv retry failed")
+
+
 def _repo_loop(rc: RedisClient, config: ClientConfig) -> None:
     while not _stop_event.is_set():
         try:
@@ -126,6 +144,9 @@ def run_daemon(config: ClientConfig) -> None:
         threading.Thread(target=_telemetry_loop, args=(rc, config), daemon=True),
         threading.Thread(target=_repo_loop, args=(rc, config), daemon=True),
     ]
+
+    if not config.redis_host:
+        threads.append(threading.Thread(target=_khlenv_loop, args=(rc,), daemon=True))
 
     if config.net.enabled:
         logger.info("network health loop enabled (kdash:net:%s)", rc.hostname)
