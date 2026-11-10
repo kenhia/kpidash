@@ -20,7 +20,7 @@ import uuid
 import redis
 
 from .config import ClientConfig
-from .endpoint import EndpointError, resolve_redis_endpoint
+from .endpoint import EndpointError, khlenv_on_fallback, resolve_redis_endpoint
 
 ACTIVITY_ZSET_TRIM = 20  # keep 2× display max in sorted set
 
@@ -87,6 +87,30 @@ class RedisClient:
         except RedisClientError:
             return False
 
+    def refresh_endpoint_if_fallback(self) -> bool:
+        """Re-ask khlenv while the endpoint in use came from a fallback.
+
+        A client that starts before tailnet DNS is up resolves from khlenv's
+        cache, connects, and — because Redis answers — never reconnects, so
+        it never re-asks either (WI 4353: gratch ran four days on a cached
+        value after a boot). This is the retry that path lacked. A live
+        answer moves the cache's ``fetched_at`` past the failover, which is
+        the recovery kmon reads; a different endpoint reconnects to it.
+        Returns True when a re-resolve was attempted.
+        """
+        if self._config.redis_host or not khlenv_on_fallback():
+            return False
+        try:
+            endpoint = resolve_redis_endpoint(self._config)
+        except EndpointError:
+            return True
+        if endpoint != self._endpoint:
+            try:
+                self.connect()
+            except RedisClientError:
+                pass
+        return True
+
     @property
     def hostname(self) -> str:
         return self._hostname
@@ -145,6 +169,11 @@ class RedisClient:
         """kdash:net:{host} v1 (kdashdata CD-27): the host-card convention,
         written every ~5 s with EX 15, so absence means the publisher is gone."""
         self._cmd("set", f"kdash:net:{self._hostname}", json.dumps(record), ex=15)
+
+    def write_nas(self, record: dict, cadence_s: int) -> None:
+        """kdash:nas:{host} v1 (WI #3956): EX 3x the cadence, so absence means
+        the publisher is gone and `ts` gives the panel its stale label."""
+        self._cmd("set", f"kdash:nas:{self._hostname}", json.dumps(record), ex=3 * cadence_s)
 
     def ack_net(self, host: str, by: str) -> dict:
         """Clear a reviewed warning on the network card (WI #4143).

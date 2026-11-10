@@ -126,6 +126,32 @@
  * (kmon/satellite.py, DEFAULT_ABSENCE_DAYS = 7) — change them together. */
 #define STALE_INTERMITTENT_GRACE_S (7 * 86400)
 
+/* WI #3642: per-host update issues, kdashdata kdash-update (sprint 020). The
+ * writer is k-homelab's apt runner, through kdash-pub.
+ *
+ * Key: kdash:update:<host>:<kind>   Value: {"since":<unix s>,"ts":<unix s>,
+ *                                           "issue":"<one line>","ref":"korg:N"}
+ *
+ * Presence-owned exactly as kdash:stale is (CD-18): the key is the flag, DEL is
+ * the only all-clear, and an unreadable payload still raises the host. {kind}
+ * is an OPEN vocabulary — an unknown kind is rendered by its `issue` line,
+ * never dropped. Unlike the staleness card, rpi53 is NOT excluded: "the panel
+ * needs a reboot" is exactly what this card is for. */
+#define KDASH_KEY_UPDATE_PATTERN "kdash:update:*"
+#define KDASH_KEY_UPDATE_PREFIX  "kdash:update:"
+
+/* Shown in place of a kind when the key is off-contract (no kind segment, or
+ * too many). The host is still raised. */
+#define UPDATE_KIND_UNKNOWN "(unknown)"
+
+/* WI #3956: NAS health for the big panel, kdashdata kdash-nas v1 (sprint 020).
+ * Written by kpidash-client on the NAS host every ~5 s with EX 15, a
+ * projection of gratch-ui's collector file. The panel shows ONE NAS, so the
+ * host is a constant rather than a config list; the panel takes that host's
+ * dev-graph slot (its activity graph is drawn inside the panel). */
+#define KDASH_KEY_NAS_PREFIX "kdash:nas:"
+#define KPIDASH_NAS_HOST "gratch"
+
 #define CMD_TTL_S 300
 
 #endif /* PROTOCOL_H */

@@ -16,6 +16,7 @@ Only the endpoint is resolved here. The password stays in
 
 from __future__ import annotations
 
+import json
 import logging
 
 from khlenv import Khlenv, KhlenvError
@@ -87,3 +88,32 @@ def resolve_redis_endpoint(config: ClientConfig) -> tuple[str, int]:
     host, port = parse_endpoint(value)
     logger.debug("resolved Redis endpoint %s:%d from khlenv (%s)", host, port, KHLENV_KEY)
     return host, port
+
+
+def khlenv_on_fallback() -> bool:
+    """True while the last khlenv answer for this app was not a live one.
+
+    Read from khlenv's own D6 cache file rather than tracked here, because
+    the file is the record kmon judges the host by: ``last_failover.at`` at
+    or after ``fetched_at`` means nothing has been fetched live since the
+    failover (the comparison khlenv's ``last_failover`` docstring names).
+    ``>=`` rather than kmon's ``>``, so a same-second tie costs one more
+    retry instead of a missed one. An unreadable or record-less cache is
+    not a fallback: there is nothing to recover from.
+    """
+    # Only the cache path is wanted. Naming an endpoint skips khlenv's
+    # discovery, which warns on a host with no endpoint file — every minute.
+    cache_path = Khlenv(KHLENV_APP, endpoint="http://cache-path-only.invalid").cache_path
+    try:
+        cached = json.loads(cache_path.read_text())
+    except (OSError, ValueError):
+        return False
+    if not isinstance(cached, dict):
+        return False
+    record = cached.get("last_failover")
+    if not isinstance(record, dict) or not record.get("at"):
+        return False
+    fetched_at = cached.get("fetched_at")
+    # Both stamps are khlenv's fixed `%Y-%m-%dT%H:%M:%SZ`, so they compare
+    # correctly as strings.
+    return not fetched_at or str(record["at"]) >= str(fetched_at)

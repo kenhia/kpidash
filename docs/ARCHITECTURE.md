@@ -155,9 +155,21 @@ LVGL/DRM/KMS with no mouse or keyboard interaction.
 10. **Host staleness**: the fleet deployers write `kdash:stale:{host}:{deployer}`
     (JSON, **no TTL**) when they skip an unreachable host, and `DEL` it after a
     verified sync. Dashboard SCANs `kdash:stale:*` in the same cycle as the
-    services scan and renders one footer card per stale host. This is the only
-    feed kpidash reads that it does not own — it is registered in kdashdata
-    (CD-18) and shared with other consumers (sprint 017).
+    services scan and renders one footer card per stale host. Like `kdash:net`
+    and `kdash:update`, it is registered in kdashdata (CD-18) and shared with
+    other consumers rather than owned here (sprint 017).
+11. **Update issues**: k-homelab's apt runner writes `kdash:update:{host}:{kind}`
+    (JSON, **no TTL**, presence-owned like staleness) when a run needs Ken — a
+    held package, a pending reboot, a stopped ring. Dashboard SCANs
+    `kdash:update:*` in the same cycle and renders one footer card per host,
+    after the staleness cards, with each payload's `issue` line as the body.
+    rpi53 is included. See CLIENT-PROTOCOL.md §8e (sprint 028).
+12. **NAS big panel**: kpidash-client on gratch projects gratch-ui's collector
+    file into `kdash:nas:gratch` (EX 15, kdashdata v1). Dashboard GETs it each
+    poll into `nasstate.c` (pure model) and, once it has published, draws
+    `widgets/nas_card.c` in **gratch's dev-graph slot** — pool and root bars,
+    a CPU/RAM activity chart, one row per disk. See CLIENT-PROTOCOL.md §8f
+    (sprint 028).
 
 ## Source Structure
 

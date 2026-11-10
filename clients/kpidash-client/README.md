@@ -40,7 +40,10 @@ khlenv resolves the **endpoint only**. The password stays in
 
 If khlenv is unreachable the client uses its last cached answer (with a
 loud warning naming the cache age), and failing that a compiled-in
-`rpi53:6379`. Off the tailnet — or anywhere you want to pin the endpoint —
+`rpi53:6379`. While it is running on either fallback it re-asks khlenv
+every minute (1.5.0, WI 4353), so a client that started before tailnet DNS
+was up heals itself once DNS arrives instead of waiting for a restart; a
+different answer reconnects to it. Off the tailnet — or anywhere you want to pin the endpoint —
 keep `[redis] host` in `config.toml`: it is an explicit override and wins
 outright, port included.
 
@@ -124,6 +127,16 @@ rx errors, and this host's own probes to the UDM, its fabric peers and the
 Internet. It needs no configuration on the fleet; `[net]` overrides any default
 (see `docs/CLIENT-PROTOCOL.md` §8d), and `[net] enabled = false` turns it off.
 `kpidash-client net` prints one record without touching Redis.
+
+On a NAS host running gratch-ui the daemon also publishes `kdash:nas:<host>`
+(1.5.0) for the panel's NAS big panel: a projection of gratch-ui's collector
+file `/run/gratch-ui/privileged.json` — pool usage and health, per-disk SMART,
+temperature, wear and spin state. It re-reads that file and never runs
+`smartctl` itself, so a standby disk stays asleep. Nothing to configure: the
+loop publishes only once that file has existed on the host, so every other host
+writes nothing. `[nas] enabled = false` turns it off, `true` publishes even
+with no source (as "collector down"), and `[nas] source` points elsewhere
+(`docs/CLIENT-PROTOCOL.md` §8f).
 `kpidash-client net ack <host> [--by NAME]` (1.4.0) clears a reviewed yellow
 column on the card from any host: it records the host's live counters as a 24 h
 baseline, and anything after it turns the column yellow again.

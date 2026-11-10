@@ -702,6 +702,131 @@ redis-cli --scan --pattern 'kdash:stale:*'
 
 ---
 
+## 8e. Update-Issue Cards (Sprint 028, WI #3642)
+
+| Key | Type | Written by | Read by | TTL |
+|-----|------|-----------|---------|-----|
+| `kdash:update:{host}:{kind}` | STRING (JSON) | k-homelab's apt runner, through `kdash-pub` | dashboard | **none, ever** |
+
+Registered in **kdashdata** (sprint 020, schema `contracts/schemas/kdash-update.schema.json`);
+the dashboard is a consumer. One key per **(host, kind)** — a held package and a pending
+reboot on one host coexist and clear independently — and one card per *host*.
+
+```json
+{ "since": 1793581200.0, "ts": 1793667600.4,
+  "issue": "rpi53: reboot needed for linux-image 6.12.48 (apt run 2026-11-02)",
+  "ref": "korg:3627" }
+```
+
+| Field | Type | Required | Notes |
+|-------|------|----------|-------|
+| `since` | number | yes | Unix **seconds**. When the issue was *first* raised; carried, never restamped. Orders the card body |
+| `ts` | number | yes | Unix seconds of the latest run that found it. Not rendered |
+| `issue` | string | yes | ≤200 chars. **The line the card renders**, verbatim |
+| `ref` | string | no | `korg:<id>`. Not rendered today |
+
+`{kind}` is an **open vocabulary** — `ring-stopped`, `reboot-awaiting`, `held`,
+`gate-failed` today. The card renders the `issue` line, not the kind, so a kind
+this build has never heard of shows exactly like a known one.
+
+**Presence-owned, exactly as §8c.** The key is the flag, `DEL` is the only
+all-clear, and every failure path falls back to *flagged, detail unknown*
+(kdashdata CD-18): an unreadable or absent payload, or a missing `issue`,
+renders `<kind>: detail unknown`; a bad `since` only loses the ordering; a key
+with a missing or extra segment shows kind `(unknown)`; a `SCAN` that fails
+part-way abandons the cycle and leaves the previous cards up.
+
+### Render
+
+`SCAN MATCH kdash:update:*` in the same once-a-second cycle as §8c. One card per
+host in the footer strip, **after the staleness cards and before apt-temps**,
+same 220×240 footprint and warn band:
+
+```
+      rpi53 update
+  rpi53: reboot needed for
+  linux-image 6.12.48 (apt
+     run 2026-11-02)
+```
+
+Body: one `issue` line per kind, **oldest `since` first** (unknown `since` last,
+ties by kind), set at 16 px and wrapped. There is no input to scroll with, so a
+body longer than the card is clipped at the bottom — the oldest issue is the one
+kept in view. Hosts sorted by name.
+
+**`rpi53` is included** — unlike §8c. "The panel needs a reboot" is exactly
+what this card is for, and rpi53 is in the Pi update ring.
+
+Limits: `UPDATE_REGISTRY_MAX` hosts (8), `UPDATE_KINDS_MAX` issues per host (6).
+
+```bash
+redis-cli --scan --pattern 'kdash:update:*'
+# The apt runner raises and clears these. A hand-written key proves the card
+# renders, not that the feed works — delete it afterwards.
+```
+
+---
+
+## 8f. NAS Big Panel (Sprint 028, WI #3956)
+
+| Key | Type | Written by | Read by | TTL |
+|-----|------|-----------|---------|-----|
+| `kdash:nas:{host}` | STRING (JSON) | kpidash-client on the NAS host (gratch) | dashboard | 15 s |
+
+**The contract is kdashdata's** (sprint 020): schema
+`lib/kdashdata/contracts/schemas/kdash-nas.schema.json`, field mapping from the
+source in `contracts/registry.md`. **v1, field names pinned**; a breaking change
+is `kdash:nas:v2:{host}`. Both ends are gated against the schema:
+`tests/test_nas.py` validates the projection of a real gratch capture with
+kdashdata's validator, and `tests/test_nasstate.c` parses the schema's examples.
+
+**Producer** (`kpidash_client/nas.py`, 1.5.0): every telemetry interval (~5 s),
+`SET … EX 15`. It re-reads gratch-ui's root collector output,
+`/run/gratch-ui/privileged.json`, and **never runs `smartctl`** — gratch-ui is the
+one place that knows how to leave a standby IronWolf asleep. Values the source
+does not give for a disk type are present-and-null. A missing or unreadable
+source still publishes `collected_ts: null, source_stale: true` with empty
+arrays, so the panel says *collector down* instead of going blank. On by default
+in **auto** mode: it publishes only once the source file has existed on the
+host, so no other host writes the key.
+
+```toml
+[nas]
+enabled = true                              # absent = auto; false = off
+source  = "/run/gratch-ui/privileged.json"
+```
+
+**Panel** (`src/nasstate.c` model, `src/widgets/nas_card.c`): one `GET
+kdash:nas:gratch` per poll. The host is the constant `KPIDASH_NAS_HOST`.
+Once the key has published this run, the panel takes **gratch's dev-graph
+slot** in the rows-2-3 pool and draws gratch's activity itself, so it sits
+after the other dev graphs and before the network card. The pool's six 2×1
+slots were all taken (five graphs and the net card), so it had to replace
+something, and gratch's own graph is what it shows anyway. Until the key has
+published, gratch keeps its ordinary graph.
+
+- **Left:** one bar per ZFS pool, showing usable used over usable total (after
+  parity, never `alloc_bytes`), with health and the last scrub. Under that is the
+  root filesystem bar, taken from gratch's own `kpidash:client:gratch:telemetry`
+  disk labelled `root`. Under that is a CPU % / RAM % chart fed from gratch's
+  `dev_telemetry`.
+- **Right:** one row per disk, up to 8, with `+N more` below. Each row shows
+  device and model, kind, temperature, spin state, SMART verdict, NVMe wear, and
+  any non-zero reallocated, pending or media-error count. A coloured stripe gives
+  the level.
+- **Levels.** Red: a pool that is neither ONLINE nor DEGRADED, SMART failed,
+  NVMe wear ≥100 %, or HDD/SSD ≥60 °C (NVMe ≥80 °C). Yellow: DEGRADED, pool or
+  scrub errors, pending sectors or media errors, wear ≥80 %, HDD/SSD ≥50 °C
+  (NVMe ≥70 °C), or a stale or missing collector. Grey (neutral): **standby**,
+  which is normal for an IronWolf, and a constant reallocated count. With no
+  history there is no rise to warn about.
+- **Freshness, as on the host cards.** The header reads `collected N ago` from
+  the collector's clock. If the key is gone, or its `ts` is more than 15 s old,
+  the header reads `STALE · age` in red and the border and stripes go grey, with
+  the last values kept in view. A stale feed never looks healthy.
+
+---
+
 ## 9. Dev Commands (Sprint 002)
 
 Command keys enable/disable developer overlay widgets. All keys use JSON

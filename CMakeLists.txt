@@ -118,6 +118,8 @@ add_executable(kpidash
     src/widgets/apt_temps_card.c
     src/widgets/net_card.c
     src/netstate.c
+    src/nasstate.c
+    src/widgets/nas_card.c
     src/icons.c
     fonts/lv_font_montserrat_bold_14.c
     fonts/lv_font_montserrat_bold_16.c

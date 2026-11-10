@@ -780,6 +780,223 @@ void stale_format_body(const stale_entry_t *e, char *buf, size_t n) {
     }
 }
 
+/* ---- update-issue registry (WI #3642) ----
+ *
+ * The staleness registry above, re-cut for kdash:update. Same pending/live
+ * split and for the same reason (CD-18): only a completed scan may take a
+ * card down. Kept as its own small copy rather than a generalised one because
+ * the two differ exactly where a shared version would need flags — the
+ * excluded host, the intermittent grace, and the issue line. */
+
+typedef struct {
+    char host[64];
+    update_issue_t issues[UPDATE_KINDS_MAX];
+    int issue_count;
+} update_pending_t;
+
+static update_entry_t g_update[UPDATE_REGISTRY_MAX];
+static int g_update_count = 0;
+static update_pending_t g_update_pending[UPDATE_REGISTRY_MAX];
+static int g_update_pending_count = 0;
+static pthread_mutex_t g_update_mutex = PTHREAD_MUTEX_INITIALIZER;
+
+void update_registry_begin_cycle(void) {
+    pthread_mutex_lock(&g_update_mutex);
+    g_update_pending_count = 0;
+    pthread_mutex_unlock(&g_update_mutex);
+}
+
+void update_registry_abort_cycle(void) {
+    pthread_mutex_lock(&g_update_mutex);
+    g_update_pending_count = 0;
+    pthread_mutex_unlock(&g_update_mutex);
+}
+
+void update_registry_observe(const char *host, const char *kind, double since,
+                             bool since_known, const char *issue) {
+    if (!host || !*host) return;
+    if (!kind || !*kind) kind = UPDATE_KIND_UNKNOWN;
+
+    pthread_mutex_lock(&g_update_mutex);
+    update_pending_t *p = NULL;
+    for (int i = 0; i < g_update_pending_count; i++) {
+        if (strncmp(g_update_pending[i].host, host, sizeof(g_update_pending[i].host)) == 0) {
+            p = &g_update_pending[i];
+            break;
+        }
+    }
+    if (!p) {
+        if (g_update_pending_count >= UPDATE_REGISTRY_MAX) {
+            pthread_mutex_unlock(&g_update_mutex);
+            return;
+        }
+        p = &g_update_pending[g_update_pending_count++];
+        memset(p, 0, sizeof(*p));
+        strncpy(p->host, host, sizeof(p->host) - 1);
+    }
+    /* SCAN may return the same key on two cursor pages — list it once. */
+    for (int i = 0; i < p->issue_count; i++) {
+        if (strncmp(p->issues[i].kind, kind, sizeof(p->issues[i].kind)) == 0) {
+            pthread_mutex_unlock(&g_update_mutex);
+            return;
+        }
+    }
+    if (p->issue_count >= UPDATE_KINDS_MAX) {
+        pthread_mutex_unlock(&g_update_mutex);
+        return;
+    }
+    update_issue_t *u = &p->issues[p->issue_count++];
+    memset(u, 0, sizeof(*u));
+    strncpy(u->kind, kind, sizeof(u->kind) - 1);
+    u->since = since;
+    u->since_known = since_known;
+    if (issue && *issue) {
+        strncpy(u->issue, issue, sizeof(u->issue) - 1);
+        u->issue_known = true;
+    }
+    pthread_mutex_unlock(&g_update_mutex);
+}
+
+/* Oldest `since` first, as the staleness card orders its deployers. */
+static int update_issue_cmp(const update_issue_t *a, const update_issue_t *b) {
+    if (a->since_known != b->since_known) return a->since_known ? -1 : 1;
+    if (a->since_known) {
+        if (a->since < b->since) return -1;
+        if (a->since > b->since) return 1;
+    }
+    return strncmp(a->kind, b->kind, sizeof(a->kind));
+}
+
+void update_registry_commit_cycle(void) {
+    pthread_mutex_lock(&g_update_mutex);
+
+    for (int i = 1; i < g_update_pending_count; i++) {
+        update_pending_t tmp = g_update_pending[i];
+        int j = i;
+        while (j > 0 && strncmp(g_update_pending[j - 1].host, tmp.host, sizeof(tmp.host)) > 0) {
+            g_update_pending[j] = g_update_pending[j - 1];
+            j--;
+        }
+        g_update_pending[j] = tmp;
+    }
+    for (int h = 0; h < g_update_pending_count; h++) {
+        update_issue_t *d = g_update_pending[h].issues;
+        for (int i = 1; i < g_update_pending[h].issue_count; i++) {
+            update_issue_t tmp = d[i];
+            int j = i;
+            while (j > 0 && update_issue_cmp(&d[j - 1], &tmp) > 0) {
+                d[j] = d[j - 1];
+                j--;
+            }
+            d[j] = tmp;
+        }
+    }
+
+    /* Existing hosts adopt the pending issues or empty out for the reap,
+     * which hands their LVGL handles back to the LVGL thread. */
+    for (int i = 0; i < g_update_count; i++) {
+        const update_pending_t *p = NULL;
+        for (int k = 0; k < g_update_pending_count; k++) {
+            if (strncmp(g_update_pending[k].host, g_update[i].host, sizeof(g_update[i].host)) ==
+                0) {
+                p = &g_update_pending[k];
+                break;
+            }
+        }
+        if (p) {
+            memcpy(g_update[i].issues, p->issues, sizeof(g_update[i].issues));
+            g_update[i].issue_count = p->issue_count;
+        } else {
+            memset(g_update[i].issues, 0, sizeof(g_update[i].issues));
+            g_update[i].issue_count = 0;
+        }
+    }
+
+    for (int k = 0; k < g_update_pending_count; k++) {
+        bool known = false;
+        for (int i = 0; i < g_update_count; i++) {
+            if (strncmp(g_update[i].host, g_update_pending[k].host, sizeof(g_update[i].host)) ==
+                0) {
+                known = true;
+                break;
+            }
+        }
+        if (known) continue;
+        if (g_update_count >= UPDATE_REGISTRY_MAX) break;
+        update_entry_t *e = &g_update[g_update_count++];
+        memset(e, 0, sizeof(*e));
+        memcpy(e->host, g_update_pending[k].host, sizeof(e->host));
+        memcpy(e->issues, g_update_pending[k].issues, sizeof(e->issues));
+        e->issue_count = g_update_pending[k].issue_count;
+    }
+
+    g_update_pending_count = 0;
+    pthread_mutex_unlock(&g_update_mutex);
+}
+
+int update_registry_snapshot(update_entry_t *out, int max) {
+    if (!out || max <= 0) return 0;
+    pthread_mutex_lock(&g_update_mutex);
+    int n = g_update_count < max ? g_update_count : max;
+    memcpy(out, g_update, (size_t)n * sizeof(update_entry_t));
+    pthread_mutex_unlock(&g_update_mutex);
+    return n;
+}
+
+update_entry_t *update_registry_find(const char *host) {
+    if (!host || !*host) return NULL;
+    pthread_mutex_lock(&g_update_mutex);
+    update_entry_t *r = NULL;
+    for (int i = 0; i < g_update_count; i++) {
+        if (strncmp(g_update[i].host, host, sizeof(g_update[i].host)) == 0) {
+            r = &g_update[i];
+            break;
+        }
+    }
+    pthread_mutex_unlock(&g_update_mutex);
+    return r;
+}
+
+int update_registry_reap(void **out_containers, int max) {
+    if (!out_containers || max <= 0) return 0;
+    int n = 0;
+    pthread_mutex_lock(&g_update_mutex);
+    for (int i = 0; i < g_update_count;) {
+        if (g_update[i].issue_count == 0 && n < max) {
+            out_containers[n++] = g_update[i].container;
+            for (int k = i; k < g_update_count - 1; k++) g_update[k] = g_update[k + 1];
+            g_update_count--;
+            continue;
+        }
+        i++;
+    }
+    pthread_mutex_unlock(&g_update_mutex);
+    return n;
+}
+
+void update_format_title(const update_entry_t *e, char *buf, size_t n) {
+    if (!buf || n == 0) return;
+    buf[0] = '\0';
+    if (!e) return;
+    snprintf(buf, n, "%s update", e->host);
+}
+
+void update_format_body(const update_entry_t *e, char *buf, size_t n) {
+    if (!buf || n == 0) return;
+    buf[0] = '\0';
+    if (!e) return;
+    size_t used = 0;
+    for (int i = 0; i < e->issue_count; i++) {
+        const update_issue_t *u = &e->issues[i];
+        int w = u->issue_known
+                    ? snprintf(buf + used, n - used, "%s%s", i ? "\n" : "", u->issue)
+                    : snprintf(buf + used, n - used, "%s%s: detail unknown", i ? "\n" : "",
+                               u->kind);
+        if (w < 0 || (size_t)w >= n - used) break;
+        used += (size_t)w;
+    }
+}
+
 /* ---- graph host series (T006) ---- */
 
 static graph_host_series_t g_graph_hosts[GRAPH_HOST_MAX];

@@ -505,6 +505,65 @@ void stale_format_title(const stale_entry_t *e, char *buf, size_t n);
  * already sorted oldest-first). */
 void stale_format_body(const stale_entry_t *e, char *buf, size_t n);
 
+/* ============================================================
+ * WI #3642: update-issue registry (kdash:update:<host>:<kind>)
+ * ============================================================
+ *
+ * The staleness registry's twin: one entry per HOST, its issues (one per
+ * kind) the card body, rebuilt from a presence-owned feed every poll through
+ * the same begin/observe/commit/abort cycle and for the same reason — a
+ * partial scan committed would take down cards nothing had cleared.
+ *
+ * Two differences, both from the WI: the panel's own host is NOT excluded,
+ * and each issue carries its `issue` line, which is the whole point of the
+ * card (the staleness card can only name a deployer). */
+#define UPDATE_REGISTRY_MAX 8   /* hosts shown at once */
+#define UPDATE_KINDS_MAX 6      /* issues per host; four kinds exist today */
+#define UPDATE_ISSUE_LEN 201    /* the schema's maxLength 200, plus NUL */
+
+typedef struct {
+    char kind[64];                  /* from the key's 4th segment */
+    char issue[UPDATE_ISSUE_LEN];   /* payload's `issue`; empty unless issue_known */
+    double since;                   /* meaningless unless since_known */
+    bool since_known;
+    bool issue_known;
+} update_issue_t;
+
+typedef struct update_entry {
+    char host[64];
+    update_issue_t issues[UPDATE_KINDS_MAX];
+    int issue_count;
+#ifndef KPIDASH_TEST_STUBS
+    lv_obj_t *container;
+    lv_obj_t *title_label;
+    lv_obj_t *body_label;
+#else
+    void *container;
+    void *title_label;
+    void *body_label;
+#endif
+} update_entry_t;
+
+void update_registry_begin_cycle(void);
+/* Record one observed key. `kind` may be UPDATE_KIND_UNKNOWN; `issue` NULL or
+ * empty means the payload's line could not be read — the host is still
+ * raised (CD-18). Anything over the capacity limits is dropped. */
+void update_registry_observe(const char *host, const char *kind, double since,
+                             bool since_known, const char *issue);
+/* Promote pending to live: issues oldest `since` first (unknown last, then by
+ * kind), hosts by name. Hosts no longer flagged empty out for the reap. */
+void update_registry_commit_cycle(void);
+void update_registry_abort_cycle(void);
+int update_registry_snapshot(update_entry_t *out, int max);
+update_entry_t *update_registry_find(const char *host);
+int update_registry_reap(void **out_containers, int max);
+
+/* Card title: "<host> update". */
+void update_format_title(const update_entry_t *e, char *buf, size_t n);
+/* Card body: one issue line per kind, in entry order; an unreadable payload
+ * renders as "<kind>: detail unknown". */
+void update_format_body(const update_entry_t *e, char *buf, size_t n);
+
 /* ---- Graph host series (T006) ---- */
 #define GRAPH_HOST_MAX 8
 #define GRAPH_HOST_STALE_SECONDS 30.0
@@ -548,6 +607,7 @@ bool graph_host_remove(const char *host);
 /* ---- Layout pool (T004/T005) ---- */
 typedef enum {
     WIDGET_GRAPH = 0,        /* highest priority; one per graph_host_series */
+    WIDGET_NAS,              /* WI #3956: the NAS host's panel, in place of its graph */
     WIDGET_ACTIVITIES,
     WIDGET_REPO_STATUS,
     WIDGET_FORTUNE,
@@ -561,6 +621,7 @@ typedef enum {
 #define WIDGET_CELLS_REPO_STATUS 2
 #define WIDGET_CELLS_FORTUNE     2
 #define WIDGET_CELLS_NETCARD     2
+#define WIDGET_CELLS_NAS         2
 
 typedef struct {
     widget_kind_t kind;

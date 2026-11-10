@@ -210,6 +210,29 @@ int redis_stale_apply_record(const char *key, const char *payload);
  * aborts the cycle, leaving the previous cards up. */
 void redis_poll_stale(void);
 
+/* ---- WI #3642: update-issue cards (kdash:update:<host>:<kind>) ---- */
+
+/* As redis_parse_stale_key: 0 with host and kind written, -1 only when the key
+ * is not an update key or names no host. A missing or over-long kind segment
+ * yields UPDATE_KIND_UNKNOWN — the host is still raised. */
+int redis_parse_update_key(const char *key, char *host, size_t host_n, char *kind,
+                           size_t kind_n);
+
+/* Read `since` and `issue` from an update payload, each independently: a
+ * field that is missing or mistyped leaves since_known false / issue empty.
+ * Returns -1 if the payload is absent, unparseable or not an object. Either
+ * way the caller still raises the host (CD-18). */
+int redis_parse_update_payload(const char *json, double *since, bool *since_known, char *issue,
+                               size_t issue_n);
+
+/* Fold one observed key into the open cycle; `payload` NULL when unreadable.
+ * Returns 0 if the host was raised, -1 if the key named no host. */
+int redis_update_apply_record(const char *key, const char *payload);
+
+/* SCAN kdash:update:* and rebuild the update registry, in the same 1 s poll.
+ * An incomplete scan aborts the cycle and leaves the previous cards up. */
+void redis_poll_update(void);
+
 /* ---- WI #374: card eviction command ---- */
 typedef struct {
     char kind[16]; /* "service" or "apttemps" */
@@ -225,6 +248,8 @@ void redis_poll_evict(void);
  * failed command is not reported at all, so a Redis hiccup never turns every
  * column stale. */
 void redis_poll_net(void);
+/* WI #3956: GET kdash:nas:<KPIDASH_NAS_HOST> into nasstate. */
+void redis_poll_nas(void);
 /* Copy pending evict targets into out[] (up to max) and clear them; returns count. */
 int redis_take_evict_targets(evict_target_t *out, int max);
 

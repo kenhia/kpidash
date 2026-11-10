@@ -102,6 +102,14 @@ add_kpidash_test(test_stale_card
 )
 target_compile_definitions(test_stale_card PRIVATE KPIDASH_TEST_STUBS=1)
 
+# WI #3642: the update-issue feed reader (kdash:update:<host>:<kind>).
+add_kpidash_test(test_update_card
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_update_card.c
+    ${CMAKE_SOURCE_DIR}/src/registry.c
+    ${CMAKE_SOURCE_DIR}/src/redis.c
+)
+target_compile_definitions(test_update_card PRIVATE KPIDASH_TEST_STUBS=1)
+
 # WI #3012: the admitted-hosts file. Pure file I/O with no LVGL and no Redis,
 # so the load side -- which must never fail, because it runs at startup on a
 # panel with no keyboard -- is reachable from the gate.
@@ -168,3 +176,15 @@ target_compile_definitions(test_netstate PRIVATE
     KDASH_NET_SCHEMA="${CMAKE_SOURCE_DIR}/lib/kdashdata/contracts/schemas/kdash-net.schema.json"
     KDASH_NET_ACK_SCHEMA="${CMAKE_SOURCE_DIR}/lib/kdashdata/contracts/schemas/kdash-net-ack.schema.json")
 add_test(NAME test_netstate COMMAND test_netstate)
+
+# WI #3956: the NAS big panel's model, fed the kdash-nas schema's own examples.
+add_executable(test_nasstate
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_nasstate.c
+    ${CMAKE_SOURCE_DIR}/src/nasstate.c
+)
+target_include_directories(test_nasstate PRIVATE ${CMAKE_SOURCE_DIR}/src ${CJSON_INCLUDE_DIRS})
+target_link_libraries(test_nasstate ${CJSON_LIBRARIES})
+target_compile_options(test_nasstate PRIVATE -Wall -Wextra -Wno-unused-parameter)
+target_compile_definitions(test_nasstate PRIVATE
+    KDASH_NAS_SCHEMA="${CMAKE_SOURCE_DIR}/lib/kdashdata/contracts/schemas/kdash-nas.schema.json")
+add_test(NAME test_nasstate COMMAND test_nasstate)
