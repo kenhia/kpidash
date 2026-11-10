@@ -164,6 +164,12 @@ LVGL/DRM/KMS with no mouse or keyboard interaction.
     `kdash:update:*` in the same cycle and renders one footer card per host,
     after the staleness cards, with each payload's `issue` line as the body.
     rpi53 is included. See CLIENT-PROTOCOL.md §8e (sprint 028).
+12. **NAS big panel**: kpidash-client on gratch projects gratch-ui's collector
+    file into `kdash:nas:gratch` (EX 15, kdashdata v1). Dashboard GETs it each
+    poll into `nasstate.c` (pure model) and, once it has published, draws
+    `widgets/nas_card.c` in **gratch's dev-graph slot** — pool and root bars,
+    a CPU/RAM activity chart, one row per disk. See CLIENT-PROTOCOL.md §8f
+    (sprint 028).
 
 ## Source Structure
 

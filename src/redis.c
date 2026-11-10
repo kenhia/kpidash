@@ -10,6 +10,7 @@
 
 #include "fortune.h"
 #include "memstat.h"
+#include "nasstate.h"
 #include "netstate.h"
 #include "protocol.h"
 #include "registry.h"
@@ -706,6 +707,8 @@ void redis_poll(void) {
     redis_poll_stale();
     /* Update-issue cards (WI #3642) */
     redis_poll_update();
+    /* NAS big panel (WI #3956) */
+    redis_poll_nas();
     /* Card eviction command (WI #374) */
     redis_poll_evict();
     /* Network-health card (WI #4062) */
@@ -1405,4 +1408,22 @@ void redis_poll_net(void) {
 }
 #else
 void redis_poll_net(void) { /* test stub */ }
+#endif
+
+/* WI #3956: one GET of kdash:nas:<KPIDASH_NAS_HOST>. NIL is "publisher gone"
+ * and goes to nasstate as NULL; a failed command is not reported at all, so a
+ * Redis hiccup never turns the panel stale. */
+#ifndef KPIDASH_TEST_STUBS
+void redis_poll_nas(void) {
+    if (!g_ctx || g_ctx->err) return;
+    redisReply *r = redisCommand(g_ctx, "GET " KDASH_KEY_NAS_PREFIX KPIDASH_NAS_HOST);
+    if (!r) return;
+    if (r->type == REDIS_REPLY_STRING)
+        nas_observe(r->str, (double)time(NULL));
+    else if (r->type == REDIS_REPLY_NIL)
+        nas_observe(NULL, (double)time(NULL));
+    freeReplyObject(r);
+}
+#else
+void redis_poll_nas(void) { /* test stub */ }
 #endif

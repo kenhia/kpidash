@@ -248,6 +248,8 @@ void redis_poll_evict(void);
  * failed command is not reported at all, so a Redis hiccup never turns every
  * column stale. */
 void redis_poll_net(void);
+/* WI #3956: GET kdash:nas:<KPIDASH_NAS_HOST> into nasstate. */
+void redis_poll_nas(void);
 /* Copy pending evict targets into out[] (up to max) and clear them; returns count. */
 int redis_take_evict_targets(evict_target_t *out, int max);
 

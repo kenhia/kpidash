@@ -607,6 +607,7 @@ bool graph_host_remove(const char *host);
 /* ---- Layout pool (T004/T005) ---- */
 typedef enum {
     WIDGET_GRAPH = 0,        /* highest priority; one per graph_host_series */
+    WIDGET_NAS,              /* WI #3956: the NAS host's panel, in place of its graph */
     WIDGET_ACTIVITIES,
     WIDGET_REPO_STATUS,
     WIDGET_FORTUNE,
@@ -620,6 +621,7 @@ typedef enum {
 #define WIDGET_CELLS_REPO_STATUS 2
 #define WIDGET_CELLS_FORTUNE     2
 #define WIDGET_CELLS_NETCARD     2
+#define WIDGET_CELLS_NAS         2
 
 typedef struct {
     widget_kind_t kind;

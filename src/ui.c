@@ -25,6 +25,7 @@
 #include "layout.h"
 #include "protocol.h"
 #include "redis.h"
+#include "nasstate.h"
 #include "registry.h"
 #include "widgets/activities.h"
 #include "widgets/apt_temps_card.h"
@@ -33,6 +34,7 @@
 #include "widgets/dev_grid.h"
 #include "widgets/dev_textsize.h"
 #include "widgets/fortune.h"
+#include "widgets/nas_card.h"
 #include "widgets/net_card.h"
 #include "widgets/repo_status.h"
 #include "widgets/service_card.h"
@@ -51,6 +53,7 @@ static lv_obj_t *g_activities = NULL;
 static lv_obj_t *g_repo_status = NULL;
 static lv_obj_t *g_fortune = NULL;
 static lv_obj_t *g_netcard = NULL;
+static lv_obj_t *g_nascard = NULL; /* WI #3956 */
 static lv_obj_t *g_service_strip = NULL;  /* T013: footer Service-Strip container */
 static lv_obj_t *g_status_bar = NULL;
 static lv_obj_t *g_redis_err = NULL;
@@ -181,6 +184,11 @@ void ui_init(void) {
     g_netcard = net_card_create(g_screen);
     lv_obj_add_flag(g_netcard, LV_OBJ_FLAG_HIDDEN);
 #endif
+
+    /* WI #3956: the NAS big panel. Placed only once kdash:nas has published,
+     * and then in place of the NAS host's own dev graph. */
+    g_nascard = nas_card_create(g_screen);
+    lv_obj_add_flag(g_nascard, LV_OBJ_FLAG_HIDDEN);
 
     /* ---- Footer (FR-005): Service-Strip container ---- */
     g_service_strip = lv_obj_create(g_screen);
@@ -323,7 +331,12 @@ void ui_refresh(void) {
             g_snap[j] = tmp;
         }
 
-        widget_request_t reqs[GRAPH_HOST_MAX + 4];
+        widget_request_t reqs[GRAPH_HOST_MAX + 5];
+        /* WI #3956: once the NAS host has published kdash:nas, its panel
+         * takes its graph's slot — the panel draws the activity itself. The
+         * pool has six 2×1 slots and five graphs plus the net card already
+         * filled them (comment 4011), so replacing is the only way in. */
+        const bool nas_panel = nas_has_record();
         int nreq = 0;
         bool show_graphs = cmd ? cmd->graph_enabled : true;
         /* Host-name storage: payload pointers must outlive the placement
@@ -342,12 +355,16 @@ void ui_refresh(void) {
                 }
                 if (!host_enabled)
                     continue;
+                if (nas_panel && strcmp(g_snap[i].host, KPIDASH_NAS_HOST) == 0)
+                    continue;
                 reqs[nreq].kind = WIDGET_GRAPH;
                 reqs[nreq].cells = WIDGET_CELLS_GRAPH;
                 reqs[nreq].payload = g_snap[i].host;
                 nreq++;
             }
         }
+        if (nas_panel)
+            reqs[nreq++] = (widget_request_t){WIDGET_NAS, WIDGET_CELLS_NAS, NULL};
 #if KPIDASH_WIDGET_ACTIVITIES
         reqs[nreq++] = (widget_request_t){WIDGET_ACTIVITIES, WIDGET_CELLS_ACTIVITIES, NULL};
 #endif
@@ -361,7 +378,7 @@ void ui_refresh(void) {
         reqs[nreq++] = (widget_request_t){WIDGET_NETCARD, WIDGET_CELLS_NETCARD, NULL};
 #endif
 
-        widget_request_t placed[GRAPH_HOST_MAX + 4];
+        widget_request_t placed[GRAPH_HOST_MAX + 5];
         int nplaced = layout_pool_place(reqs, (size_t)nreq, placed,
                                         sizeof(placed) / sizeof(placed[0]));
 
@@ -369,7 +386,7 @@ void ui_refresh(void) {
          * dropped by the pool (e.g. exceeded the 12-cell budget). */
         bool host_placed[GRAPH_HOST_MAX] = {0};
         bool placed_acts = false, placed_repo = false, placed_fortune = false;
-        bool placed_netcard = false;
+        bool placed_netcard = false, placed_nas = false;
         int alloc_row = 1, alloc_col = 0;
         double now_s = (double)time(NULL);
         for (int i = 0; i < nplaced; i++) {
@@ -428,6 +445,12 @@ void ui_refresh(void) {
                     lv_obj_clear_flag(g_fortune, LV_OBJ_FLAG_HIDDEN);
                     placed_fortune = true;
                     break;
+                case WIDGET_NAS:
+                    lv_obj_set_pos(g_nascard, x + CELL_PAD, y + CELL_PAD);
+                    lv_obj_clear_flag(g_nascard, LV_OBJ_FLAG_HIDDEN);
+                    nas_card_update(g_nascard, now_s);
+                    placed_nas = true;
+                    break;
                 case WIDGET_NETCARD:
                     lv_obj_set_pos(g_netcard, x, y);
                     lv_obj_clear_flag(g_netcard, LV_OBJ_FLAG_HIDDEN);
@@ -448,6 +471,7 @@ void ui_refresh(void) {
         if (!placed_repo && g_repo_status) lv_obj_add_flag(g_repo_status, LV_OBJ_FLAG_HIDDEN);
         if (!placed_fortune && g_fortune) lv_obj_add_flag(g_fortune, LV_OBJ_FLAG_HIDDEN);
         if (!placed_netcard && g_netcard) lv_obj_add_flag(g_netcard, LV_OBJ_FLAG_HIDDEN);
+        if (!placed_nas && g_nascard) lv_obj_add_flag(g_nascard, LV_OBJ_FLAG_HIDDEN);
     }
 
     /* WI #374: apply pending card-evict commands — destroy the card on the

@@ -144,6 +144,14 @@
  * too many). The host is still raised. */
 #define UPDATE_KIND_UNKNOWN "(unknown)"
 
+/* WI #3956: NAS health for the big panel, kdashdata kdash-nas v1 (sprint 020).
+ * Written by kpidash-client on the NAS host every ~5 s with EX 15, a
+ * projection of gratch-ui's collector file. The panel shows ONE NAS, so the
+ * host is a constant rather than a config list; the panel takes that host's
+ * dev-graph slot (its activity graph is drawn inside the panel). */
+#define KDASH_KEY_NAS_PREFIX "kdash:nas:"
+#define KPIDASH_NAS_HOST "gratch"
+
 #define CMD_TTL_S 300
 
 #endif /* PROTOCOL_H */

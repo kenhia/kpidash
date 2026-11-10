@@ -1,13 +1,14 @@
 """tests/test_nas.py -- kdash:nas:{host} v1 producer (WI #3956).
 
-Validated against kdashdata's own schema (the submodule the gate already
-initialises) with a small walker for the subset of JSON Schema it uses, so a
-contract change shows up here rather than as a blank bar on rpi53.
+Every record shape is validated against the contract's own schema with
+kdashdata's own validator, as test_net.py does — the submodule is part of the
+gate, so a contract change shows up here rather than as a blank bar on rpi53.
 """
 
 from __future__ import annotations
 
 import json
+import sys
 from pathlib import Path
 
 import pytest
@@ -17,60 +18,29 @@ from kpidash_client.nas import NasCollector, NasConfig, iso_to_unix, project
 
 HERE = Path(__file__).parent
 FIXTURE = HERE / "fixtures" / "gratch-privileged-2026-11-10.json"
-SCHEMA = HERE.parents[2] / "lib" / "kdashdata" / "contracts" / "schemas" / "kdash-nas.schema.json"
-
-_TYPES = {
-    "object": dict,
-    "array": list,
-    "string": str,
-    "boolean": bool,
-    "integer": int,
-    "number": (int, float),
-    "null": type(None),
-}
-
-
-def _check(value, schema, path="$"):
-    """Raise AssertionError on the first violation of the schema subset in use."""
-    types = schema.get("type")
-    if types is not None:
-        names = types if isinstance(types, list) else [types]
-        ok = any(
-            isinstance(value, _TYPES[t])
-            and not (t in ("integer", "number") and value is True)
-            and not (t in ("integer", "number") and value is False)
-            for t in names
-        )
-        assert ok, f"{path}: {value!r} is not {names}"
-    if value is None:
-        return
-    if "enum" in schema:
-        assert value in schema["enum"], f"{path}: {value!r} not in {schema['enum']}"
-    if isinstance(value, int | float) and not isinstance(value, bool):
-        if "minimum" in schema:
-            assert value >= schema["minimum"], path
-        if "exclusiveMinimum" in schema:
-            assert value > schema["exclusiveMinimum"], path
-        if "maximum" in schema:
-            assert value <= schema["maximum"], path
-    if isinstance(value, str) and "minLength" in schema:
-        assert len(value) >= schema["minLength"], path
-    if isinstance(value, dict):
-        for key in schema.get("required", []):
-            assert key in value, f"{path}: missing {key}"
-        for key, sub in schema.get("properties", {}).items():
-            if key in value:
-                _check(value[key], sub, f"{path}.{key}")
-    if isinstance(value, list):
-        if "maxItems" in schema:
-            assert len(value) <= schema["maxItems"], path
-        for i, item in enumerate(value):
-            _check(item, schema.get("items", {}), f"{path}[{i}]")
+KDASHDATA = Path(__file__).resolve().parents[3] / "lib" / "kdashdata"
+SCHEMA = KDASHDATA / "contracts" / "schemas" / "kdash-nas.schema.json"
 
 
 @pytest.fixture(scope="module")
-def schema():
-    return json.loads(SCHEMA.read_text())
+def validate():
+    assert SCHEMA.exists(), f"{SCHEMA} missing — run `git submodule update --init lib/kdashdata`"
+    sys.path.insert(0, str(KDASHDATA / "scripts"))
+    try:
+        import jsonschema_mini
+    finally:
+        sys.path.pop(0)
+    schema = json.loads(SCHEMA.read_text())
+
+    def _v(record):
+        return jsonschema_mini.validate(record, schema)
+
+    # The validator itself: every example passes, every counterexample fails.
+    for ex in schema["examples"]:
+        assert _v(ex) == []
+    for cx in schema["x-counterexamples"]:
+        assert _v(cx["record"]) != []
+    return _v
 
 
 @pytest.fixture(scope="module")
@@ -78,24 +48,9 @@ def gratch():
     return json.loads(FIXTURE.read_text())
 
 
-def test_the_schema_walker_rejects_the_schemas_own_counterexamples(schema):
-    """A walker that passes everything proves nothing: every counterexample
-    the contract ships must fail it."""
-    for example in schema["examples"]:
-        _check(example, schema)
-    failed = 0
-    for counter in schema["x-counterexamples"]:
-        try:
-            _check(counter["record"], schema)
-        except AssertionError:
-            failed += 1
-    # The ATA `percentage_used` omission is a required-key check; all five fail.
-    assert failed == len(schema["x-counterexamples"])
-
-
-def test_gratchs_real_file_projects_to_a_valid_record(schema, gratch):
+def test_gratchs_real_file_projects_to_a_valid_record(validate, gratch):
     record = project(gratch, now=1793163800.2)
-    _check(record, schema)
+    assert validate(record) == []
     assert record["source_stale"] is False
     assert record["source_version"] == "0.1.0-7f28ad6"
     assert record["collected_ts"] == pytest.approx(iso_to_unix("2026-11-10T01:51:55.984952Z"))
@@ -154,9 +109,9 @@ def test_a_running_scrub_has_no_end(gratch):
     }
 
 
-def test_a_missing_source_still_publishes_collector_down(schema):
+def test_a_missing_source_still_publishes_collector_down(validate):
     record = project(None, now=1793163800.2)
-    _check(record, schema)
+    assert validate(record) == []
     assert record == {
         "collected_ts": None,
         "source_stale": True,

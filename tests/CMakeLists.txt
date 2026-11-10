@@ -176,3 +176,15 @@ target_compile_definitions(test_netstate PRIVATE
     KDASH_NET_SCHEMA="${CMAKE_SOURCE_DIR}/lib/kdashdata/contracts/schemas/kdash-net.schema.json"
     KDASH_NET_ACK_SCHEMA="${CMAKE_SOURCE_DIR}/lib/kdashdata/contracts/schemas/kdash-net-ack.schema.json")
 add_test(NAME test_netstate COMMAND test_netstate)
+
+# WI #3956: the NAS big panel's model, fed the kdash-nas schema's own examples.
+add_executable(test_nasstate
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_nasstate.c
+    ${CMAKE_SOURCE_DIR}/src/nasstate.c
+)
+target_include_directories(test_nasstate PRIVATE ${CMAKE_SOURCE_DIR}/src ${CJSON_INCLUDE_DIRS})
+target_link_libraries(test_nasstate ${CJSON_LIBRARIES})
+target_compile_options(test_nasstate PRIVATE -Wall -Wextra -Wno-unused-parameter)
+target_compile_definitions(test_nasstate PRIVATE
+    KDASH_NAS_SCHEMA="${CMAKE_SOURCE_DIR}/lib/kdashdata/contracts/schemas/kdash-nas.schema.json")
+add_test(NAME test_nasstate COMMAND test_nasstate)
