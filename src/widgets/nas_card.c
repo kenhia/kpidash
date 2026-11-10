@@ -34,7 +34,7 @@
 
 #define C_MANTLE lv_color_hex(0x181825)
 #define C_SUBTEXT lv_color_hex(0xA6ADC8)
-#define C_BAR_BG lv_color_hex(0x313244)
+#define C_BAR_BG lv_color_hex(0xBAC2DE) /* the host cards' bar background */
 
 typedef struct {
     lv_obj_t *label;
@@ -94,7 +94,8 @@ static void build_bar(bar_row_t *b) {
     lv_obj_set_style_radius(b->bar, 4, LV_PART_MAIN);
     lv_obj_set_style_radius(b->bar, 4, LV_PART_INDICATOR);
     lv_bar_set_range(b->bar, 0, 100);
-    b->bar_text = label(b->bar, &lv_font_montserrat_bold_16, WS_COLOR_FG);
+    /* Dark on the light indicator colours, as the host cards' disk bars do. */
+    b->bar_text = label(b->bar, &lv_font_montserrat_bold_16, lv_color_hex(0x11111B));
     lv_obj_align(b->bar_text, LV_ALIGN_LEFT_MID, 10, 0);
 }
 
@@ -205,8 +206,12 @@ static void update_disk_row(disk_row_t *r, const nas_disk_t *d, bool stale) {
     } while (0)
     ADD("%s", d->kind);
     if (d->has_temp) ADD(" \xc2\xb7 %.0f\xc2\xb0" "C", d->temp_c);
-    ADD(" \xc2\xb7 %s", strcmp(d->power_state, "standby") == 0 ? "standby" :
-                        strcmp(d->power_state, "active") == 0  ? "spinning" : "state ?");
+    /* Spin state is an HDD fact; flash only ever says something when it is
+     * not plainly active. */
+    bool hdd = strcmp(d->kind, "hdd") == 0;
+    if (strcmp(d->power_state, "standby") == 0) ADD(" \xc2\xb7 standby");
+    else if (strcmp(d->power_state, "active") != 0) ADD(" \xc2\xb7 state ?");
+    else if (hdd) ADD(" \xc2\xb7 spinning");
     ADD(" \xc2\xb7 SMART %s",
         d->smart_passed == 1 ? "ok" : d->smart_passed == 0 ? "FAILED" : "?");
     if (d->percentage_used >= 0) ADD(" \xc2\xb7 wear %lld%%", (long long)d->percentage_used);

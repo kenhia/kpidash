@@ -321,6 +321,10 @@ void ui_refresh(void) {
         /* Snapshot host series, sort alphabetically by host. */
         graph_host_series_t g_snap[GRAPH_HOST_MAX];
         int n_hosts = graph_host_snapshot(g_snap, GRAPH_HOST_MAX);
+        /* Already true; said out loud because aarch64 GCC cannot see it
+         * across the call and warns on the g_snap scan below
+         * (-Wstringop-overread, first printed by the sprint-028 deploy). */
+        if (n_hosts > GRAPH_HOST_MAX) n_hosts = GRAPH_HOST_MAX;
         for (int i = 1; i < n_hosts; i++) {
             graph_host_series_t tmp = g_snap[i];
             int j = i;

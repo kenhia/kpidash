@@ -113,7 +113,45 @@ keeps its graph, and the net card keeps its slot. In practice:
 Gates: `just check` (C 15/15 ctest, client 180 passed, units, scripts, font coverage) and `just check-warnings-full`
 (the whole tree at `-O2 -Werror`) are clean.
 
+## Preview on rpi53 (before review, rolled back)
+
+The panel and the card are LVGL code no gate renders, so I previewed the
+branch on rpi53 before asking for the green light. The preview ran from
+2026-11-09 18:04 to 18:20 PST, from kai.
+
+- `scripts/deploy.sh` deployed the branch build, which reported `879c07f`.
+  For about 30 s I published `kdash:nas:gratch` from kai, using
+  `nas.project()` over gratch's live `privileged.json` with `EX 15`, so it
+  expired by itself. I also wrote two hand-made update keys:
+  `kdash:update:rpi53:reboot-awaiting`, whose issue line said it was a
+  preview key, and `kdash:update:rpi53:held` set to `not json`.
+- **What the screenshots show** (`.scratch/preview-028*.png`):
+  - The NAS panel sits between kubsdb's graph and the net card, in place of
+    gratch's graph.
+  - The pool bar reads `989 GB / 5.9 TB · 17%`, with `scrub 2 d ago · 0
+    err`. The root bar comes from telemetry.
+  - All eight disk rows render, and sdb and sdd show grey `standby` stripes.
+  - The update card reads `rpi53 update` over the issue line and
+    `held: detail unknown`. Both CD-18 paths are visible.
+- **Once the NAS key expired**, the header read `STALE · 15 s` in red, and the
+  border and stripes went grey with the values kept in view.
+- **Two fixes came out of it.** Pool-bar text was light on teal and
+  unreadable, so it is now dark on the host cards' light bar background.
+  SSD and NVMe rows said "spinning", and spin state is now an HDD-only word.
+- **Restored.** I deleted both update keys (0 `kdash:update:*` remain) and
+  deployed `origin/main` (`dd089bb`) from a temporary worktree. It reports
+  `dd089bb-dirty` only because the worktree's submodules were symlinks.
+  `--rollback` would have restored the first preview build, not main. The
+  Pi's `~/kpidash.prev` is therefore a preview binary until the ship deploy
+  rotates it.
+
 ## Repaired in passing
+
+- **An aarch64-only compile warning this sprint introduced.** The cross-build
+  printed `-Wstringop-overread` on ui.c's `g_snap` scan. Neither x86 gate
+  sees this class, and CLAUDE.md warns about it. GCC lost the
+  `n_hosts <= GRAPH_HOST_MAX` bound across the snapshot call, so the bound
+  is now an explicit clamp. `cmake --build build-pi` is silent again.
 
 - `docs/ARCHITECTURE.md` item 10 said `kdash:stale` was "the only feed kpidash
   reads that it does not own". That has been false since `kdash:net` arrived
