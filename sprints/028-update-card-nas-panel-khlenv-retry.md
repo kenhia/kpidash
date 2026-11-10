@@ -165,3 +165,41 @@ branch on rpi53 before asking for the green light. The preview ran from
 - **gratch's `config.toml` still lists `/mnt/cache` and `/mnt/disk1`** as host
   card disks. Both paths still exist, so it is not broken, and it is a
   question of what gratch's host card should show. That is Ken's call.
+
+## Deployed
+
+2026-11-09 18:09–18:11 PST (02:09–02:11 UTC 11-10), from kai, on the ship
+turn. That followed the overseer's clearance (korg:4371 comment 4387, which
+accepted all three calls) and the squash merge `2a68da7` (PR #30).
+
+- **`just publish`**: kpidash-client **1.5.0** wheel and sdist are in the
+  package store.
+- **gratch**:
+  - `uv tool upgrade kpidash-client` took it from 1.3.1 to 1.5.0, then
+    `sudo systemctl restart kpidash-client`. It is active with
+    `NRestarts=0`.
+  - **4353 proof, from the client's own cache.**
+    `~/.cache/khlenv/kpidash-client.json` read `fetched_at
+    2026-11-04T01:12:53Z` before the restart and `2026-11-10T02:09:44Z`
+    after, against `last_failover.at 2026-11-05T23:24:18Z`. The client is
+    off the fallback, by kmon's own comparison.
+  - **Producer live.** `kdash:nas:gratch` is on rpi53 with TTL ≤15,
+    `source_stale false`, 1 pool and 8 disks.
+- **rpi53**:
+  - `scripts/deploy.sh` ran from merged `main`. The service is active with
+    `NRestarts=0` and reports `2a68da7 (2026-11-10)`. The aarch64 build
+    printed no warnings (`.scratch/deploy-028.log`, grepped).
+  - `~/kpidash` matches `build-pi/kpidash`
+    (md5 `5d525a36ea6908035aa2dc7a82a25a2c`). `~/kpidash.prev` is the
+    `dd089bb` restore build, so no preview binary is left on the Pi.
+- **Live screenshot** (`.scratch/live-028.png`), attached to korg:4371 as
+  img-112b (full panel) and img-112c (the NAS panel):
+  - The panel shows the real producer's data in gratch's former graph slot,
+    between kubsdb and the net card.
+  - It reads `collected 3 m ago`, `nas · ONLINE`, `989 GB / 5.9 TB · 17%`
+    and `scrub 2 d ago · 0 err`.
+  - sdb and sdd show neutral `standby`. sdc shows `realloc 8`. The flash
+    rows no longer say "spinning".
+- **Update card**: no live key exists yet, because the writer is the
+  sibling k-homelab slice's apt runner. The reader was verified with hand
+  keys during the preview (above).
