@@ -124,3 +124,32 @@ All decisions live here and are unit-tested. The widget only draws.
 
 - What fills row 0, columns 3-5 is Ken's call (roadmap "Next").
 - Drive thresholds: settled by the overseer (80/90, the mock-up's), not open.
+
+## Deployed
+
+2026-11-11 22:00 PST (06:00 UTC 11-12), from kai, on the ship turn. That
+followed the overseer's clearance (korg:4527 comment 4595) and the squash
+merge `ca9388c` (PR #32).
+
+- **rpi53**:
+  - `scripts/deploy.sh` ran from merged `main`. The service is active with
+    `NRestarts=0` and reports `ca9388c (2026-11-12)`.
+  - The aarch64 build and link printed no warnings
+    (`.scratch/deploy-029.log`, grepped).
+  - `~/kpidash` matches `build-pi/kpidash`
+    (md5 `958bd20bc2701c0ff061db60a08027ec`). `~/kpidash.prev` holds the
+    sprint-028 binary for `--rollback`.
+- **CPU**: kpidash used about 48 % of one core under the old cards (three
+  `top` samples, 12 h uptime). It used 33-34 % with the host columns (five
+  samples, taken 20 s after the restart). RSS is unchanged at about 69 MB.
+  The journal showed no errors or warnings.
+- **Live screenshot** (`.scratch/live-029.png`, 3840×2160), attached to
+  korg:4527 as img-11ba (full panel) and img-11bb (row 0 crop):
+  - Seven full columns appear in `KPIDASH_PRIORITY_CLIENTS` order: kai,
+    kubs0, cleo, then gratch, kimac, kubsdb, rpi53 by hostname.
+  - kai, kubs0 and cleo show their GPU sections; the others have none, and
+    their drive rows stay level with everyone else's.
+  - No borders are raised: no RAM or drive is at 80 % or above.
+  - Row 0 columns 3-5 are empty. Rows 1-2 and the footer are unchanged.
+  - The sparklines are a minute long and growing in from the right, because
+    the history ring started empty with the new process, as designed.
