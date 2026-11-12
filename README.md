@@ -1,8 +1,8 @@
 # kpidash
 
 A fullscreen KPI dashboard for Raspberry Pi 5, built with [LVGL](https://lvgl.io/) and Redis.
-Displays real-time health, telemetry, activities, repo status, and fortune messages for multiple
-client machines — Linux and Windows.
+Displays real-time health and telemetry for multiple client machines (Linux, Windows and macOS),
+plus network, NAS and service status for the homelab.
 
 > Note: this project is centered around building the dashboard I want; it's not
 > a "general purpose dashboard creation tool". I had an RPi 5 and a spare 4K
@@ -19,8 +19,9 @@ client machines — Linux and Windows.
 │  Host columns: the whole top row (one column per    │
 │  host, tiles past ten; free columns empty for now)  │
 ├─────────────────────────────────────────────────────┤
-│  Rows 1-2: per-host dev graphs, NAS panel, network  │
-│  card (placed by the layout pool)                   │
+│  Row 1: 10G network card, NAS panel, then free      │
+├─────────────────────────────────────────────────────┤
+│  Row 2: free                                        │
 ├─────────────────────────────────────────────────────┤
 │  Footer: service, staleness, update, apt-temp cards │
 └─────────────────────────────────────────────────────┘
@@ -31,6 +32,11 @@ busiest core, RAM, GPU and its fullest drive, with ten-minute sparklines. Past t
 lowest priorities drop to compact tiles, three to a column, up to thirty.
 Attention is a yellow or red border, never a bigger card. See
 `docs/ARCHITECTURE.md` § Host Columns.
+
+The per-host dev graphs, Fortune, Activities and Repo Status widgets were
+removed in sprint 032. They are retrievable from the git tag
+`last-with-dev-graphs-fortune`; `docs/ARCHITECTURE.md` § Removed widgets lists
+the paths.
 
 ## Quick start
 
@@ -94,7 +100,6 @@ See [clients/kpidash-client/README.md](clients/kpidash-client/README.md) for con
 | `REDISCLI_AUTH` | (none) | Redis password — **must** be in env when using `sudo -E`. One copy per host in `/etc/khomelab/secrets.env`; the service reads it with `EnvironmentFile=` |
 | `KPIDASH_DRM_DEV` | `/dev/dri/card1` | DRM device (card1 = vc4 GPU on Pi 5) |
 | `KPIDASH_MAX_CLIENTS` | `16` | Max tracked clients |
-| `KPIDASH_ACTIVITY_MAX` | `10` | Max activities shown |
 | `KPIDASH_LOG_FILE` | `/var/log/kpidash/kpidash.log` | Log path written to Redis |
 | `KPIDASH_STATE_FILE` | `/var/lib/kpidash/admitted` | Hosts that have published at least once, one per line. Loaded at startup so a host that is **down** across a restart still shows a red card instead of no card; written only when the set grows. Missing or corrupt = start empty |
 | `KPIDASH_PRIORITY_CLIENTS` | (none) | Comma-separated hostnames; displayed first in listed order, never evicted from registry |
@@ -150,18 +155,15 @@ kpidash/
 │   ├── registry.{h,c}          # In-memory client state (mutex-protected)
 │   ├── redis.{h,c}             # hiredis poll cycle + cJSON parsing
 │   ├── status.{h,c}            # Status message FIFO queue
-│   ├── fortune.{h,c}           # fortune popen + pushed-fortune override
 │   ├── ui.{h,c}                # Screen layout + Redis error overlay
 │   ├── protocol.h              # Redis key macros + compile-time constants
 │   └── widgets/
 │       ├── host_columns.{h,c}  # Row 0 host columns / compact tiles
-│       ├── activities.{h,c}    # Activity table with live elapsed timers
-│       ├── repo_status.{h,c}   # Repo card grid (branch/dirty/age indicators)
-│       ├── fortune.{h,c}       # Fortune text label
+│       ├── net_card.{h,c}      # 10G network-health card
+│       ├── nas_card.{h,c}      # NAS big panel
 │       ├── status_bar.{h,c}    # Bottom status bar
 │       ├── dev_grid.{h,c}      # Pixel grid overlay (dev command)
-│       ├── dev_textsize.{h,c}  # Font size reference panel (dev command)
-│       └── dev_graph.{h,c}     # 5-series time-series chart (dev command)
+│       └── dev_textsize.{h,c}  # Font size reference panel (dev command)
 ├── tests/
 │   ├── test_config.c           # ctest: config env-var parsing
 │   └── test_redis_json.c       # ctest: Redis JSON parsing helpers
@@ -184,7 +186,7 @@ kpidash/
 
 ## Requirements
 
-- **Pi 5**: Debian 13 (Trixie), Redis 7.x, `fortune` package
-- **Pi packages**: `libdrm-dev libpng-dev libcjson-dev libhiredis-dev libfreetype-dev libinput-dev libxkbcommon-dev redis-server fortune`
+- **Pi 5**: Debian 13 (Trixie), Redis 7.x
+- **Pi packages**: `libdrm-dev libpng-dev libcjson-dev libhiredis-dev libfreetype-dev libinput-dev libxkbcommon-dev redis-server`
 - **Cross-compile host**: Ubuntu 22.04+ x86_64, GCC aarch64 toolchain, CMake 3.22+
 - **Python clients**: Python 3.13 via [uv](https://docs.astral.sh/uv/)

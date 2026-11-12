@@ -2,6 +2,13 @@
 
 > **Target audience**: Claude (or developer) on an Ubuntu x86_64 workstation,
 > continuing development of kpidash and cross-compiling for Raspberry Pi 5.
+>
+> **Historical in places.** The widget list and source tree in §1-§3, the
+> package list in §4, the font notes in §5 and the env table in §7 describe the
+> MVP. The Activities, Repo Status, Fortune and dev graph widgets (with
+> `KPIDASH_ACTIVITY_MAX` and the `fortune` package) were removed in sprint 032;
+> see `docs/ARCHITECTURE.md` § Removed widgets. The cross-compile steps are
+> current.
 
 ---
 

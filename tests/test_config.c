@@ -30,7 +30,6 @@ static void clear_env(void) {
     unsetenv("REDISCLI_AUTH");
     unsetenv("KPIDASH_DRM_DEV");
     unsetenv("KPIDASH_MAX_CLIENTS");
-    unsetenv("KPIDASH_ACTIVITY_MAX");
     unsetenv("KPIDASH_LOG_FILE");
     unsetenv("KPIDASH_STATE_FILE");
     unsetenv("KPIDASH_PRIORITY_CLIENTS");
@@ -48,7 +47,6 @@ static void test_defaults(void) {
     CHECK(cfg.redis_auth[0] == '\0');
     CHECK(strcmp(cfg.drm_dev, "/dev/dri/card1") == 0);
     CHECK(cfg.max_clients == MAX_CLIENTS);
-    CHECK(cfg.activity_max == ACTIVITY_MAX_DISPLAY);
     CHECK(strcmp(cfg.log_file, "/var/log/kpidash/kpidash.log") == 0);
     /* WI #3012: the admitted-hosts file. */
     CHECK(strcmp(cfg.state_file, "/var/lib/kpidash/admitted") == 0);
@@ -69,7 +67,6 @@ static void test_overrides(void) {
     setenv("REDISCLI_AUTH", "secret", 1);
     setenv("KPIDASH_DRM_DEV", "/dev/dri/card0", 1);
     setenv("KPIDASH_MAX_CLIENTS", "8", 1);
-    setenv("KPIDASH_ACTIVITY_MAX", "5", 1);
     setenv("KPIDASH_LOG_FILE", "/tmp/kpidash.log", 1);
     setenv("KPIDASH_STATE_FILE", "/tmp/kpidash-admitted", 1);
 
@@ -81,7 +78,6 @@ static void test_overrides(void) {
     CHECK(strcmp(cfg.redis_auth, "secret") == 0);
     CHECK(strcmp(cfg.drm_dev, "/dev/dri/card0") == 0);
     CHECK(cfg.max_clients == 8);
-    CHECK(cfg.activity_max == 5);
     CHECK(strcmp(cfg.log_file, "/tmp/kpidash.log") == 0);
     CHECK(strcmp(cfg.state_file, "/tmp/kpidash-admitted") == 0);
 

@@ -171,6 +171,11 @@ SET kpidash:client:kubs0:health '{...}' EX 5
 
 ## 4. Activities
 
+> **Unread since sprint 032.** The dashboard widget for this feed was removed
+> (`docs/ARCHITECTURE.md`, "Removed widgets"; tag
+> `last-with-dev-graphs-fortune`). Producers may still write it; nothing in
+> the dashboard reads it. The schema is kept as a record of what they write.
+
 | Key | Type | Written by | Read by | TTL |
 |-----|------|-----------|---------|-----|
 | `kpidash:activities` | ZSET (score=start_ts) | any client | dashboard | none |
@@ -200,6 +205,11 @@ HGETALL kpidash:activity:{id}
 ---
 
 ## 5. Repo Status
+
+> **Unread since sprint 032.** The dashboard widget for this feed was removed
+> (`docs/ARCHITECTURE.md`, "Removed widgets"; tag
+> `last-with-dev-graphs-fortune`). Producers may still write it; nothing in
+> the dashboard reads it. The schema is kept as a record of what they write.
 
 | Key | Type | Written by | Read by | TTL |
 |-----|------|-----------|---------|-----|
@@ -247,9 +257,10 @@ repos on their default branch are removed with `HDEL`.
 
 ## 6. Fortune
 
-> **Compiled out since sprint 024** (`KPIDASH_WIDGET_FORTUNE 0` in `src/ui.h`):
-> the network-health card (§8d) took its cell. The keys below are unread
-> until it returns.
+> **Unread since sprint 032.** The dashboard widget for this feed was removed
+> (`docs/ARCHITECTURE.md`, "Removed widgets"; tag
+> `last-with-dev-graphs-fortune`). Producers may still write it; nothing in
+> the dashboard reads it. The schema is kept as a record of what they write.
 
 | Key | Type | Written by | Read by | TTL |
 |-----|------|-----------|---------|-----|
@@ -283,7 +294,7 @@ SET kpidash:fortune:pushed '{"text":"...","source":"pushed","pushed_by":"kubs0"}
 {
   "message_id": "550e8400-e29b-41d4-a716-446655440000",
   "severity": "warning",
-  "message": "fortune binary not found — using canned messages",
+  "message": "kpidash: 2 host(s) past the 30-slot host columns limit",
   "ts": 1743292802.0
 }
 ```
@@ -316,14 +327,15 @@ SET kpidash:fortune:pushed '{"text":"...","source":"pushed","pushed_by":"kubs0"}
 }
 ```
 
-High-frequency telemetry stream for the dev graph widget. Written at
-`dev_interval_s` (default 1 s, configurable in `[client]` config section).
-Contains only the 5 metrics used by the graph (GPU compute, CPU avg, CPU top,
-VRAM, RAM). Dashboard reads this key only when the graph is enabled.
+High-frequency telemetry stream, written at `dev_interval_s` (default 1 s,
+configurable in `[client]` config section). Contains 5 metrics (GPU compute,
+CPU avg, CPU top, VRAM, RAM). It was written for the per-host dev graphs,
+which sprint 032 removed. Since then the dashboard GETs only
+`KPIDASH_NAS_HOST`'s key (gratch), for the NAS card's CPU/RAM chart (§8f);
+every other host's key is unread.
 
 **Sprint 006**: The `host` field (default `"(legacy)"` when absent) routes
-samples to a per-host series in the dashboard's graph router
-(`GRAPH_HOST_MAX=8`, stale after 30 s, no eviction).
+samples to a per-host series in the dashboard (`GRAPH_HOST_MAX=8`).
 
 ---
 
@@ -801,12 +813,9 @@ source  = "/run/gratch-ui/privileged.json"
 
 **Panel** (`src/nasstate.c` model, `src/widgets/nas_card.c`): one `GET
 kdash:nas:gratch` per poll. The host is the constant `KPIDASH_NAS_HOST`.
-Once the key has published this run, the panel takes **gratch's dev-graph
-slot** in the rows-2-3 pool and draws gratch's activity itself, so it sits
-after the other dev graphs and before the network card. The pool's six 2×1
-slots were all taken (five graphs and the net card), so it had to replace
-something, and gratch's own graph is what it shows anyway. Until the key has
-published, gratch keeps its ordinary graph.
+The panel has a fixed slot in row 1, columns 2-3, next to the 10G card
+(sprint 032). It is hidden until the key has published this run, and its slot
+stays reserved either way, so the 10G card never moves.
 
 - **Left:** one bar per ZFS pool, showing usable used over usable total (after
   parity, never `alloc_bytes`), with health and the last scrub. Under that is the
@@ -883,69 +892,12 @@ redis-cli SET kpidash:cmd:grid '{"enabled":true,"unit":true,"size":2}' EX 300
 
 Shows sample text at various font sizes for visual calibration.
 
-### 9.3 Dev Graph
+### 9.3 Dev Graph and 9.4 Fortune Dev Overlay (removed)
 
-| Key | Type | Written by | Read by | TTL |
-|-----|------|-----------|---------|-----|
-| `kpidash:cmd:graph` | STRING (JSON) | manual (redis-cli) | dashboard | 300 s |
-| `kpidash:cmd:graph:{host}` | STRING (JSON) | manual / client | dashboard | 300 s |
-
-```json
-{"enabled": true}
-```
-
-| Field | Type | Notes |
-|-------|------|-------|
-| `enabled` | bool | For global key: show/hide all graphs. For host key: show/hide only this host's graph. |
-
-Enables a 5-series time-series chart (GPU compute, CPU avg, CPU top, VRAM,
-RAM) displayed in Row 1 columns 0–1 (absolute positioned, 2×1 units). Uses
-300 data points at 1s intervals (5 min history). Reads from
-`kpidash:client:{host}:dev_telemetry`.
-
-Resolution order:
-1. If global `kpidash:cmd:graph` is `{"enabled":false}`, all graphs are hidden.
-2. Otherwise, each host is shown unless a host override key exists with `{"enabled":false}`.
-
-```bash
-# Global on/off switch
-redis-cli SET kpidash:cmd:graph '{"enabled":true}' EX 300
-
-# Hide all graph widgets immediately
-redis-cli SET kpidash:cmd:graph '{"enabled":false}' EX 300
-
-# Hide only kubs0 graph
-redis-cli SET kpidash:cmd:graph:kubs0 '{"enabled":false}' EX 300
-
-# Re-enable only kubs0 graph
-redis-cli SET kpidash:cmd:graph:kubs0 '{"enabled":true}' EX 300
-
-# Re-enable all discovered hosts via defaults
-redis-cli DEL kpidash:cmd:graph
-redis-cli DEL kpidash:cmd:graph:kubs0
-```
-
-### 9.4 Fortune Dev Overlay
-
-| Key | Type | Written by | Read by | TTL |
-|-----|------|-----------|---------|-----|
-| `kpidash:cmd:fortune_dev` | STRING (JSON) | manual (redis-cli) | dashboard | 300 s |
-
-```json
-{"enabled": true}
-```
-
-When enabled, shows a small "Rejects: N  Elapsed: N ms" line at the top-left
-of the fortune widget (14 pt blue) reporting how many fortunes were rejected
-and how long the search took for the most recent rotation cycle.  Use this
-during threshold calibration alongside `kpidash:fortune:pushed` test strings.
-
-```bash
-redis-cli SET kpidash:cmd:fortune_dev '{"enabled":true}' EX 300
-```
-
-The overlay updates each time a fortune is displayed (rotation or pushed), so
-stats reflect the last fetch, not a live counter.
+`kpidash:cmd:graph`, `kpidash:cmd:graph:{host}` and `kpidash:cmd:fortune_dev`
+toggled the per-host dev graphs and the Fortune widget's calibration overlay.
+Both widgets were removed in sprint 032, and the dashboard no longer reads the
+keys. The section numbers are kept so references to §9.5 stay valid.
 
 ### 9.5 Device Screenshot (Sprint 011)
 

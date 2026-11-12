@@ -61,7 +61,6 @@ void config_load(kpidash_config_t *cfg) {
     parse_str_env("KPIDASH_DRM_DEV", "/dev/dri/card1", cfg->drm_dev, sizeof(cfg->drm_dev));
 
     cfg->max_clients = parse_int_env("KPIDASH_MAX_CLIENTS", MAX_CLIENTS, 1, MAX_CLIENTS);
-    cfg->activity_max = parse_int_env("KPIDASH_ACTIVITY_MAX", ACTIVITY_MAX_DISPLAY, 1, 100);
 
     parse_str_env("KPIDASH_LOG_FILE", "/var/log/kpidash/kpidash.log", cfg->log_file,
                   sizeof(cfg->log_file));

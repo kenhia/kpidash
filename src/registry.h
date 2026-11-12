@@ -70,36 +70,6 @@ typedef struct {
     double last_health;         /* Unix epoch of last health packet (for UI timeout) */
 } client_info_t;
 
-/* ---- Activity (global widget, not per-client) ---- */
-typedef struct {
-    char activity_id[ACTIVITY_ID_LEN];
-    char host[HOSTNAME_LEN];
-    char name[ACTIVITY_NAME_LEN];
-    bool is_done;
-    double start_ts;
-    double end_ts; /* 0 if still active */
-} activity_t;
-
-/* ---- Repo status entry ---- */
-typedef struct {
-    char host[HOSTNAME_LEN];
-    char name[LABEL_LEN];
-    char path[256];
-    char branch[128];
-    char default_branch[128];
-    bool is_dirty;
-    bool detached_head;
-    int ahead;
-    int behind;
-    int untracked_count;
-    int changed_count;
-    int deleted_count;
-    int renamed_count;
-    double last_commit_ts;
-    int sort_order; /* 0 = explicit, 1 = scanned; lower = higher priority */
-    double ts;
-} repo_entry_t;
-
 /* ---- Development command state (transient, from Redis poll) ---- */
 typedef struct {
     bool grid_enabled;
@@ -107,11 +77,6 @@ typedef struct {
     bool grid_unit;       /* unit-based grid mode */
     float grid_unit_size; /* unit multiplier (0.5, 1, 2) */
     bool textsize_enabled;
-    bool graph_enabled; /* global switch: false hides all graphs */
-    int graph_host_count;
-    char graph_hosts[MAX_CLIENTS][HOSTNAME_LEN];
-    bool graph_host_enabled[MAX_CLIENTS];
-    bool fortune_dev_enabled;        /* show reject/elapsed overlay on fortune widget */
 } dev_cmd_state_t;
 
 /* ---- Dev telemetry snapshot (fast GPU+CPU+RAM from dev_telemetry key) ---- */
@@ -564,26 +529,16 @@ void update_format_title(const update_entry_t *e, char *buf, size_t n);
  * renders as "<kind>: detail unknown". */
 void update_format_body(const update_entry_t *e, char *buf, size_t n);
 
-/* ---- Graph host series (T006) ---- */
+/* ---- Graph host series (T006) ----
+ * Once one per dev-graph host. Since sprint 032 removed the dev graphs, only
+ * the NAS host's series is filled (redis_poll Step 5), and its one reader is
+ * the NAS card's activity chart. */
 #define GRAPH_HOST_MAX 8
-#define GRAPH_HOST_STALE_SECONDS 30.0
-/* WI #250: a series stale beyond this is evicted entirely (widget destroyed)
- * so dead/legacy hosts stop lingering as "NO NEW DATA" until a restart. */
-#define GRAPH_HOST_EVICT_SECONDS 300.0
 
 typedef struct {
     char host[64];
     double last_sample_ts;
-#ifndef KPIDASH_TEST_STUBS
-    lv_obj_t *widget;
-#else
-    void *widget;
-#endif
-    bool stale;
-    /* T035: per-host telemetry snapshot, updated by redis_poll Step 8 each
-     * cycle so the UI can render one dev_graph per host without consulting
-     * the legacy single-host g_dev_telemetry global. */
-    dev_telemetry_t telemetry;
+    dev_telemetry_t telemetry; /* latest sample, written by redis_poll */
 } graph_host_series_t;
 
 /* Lookup an existing host series, or allocate a new slot.
@@ -592,52 +547,5 @@ graph_host_series_t *graph_host_find_or_create(const char *host);
 
 /* Update last_sample_ts for the named host (no-op if not present). */
 void graph_host_touch(const char *host, double ts);
-
-/* Is this series considered stale? (now - last_sample_ts >= 30.0 s) */
-bool graph_host_is_stale(const graph_host_series_t *s, double now);
-
-/* Snapshot of all currently allocated host series.
- * Writes up to max entries into out[] and returns the count. */
-int graph_host_snapshot(graph_host_series_t *out, int max);
-
-/* WI #250: remove a host series by name (compacts the array). Returns true if
- * one was removed. The caller MUST destroy the series's `widget` first. */
-bool graph_host_remove(const char *host);
-
-/* ---- Layout pool (T004/T005) ---- */
-typedef enum {
-    WIDGET_GRAPH = 0,        /* highest priority; one per graph_host_series */
-    WIDGET_NAS,              /* WI #3956: the NAS host's panel, in place of its graph */
-    WIDGET_ACTIVITIES,
-    WIDGET_REPO_STATUS,
-    WIDGET_FORTUNE,
-    WIDGET_NETCARD,          /* WI #4062: takes Fortune's place, same footprint */
-} widget_kind_t;
-
-/* Sprint 006 / T003: canonical cell footprints for rows-2-3 widgets.
- * All current widgets occupy 2 cells (UNIT_W_N(2) × UNIT_H). */
-#define WIDGET_CELLS_GRAPH       2
-#define WIDGET_CELLS_ACTIVITIES  2
-#define WIDGET_CELLS_REPO_STATUS 2
-#define WIDGET_CELLS_FORTUNE     2
-#define WIDGET_CELLS_NETCARD     2
-#define WIDGET_CELLS_NAS         2
-
-typedef struct {
-    widget_kind_t kind;
-    uint8_t       cells;     /* size in grid cells (currently all = 2) */
-    const void   *payload;   /* opaque, used by renderer (e.g. graph_host_series_t *) */
-} widget_request_t;
-
-#define LAYOUT_POOL_CAPACITY_CELLS 12  /* 6 cols × 2 rows */
-
-/* Place widgets in the rows-2-3 pool per data-model.md §6:
- *  1. Stable-sort requests by kind ascending (enum order = priority).
- *  2. Greedy fill of a 12-cell budget; drop-and-continue when a request's
- *     cells would exceed remaining capacity.
- * Writes up to out_cap placed requests into out_placed and returns the
- * number written. Input array is not mutated. */
-int layout_pool_place(const widget_request_t *requests, size_t n_requests,
-                      widget_request_t *out_placed, size_t out_cap);
 
 #endif /* REGISTRY_H */

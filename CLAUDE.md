@@ -66,8 +66,8 @@ over ceremony.
 
 kpidash is a fullscreen KPI dashboard for a Raspberry Pi 5 touch panel (`rpi53`),
 written in C11 with [LVGL](https://lvgl.io/) 9.2.2 rendering straight to DRM/KMS —
-no X11, no Wayland, no window chrome. Client machines push telemetry, health,
-activity and repo status into a Redis instance on the Pi; the dashboard polls
+no X11, no Wayland, no window chrome. Client machines push telemetry, health
+and card feeds (network, NAS, services) into a Redis instance on the Pi; the dashboard polls
 Redis once a second and re-renders. `clients/` holds two Python 3.13 packages
 that feed it: `kpidash-client` (the telemetry daemon + CLI) and `kpidash-mcp`
 (an MCP server for agent activity reporting).
@@ -184,7 +184,7 @@ that feed it: `kpidash-client` (the telemetry daemon + CLI) and `kpidash-mcp`
     written in response to was in those files, so on its own it could not have
     caught them. It is in `just check` because it is cheap and needs no LVGL.
   - `just check-warnings-full` compiles the **whole tree** at `-O2 -Werror`,
-    dashboard-only sources included (`main.c`, `ui.c`, `fortune.c`,
+    dashboard-only sources included (`main.c`, `ui.c`,
     `screenshot.c`, `src/widgets/*`). Added in sprint 019 once `libpng-dev`
     landed on kai — before that the configure step could not even run here.
     It is **opt-in, not in `just check`**: it needs `lib/lvgl` initialised.

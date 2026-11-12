@@ -8,7 +8,6 @@
 #include <time.h>
 #include <unistd.h>
 
-#include "fortune.h"
 #include "hosthist.h"
 #include "memstat.h"
 #include "nasstate.h"
@@ -222,25 +221,6 @@ bool redis_parse_telemetry_json(const char *json, client_info_t *c) {
     return true;
 }
 
-/* ---- Shared activity state ---- */
-static activity_t g_activities[ACTIVITY_MAX_DISPLAY];
-static int g_activity_count = 0;
-
-const activity_t *redis_get_activities(int *count) {
-    *count = g_activity_count;
-    return g_activities;
-}
-
-/* ---- Shared repo state ---- */
-#define MAX_REPO_ENTRIES 128
-static repo_entry_t g_repos[MAX_REPO_ENTRIES];
-static int g_repo_count = 0;
-
-const repo_entry_t *redis_get_repos(int *count) {
-    *count = g_repo_count;
-    return g_repos;
-}
-
 /* ---- Dev command state (T025) ---- */
 static dev_cmd_state_t g_dev_cmd = {0};
 
@@ -248,12 +228,7 @@ const dev_cmd_state_t *redis_get_dev_cmd_state(void) {
     return &g_dev_cmd;
 }
 
-/* ---- Dev telemetry snapshot (Phase 6.1) ---- */
-static dev_telemetry_t g_dev_telemetry = {0};
-
-const dev_telemetry_t *redis_get_dev_telemetry(void) {
-    return &g_dev_telemetry;
-}
+/* ---- Dev telemetry (Phase 6.1) ---- */
 
 bool redis_parse_dev_telemetry_json(const char *json, dev_telemetry_t *dt) {
     memset(dt, 0, sizeof(*dt));
@@ -347,188 +322,6 @@ bool redis_parse_cmd_textsize_json(const char *json, dev_cmd_state_t *state) {
     return true;
 }
 
-bool redis_parse_cmd_graph_json(const char *json, dev_cmd_state_t *state) {
-    state->graph_enabled = true;
-    if (!json)
-        return true;
-    cJSON *root = cJSON_Parse(json);
-    if (!root)
-        return false;
-    cJSON *en = cJSON_GetObjectItemCaseSensitive(root, "enabled");
-    if (cJSON_IsBool(en))
-        state->graph_enabled = cJSON_IsTrue(en);
-    cJSON_Delete(root);
-    return true;
-}
-
-bool redis_parse_cmd_fortune_dev_json(const char *json, dev_cmd_state_t *state) {
-    state->fortune_dev_enabled = false;
-    if (!json)
-        return true;
-    cJSON *root = cJSON_Parse(json);
-    if (!root)
-        return false;
-    cJSON *en = cJSON_GetObjectItemCaseSensitive(root, "enabled");
-    if (cJSON_IsBool(en))
-        state->fortune_dev_enabled = cJSON_IsTrue(en);
-    cJSON_Delete(root);
-    return true;
-}
-
-/* ---- Poll helpers ---- */
-
-static void poll_activities(void) {
-    redisReply *zr =
-        redisCommand(g_ctx, "ZREVRANGE " KPIDASH_KEY_ACTIVITIES " 0 %d", ACTIVITY_MAX_DISPLAY - 1);
-    if (!zr || zr->type != REDIS_REPLY_ARRAY) {
-        if (zr)
-            freeReplyObject(zr);
-        g_activity_count = 0;
-        return;
-    }
-
-    int count = 0;
-    for (size_t i = 0; i < zr->elements && count < ACTIVITY_MAX_DISPLAY; i++) {
-        const char *id = zr->element[i]->str;
-        char key[256];
-        snprintf(key, sizeof(key), KPIDASH_KEY_ACTIVITY, id);
-        redisReply *hr = redisCommand(g_ctx, "HGETALL %s", key);
-        if (!hr || hr->type != REDIS_REPLY_ARRAY) {
-            if (hr)
-                freeReplyObject(hr);
-            continue;
-        }
-
-        activity_t *a = &g_activities[count];
-        memset(a, 0, sizeof(*a));
-        strncpy(a->activity_id, id, ACTIVITY_ID_LEN - 1);
-
-        for (size_t j = 0; j + 1 < hr->elements; j += 2) {
-            const char *k = hr->element[j]->str;
-            const char *v = hr->element[j + 1]->str;
-            if (!k || !v)
-                continue;
-            if (strcmp(k, "host") == 0)
-                strncpy(a->host, v, HOSTNAME_LEN - 1);
-            else if (strcmp(k, "name") == 0)
-                strncpy(a->name, v, ACTIVITY_NAME_LEN - 1);
-            else if (strcmp(k, "state") == 0)
-                a->is_done = (strcmp(v, "done") == 0);
-            else if (strcmp(k, "start_ts") == 0)
-                a->start_ts = atof(v);
-            else if (strcmp(k, "end_ts") == 0)
-                a->end_ts = atof(v);
-        }
-        freeReplyObject(hr);
-        count++;
-    }
-    g_activity_count = count;
-    freeReplyObject(zr);
-}
-
-bool redis_parse_repo_json(const char *json, repo_entry_t *re) {
-    if (!json || !re)
-        return false;
-    cJSON *root = cJSON_Parse(json);
-    if (!root)
-        return false;
-
-    cJSON *nm = cJSON_GetObjectItemCaseSensitive(root, "name");
-    if (cJSON_IsString(nm))
-        strncpy(re->name, nm->valuestring, LABEL_LEN - 1);
-    cJSON *br = cJSON_GetObjectItemCaseSensitive(root, "branch");
-    if (cJSON_IsString(br))
-        strncpy(re->branch, br->valuestring, sizeof(re->branch) - 1);
-    cJSON *db = cJSON_GetObjectItemCaseSensitive(root, "default_branch");
-    if (cJSON_IsString(db))
-        strncpy(re->default_branch, db->valuestring, sizeof(re->default_branch) - 1);
-    cJSON *di = cJSON_GetObjectItemCaseSensitive(root, "is_dirty");
-    if (cJSON_IsBool(di))
-        re->is_dirty = cJSON_IsTrue(di);
-    cJSON *dh = cJSON_GetObjectItemCaseSensitive(root, "detached_head");
-    if (cJSON_IsBool(dh))
-        re->detached_head = cJSON_IsTrue(dh);
-    cJSON *ah = cJSON_GetObjectItemCaseSensitive(root, "ahead");
-    if (cJSON_IsNumber(ah))
-        re->ahead = ah->valueint;
-    cJSON *bh = cJSON_GetObjectItemCaseSensitive(root, "behind");
-    if (cJSON_IsNumber(bh))
-        re->behind = bh->valueint;
-    cJSON *uc = cJSON_GetObjectItemCaseSensitive(root, "untracked_count");
-    if (cJSON_IsNumber(uc))
-        re->untracked_count = uc->valueint;
-    cJSON *cc = cJSON_GetObjectItemCaseSensitive(root, "changed_count");
-    if (cJSON_IsNumber(cc))
-        re->changed_count = cc->valueint;
-    cJSON *dc = cJSON_GetObjectItemCaseSensitive(root, "deleted_count");
-    if (cJSON_IsNumber(dc))
-        re->deleted_count = dc->valueint;
-    cJSON *rc = cJSON_GetObjectItemCaseSensitive(root, "renamed_count");
-    if (cJSON_IsNumber(rc))
-        re->renamed_count = rc->valueint;
-    cJSON *lc = cJSON_GetObjectItemCaseSensitive(root, "last_commit_ts");
-    if (cJSON_IsNumber(lc))
-        re->last_commit_ts = lc->valuedouble;
-    cJSON *ex = cJSON_GetObjectItemCaseSensitive(root, "explicit");
-    re->sort_order = (cJSON_IsBool(ex) && cJSON_IsTrue(ex)) ? 0 : 1;
-    cJSON *ts = cJSON_GetObjectItemCaseSensitive(root, "ts");
-    if (cJSON_IsNumber(ts))
-        re->ts = ts->valuedouble;
-
-    cJSON_Delete(root);
-    return true;
-}
-
-/* Sort: explicit repos (sort_order=0) first, then by name.
- *
- * File scope, not nested inside poll_repos. As a GCC nested function this
- * needed a stack trampoline, which marks redis.c.o's .note.GNU-stack section
- * executable and makes ld warn "requires executable stack" on every aarch64
- * link — the Pi build, i.e. the one that ships. It captures nothing from the
- * enclosing scope, so file scope costs nothing. (WI #2307.) */
-static int repo_cmp(const void *a, const void *b) {
-    const repo_entry_t *ra = (const repo_entry_t *)a;
-    const repo_entry_t *rb = (const repo_entry_t *)b;
-    if (ra->sort_order != rb->sort_order)
-        return ra->sort_order - rb->sort_order;
-    return strncmp(ra->name, rb->name, LABEL_LEN);
-}
-
-static void poll_repos(const char **hostnames, int n_hosts) {
-    g_repo_count = 0;
-    for (int i = 0; i < n_hosts && g_repo_count < MAX_REPO_ENTRIES; i++) {
-        char key[256];
-        snprintf(key, sizeof(key), KPIDASH_KEY_REPOS, hostnames[i]);
-        redisReply *hr = redisCommand(g_ctx, "HGETALL %s", key);
-        if (!hr || hr->type != REDIS_REPLY_ARRAY || hr->elements == 0) {
-            if (hr)
-                freeReplyObject(hr);
-            continue;
-        }
-        /* Each field is a path, each value is JSON */
-        for (size_t j = 0; j + 1 < hr->elements; j += 2) {
-            if (g_repo_count >= MAX_REPO_ENTRIES)
-                break;
-            const char *path = hr->element[j]->str;
-            const char *json = hr->element[j + 1]->str;
-            if (!path || !json)
-                continue;
-
-            repo_entry_t *re = &g_repos[g_repo_count];
-            memset(re, 0, sizeof(*re));
-            strncpy(re->host, hostnames[i], HOSTNAME_LEN - 1);
-            strncpy(re->path, path, sizeof(re->path) - 1);
-
-            if (!redis_parse_repo_json(json, re))
-                continue;
-            g_repo_count++;
-        }
-        freeReplyObject(hr);
-    }
-
-    qsort(g_repos, (size_t)g_repo_count, sizeof(repo_entry_t), repo_cmp);
-}
-
 /* ---- Main poll cycle ---- */
 
 void redis_poll(void) {
@@ -597,16 +390,10 @@ void redis_poll(void) {
     }
     registry_unlock();
 
-    /* Step 3: Activities */
-    poll_activities();
-
-    /* Step 4: Repo status */
-    poll_repos(hostnames, n_hosts);
-
-    /* Step 5: Status ack check */
+    /* Step 3: Status ack check */
     status_redis_check_ack(g_ctx);
 
-    /* Step 6: Fortune pushed check — skip if context errored during Steps 2-5 */
+    /* Skip the rest if the context errored during Steps 2-3 */
     if (g_ctx->err) {
         freeReplyObject(smr);
         redisFree(g_ctx);
@@ -614,18 +401,8 @@ void redis_poll(void) {
         ui_show_redis_error("connection lost during poll");
         return;
     }
-    redisReply *fr = redisCommand(g_ctx, "EXISTS " KPIDASH_KEY_FORTUNE_PUSHED);
-    if (fr && fr->type == REDIS_REPLY_INTEGER && fr->integer == 1) {
-        freeReplyObject(fr);
-        fr = redisCommand(g_ctx, "GET " KPIDASH_KEY_FORTUNE_PUSHED);
-        if (fr && fr->type == REDIS_REPLY_STRING) {
-            fortune_on_pushed(fr->str);
-        }
-    }
-    if (fr)
-        freeReplyObject(fr);
 
-    /* Step 7: Dev commands — grid, textsize, and graph */
+    /* Step 4: Dev commands — grid and textsize */
     redisReply *gr = redisCommand(g_ctx, "GET " KPIDASH_KEY_CMD_GRID);
     dev_cmd_state_t new_cmd = {0};
     redis_parse_cmd_grid_json((gr && gr->type == REDIS_REPLY_STRING) ? gr->str : NULL, &new_cmd);
@@ -638,51 +415,14 @@ void redis_poll(void) {
     if (tsr)
         freeReplyObject(tsr);
 
-    redisReply *gpr = redisCommand(g_ctx, "GET " KPIDASH_KEY_CMD_GRAPH);
-    redis_parse_cmd_graph_json((gpr && gpr->type == REDIS_REPLY_STRING) ? gpr->str : NULL,
-                               &new_cmd);
-    if (gpr)
-        freeReplyObject(gpr);
-
-    /* Optional per-host graph overrides: kpidash:cmd:graph:{host}. */
-    new_cmd.graph_host_count = 0;
-    for (int i = 0; i < n_hosts && new_cmd.graph_host_count < MAX_CLIENTS; i++) {
-        char gk[256];
-        snprintf(gk, sizeof(gk), KPIDASH_KEY_CMD_GRAPH_HOST, hostnames[i]);
-        redisReply *ghr = redisCommand(g_ctx, "GET %s", gk);
-        if (ghr && ghr->type == REDIS_REPLY_STRING) {
-            dev_cmd_state_t host_cmd = {0};
-            if (redis_parse_cmd_graph_json(ghr->str, &host_cmd)) {
-                int idx = new_cmd.graph_host_count++;
-                strncpy(new_cmd.graph_hosts[idx], hostnames[i], HOSTNAME_LEN - 1);
-                new_cmd.graph_hosts[idx][HOSTNAME_LEN - 1] = '\0';
-                new_cmd.graph_host_enabled[idx] = host_cmd.graph_enabled;
-            }
-        }
-        if (ghr)
-            freeReplyObject(ghr);
-    }
-
-    redisReply *fdr = redisCommand(g_ctx, "GET " KPIDASH_KEY_CMD_FORTUNE_DEV);
-    redis_parse_cmd_fortune_dev_json((fdr && fdr->type == REDIS_REPLY_STRING) ? fdr->str : NULL,
-                                     &new_cmd);
-    if (fdr)
-        freeReplyObject(fdr);
-
     g_dev_cmd = new_cmd;
 
-    /* Step 8: Dev telemetry (sprint 006 / T031: always poll, no toggle gate).
-     * Iterate all known clients and fetch their dev_telemetry key. On each
-     * successful parse, register the host with the graph-host series, touch
-     * its last_sample_ts, and store the telemetry on the series slot so the
-     * UI (T035) can render one dev_graph per host directly from the snapshot.
-     * g_dev_telemetry is kept for legacy code paths but is no longer the
-     * source of truth for graph placement. */
-    g_dev_telemetry.valid = false;
-    bool have_non_legacy = false;
-    for (int i = 0; i < n_hosts; i++) {
+    /* Step 5: Dev telemetry, for the NAS host only. Its series feeds the NAS
+     * card's activity chart, which is the only reader left since the per-host
+     * dev graphs were removed (sprint 032), so no other host's key is fetched. */
+    {
         char dt_key[256];
-        snprintf(dt_key, sizeof(dt_key), KPIDASH_KEY_DEV_TELEMETRY, hostnames[i]);
+        snprintf(dt_key, sizeof(dt_key), KPIDASH_KEY_DEV_TELEMETRY, KPIDASH_NAS_HOST);
         redisReply *dtr = redisCommand(g_ctx, "GET %s", dt_key);
         if (dtr && dtr->type == REDIS_REPLY_STRING) {
             dev_telemetry_t parsed = {0};
@@ -692,20 +432,13 @@ void redis_poll(void) {
                     series->telemetry = parsed;
                 }
                 graph_host_touch(parsed.host, (double)time(NULL));
-                bool is_legacy = (strcmp(parsed.host, "(legacy)") == 0);
-                if (!is_legacy && !have_non_legacy) {
-                    have_non_legacy = true;
-                    g_dev_telemetry = parsed;
-                } else if (!have_non_legacy) {
-                    g_dev_telemetry = parsed;
-                }
             }
         }
         if (dtr)
             freeReplyObject(dtr);
     }
 
-    /* Step 9: Service status (sprint 006 / FR-022) */
+    /* Step 6: Service status (sprint 006 / FR-022) */
     redis_poll_services();
     /* Apt-Temps per-zone cards (WI #364) */
     redis_poll_apttemps();
@@ -722,7 +455,7 @@ void redis_poll(void) {
     /* Self service card (WI #369) */
     redis_publish_self_service();
 
-    /* Step 10: One-shot device self-screenshot. Consume kpidash:screenshot
+    /* Step 7: One-shot device self-screenshot. Consume kpidash:screenshot
      * (GETDEL) and snapshot the active screen to BMP. A value starting with
      * '/' names the output path; anything else uses the default. Runs on the
      * UI thread — safe for lv_snapshot_take. */
@@ -824,16 +557,6 @@ void redis_publish_self_service(void) {
     if (r)
         freeReplyObject(r);
     free(json);
-}
-
-/* ---- Fortune ---- */
-
-void redis_write_fortune_current(const char *json) {
-    if (!g_ctx || g_ctx->err)
-        return;
-    redisReply *r = redisCommand(g_ctx, "SET " KPIDASH_KEY_FORTUNE_CURRENT " %s", json);
-    if (r)
-        freeReplyObject(r);
 }
 
 /* ---- Memory telemetry (spec 005) ---- */

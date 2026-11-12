@@ -18,6 +18,10 @@
 
 ## Next
 
+- **NAS card restyle** (next slice after sprint 032) — make the NAS card sit
+  with the 10G card in row 1, from a range of mock-ups Ken picks from.
+- **What fills the free cells** — row 1 columns 4-5 and all of row 2 have
+  been empty since sprint 032 removed the dev graphs. A later brainstorm.
 - **What fills the free host columns.** With seven hosts, three of row 0's ten
   columns are empty (1111×596) since 030. A later brainstorm with Ken; he wants
   something graphical there, not Fortune.

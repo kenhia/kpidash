@@ -388,7 +388,7 @@ lv_obj_t *net_card_create(lv_obj_t *parent) {
     hatch_init();
     memset(&g, 0, sizeof(g));
 
-    /* Fortune's frame, which this card replaces: Mantle, Surface1, radius 8. */
+    /* Mantle, Surface1, radius 8: the frame of the Fortune card it replaced. */
     g.root = lv_obj_create(parent);
     bare(g.root);
     lv_obj_set_size(g.root, NC_W, NC_H);
