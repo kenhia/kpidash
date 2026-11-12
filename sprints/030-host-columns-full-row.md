@@ -225,3 +225,24 @@ numbers measured the same way:
   That was stale even under 029, which drew the top core white; Teal is the
   10G fabric colour (`WS_COLOR_TEAL` in `common.h`). The row is corrected,
   and the top core has its own `#AB47BC` row.
+
+## Deployed
+
+Deployed 2026-11-12 at 11:46:24 PST, from kai, on the ship turn. That
+followed the overseer's clearance (korg:4545 comment 4602) and the squash
+merge `cd9f2da` (PR #33).
+
+- **rpi53**: `scripts/deploy.sh` ran from merged `main`.
+  - The service is active with `NRestarts=0` and reports `cd9f2da
+    (2026-11-12)`.
+  - The aarch64 build and link printed no warnings
+    (`.scratch/deploy-030-ship.log`, grepped).
+  - `~/kpidash` matches `build-pi/kpidash` (md5 `ebd0cb10…`).
+  - `~/kpidash.prev` holds the tuned branch build `a80d6b9` (`1f57a37e…`),
+    which is the same code. The 029 binary is no longer the rollback target.
+- **CPU**: 7.7-7.9 % of one core in the first 40 s after the restart, with
+  the sparklines empty. The full-ring figure, 10.6 %, was measured on
+  `a80d6b9`, which is the same code (§ Tuning).
+- **Live capture** (`.scratch/live-030-ship.png`): seven full columns across
+  row 0 in priority order, Ken's colours, one drive row each, free columns
+  empty, and rows 1-2 and the footer unchanged.
