@@ -30,8 +30,13 @@
 #define SLOT_Y(row) (HC_Y0 - CELL_PAD + (row) * (HC_TH + HC_GAP))
 
 /* Column fill: Catppuccin's raised surface (#232336) without a new colour —
- * Surface0 at 26 % over the card's Base lands on #232335. */
+ * Surface0 at 26 % over the card's Base lands on #232335. Mixed once and
+ * drawn OPAQUE (sprint 030): a translucent fill makes LVGL read back every
+ * pixel it covers, and on the Pi that read is from the DRM framebuffer. The
+ * translucent 361x596 frame cost ~530 ms of every second on rpi53; the
+ * opaque one draws the same pixels without reading any. */
 #define HC_RAISE_OPA 66
+#define HC_RAISE_COLOR lv_color_mix(WS_COLOR_SURFACE0, WS_COLOR_BG, HC_RAISE_OPA)
 #define HC_DIM_OPA LV_OPA_40 /* metrics of a host that stopped reporting */
 
 /* Nothing on the widget is smaller than 20 px (WI #4543). */
@@ -179,8 +184,8 @@ static void frame(lv_layer_t *layer, const lv_area_t *a, hc_att_t att) {
     lv_draw_rect_dsc_t d;
     lv_draw_rect_dsc_init(&d);
     d.radius = 10;
-    d.bg_color = WS_COLOR_SURFACE0;
-    d.bg_opa = HC_RAISE_OPA;
+    d.bg_color = HC_RAISE_COLOR;
+    d.bg_opa = LV_OPA_COVER;
     d.border_color = att ? att_color(att) : WS_COLOR_SURFACE1;
     d.border_width = att ? 3 : 1;
     d.border_opa = LV_OPA_COVER;
