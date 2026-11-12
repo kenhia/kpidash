@@ -130,21 +130,94 @@ The ship turn redeploys from the merged `main`.
   second for the poll and everything else. The panel renders correctly, and
   the journal shows no errors. It is visible on the panel itself: rpi53's own
   top-core line sits near 66 %.
-- **Not tuned, as the proposal asked.** The likely cost, not yet measured:
-  each poll changes a column's CPU figure, the slot's `memcmp` differs, and
-  the whole 361×596 slot is invalidated. That repaints both sparklines, and
-  each area fill is one 1 px-wide rect per pixel column: 321 for CPU and 321
-  for GPU, against 147 in 029. Candidates: draw the fill as one polygon per
-  segment, or invalidate the figure line and the graph separately so a
-  figure tick does not repaint the graph.
+- **Not tuned before reporting, as the proposal asked.** My guess at the
+  time was the sparkline fills. The measurement below showed that guess was
+  wrong.
 - Live captures (`.scratch/live-030.png` full panel,
   `.scratch/live-030-row0.png` row 0) and the 7/11/20 alert and 20 quiet
   renders are attached to korg:4545. They show seven full columns across row
   0 in priority order (kai, kubs0, cleo, then gratch, kimac, kubsdb, rpi53).
   The three free columns are empty, and rows 1-2 and the footer are
   unchanged.
-- Rollback: `~/kpidash.prev` holds the 029 binary (`ca9388c`), so
-  `scripts/deploy.sh --rollback` returns the panel to 029 in one step.
+- Rollback: `~/kpidash.prev` holds the 029 binary (`ca9388c`, md5
+  `958bd20b…`), so `scripts/deploy.sh --rollback` returns the panel to 029
+  in one step. The diagnostic deploys below overwrote it; it was restored
+  from a copy taken before the first one.
+
+## Tuning (overseer ruling on korg:4545: tune in this sprint)
+
+### Measure first
+
+- **The kai bench could not see it.** `.scratch/bench` repaints the widget
+  with seven mock hosts and full rings. It was cross-built and run on rpi53 in
+  ordinary RAM: one column takes 1.45 ms and the whole widget 12.7 ms. A
+  couple of column repaints a second cannot cost a third of a core. (`perf`
+  on kai could not attribute it either: LVGL queues draw tasks, so the blend
+  cost lands in dispatch, not in the code that queued it.)
+- **Live instrumentation** (temporary, never committed). Display event
+  callbacks counted invalidated areas by region and timed `REFR_START` to
+  `REFR_READY`, and the 1 s poll was timed. Every 10 s on rpi53:
+  - The poll plus `ui_refresh` costs 2.4 ms/s. **The refreshes cost 626
+    ms/s**: two a second, about 313 ms each.
+  - Invalidations: row 0 about 2 Mpx/s (each column roughly once a second),
+    rows 1-2 about 66 Mpx/s (every dev graph cell whole, every second), and
+    the footer about 4 Mpx/s.
+  - **029 + the same instrumentation** gives the same invalidation pattern
+    but **346 ms/s**. Rows 1-2 and the footer are identical code, so the
+    extra ~280 ms/s is the host widget's drawing.
+- **Bisected live** with a flag file read each poll, switchable without a
+  restart:
+
+  | skipped | refresh ms/s |
+  |---|---|
+  | nothing | 633 |
+  | sparkline fills / lines / both | 628-630 |
+  | all text | 630 |
+  | **the column frame alone** | **98** |
+  | the whole column draw | 75 |
+
+**Finding.** Each column's frame is a 361×596 rounded rect in Surface0 at
+26 % opacity. A translucent fill makes LVGL read back every pixel it covers.
+On the Pi, LVGL renders `LV_DISPLAY_RENDER_MODE_DIRECT` straight into the DRM
+framebuffer, and reading that memory back is slow. Each column repaint
+therefore spent tens of milliseconds reading its own background. 030 doubled
+that area per column, and 029 already paid the same tax at half size, which
+is why its 346 ms/s was mostly this too. RAM-backed benches cannot show it.
+
+### Fix
+
+Mix the colour once (`lv_color_mix(Surface0, Base, 66)`) and draw the frame
+**opaque**: the same pixels, with no read-back. The offline renders differ
+from the pre-fix ones only at 8 anti-aliased corner pixels per column, by 1 in
+the red channel. Refresh fell from 626 to 87 ms/s.
+
+The overseer's other levers (invalidate figures and graphs separately, skip
+identical text, fewer fill primitives) were **not pulled**. The bisection
+shows the graphs, the fills and the text together cost nothing measurable,
+and the target is met without them.
+
+### Result
+
+Clean build `a80d6b9` was deployed 11:33:12 PST and measured 552-612 s after
+the restart, with the rings full. `top` on rpi53, % of one core, all four
+numbers measured the same way:
+
+| build | kpidash CPU |
+|---|---|
+| old client cards (pre-029) | ~48 % (029's figure) |
+| 029 host columns, rings full | 36.5 % |
+| 030 before tuning, rings full | 65 % |
+| **030 tuned, rings full** | **10.6 %** |
+
+- RSS is unchanged at 69 MB, with `NRestarts=0` and no journal errors or
+  warnings. The aarch64 build and link printed no warnings.
+- The live capture (`.scratch/live-030-tuned.png`) looks the same as before.
+  rpi53's own column now reads 3 % / 7 % where it read 17 % / 66 %.
+- After the fix: the offline renders (above), `test_widget_leak` (PASS),
+  `just check` and `just check-warnings-full` (18/18) all pass.
+- The same tax probably applies to translucent fills elsewhere on the panel.
+  Rows 1-2 still invalidate ~66 Mpx/s, but the whole refresh now costs ~87
+  ms/s, so there is nothing there worth chasing in this sprint.
 
 ## Repaired in passing
 
