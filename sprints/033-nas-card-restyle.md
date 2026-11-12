@@ -109,3 +109,28 @@ are attached to the proposal (korg img-11d8, img-11d9).
 
 The live krpidss capture and the panel CPU check (sprint 032 measured ~6.3 %
 of one core) can only be taken once this is deployed to rpi53.
+
+## Deployed
+
+Deployed 2026-11-12 at 15:41 PST from kai, on the ship turn, after the
+overseer's clearance (korg:4567 comment 4614, which also ruled that DEGRADED
+stays WARN). The release is squash merge `2244c03` (PR #36).
+
+- **rpi53:** `scripts/deploy.sh` ran from merged `main`. The service is
+  active with `NRestarts=0` and reports `2244c03 (2026-11-12)`. The aarch64
+  build and link printed no warnings (`.scratch/deploy-033-ship.log`,
+  grepped). `~/kpidash` matches `build-pi/kpidash` (md5 `84d84f05…`), and the
+  journal shows no warnings since the restart.
+- **Live capture** (`.scratch/live-033-ship.png`, row 1 cropped to
+  `live-033-row1.png`): the card reads `NAS OK` and matches vA and the
+  offline render. It has the mauve rail and pills, the disks in Ken's order,
+  "nas pool" in peach, tinted cold tiles and a neutral frame.
+- **CPU, % of one core, measured on rpi53 from `/proc/<pid>/stat` ticks over
+  60 s:**
+  - Before the deploy, on the 032 build with its rings full (up 79 min):
+    373 ticks, **6.2 %**.
+  - After, with the rings filling (up 29 s): 272 ticks, 4.5 %.
+  - After, with the rings full (up 11 min): 340 and 339 ticks, **5.7 %**.
+
+  Not worse than 032, and slightly better: the chart and the dev_telemetry
+  GET are gone. RSS is 69 MB.
