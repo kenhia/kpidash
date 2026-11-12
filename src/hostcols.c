@@ -71,10 +71,10 @@ hc_att_t hostcols_ram_att(int pct) {
     return HC_ATT_NONE;
 }
 
-hc_att_t hostcols_disk_att(float pct) {
-    if (pct > HOSTCOLS_DISK_CRIT)
+hc_att_t hostcols_disk_att(int pct) {
+    if (pct >= HOSTCOLS_DISK_CRIT)
         return HC_ATT_CRIT;
-    if (pct > HOSTCOLS_DISK_WARN)
+    if (pct >= HOSTCOLS_DISK_WARN)
         return HC_ATT_WARN;
     return HC_ATT_NONE;
 }
@@ -180,7 +180,7 @@ void hostcols_build(const client_info_t *c, double now, hc_host_t *out) {
         hc_disk_t *d = &out->disks[i];
         memcpy(d->name, ds[i]->label, strnlen(ds[i]->label, LABEL_LEN - 1));
         d->pct = round_pct(ds[i]->pct);
-        d->att = hostcols_disk_att(ds[i]->pct);
+        d->att = hostcols_disk_att(d->pct);
         att = worse(att, d->att);
         if (out->worst < 0 || ds[i]->pct > ds[out->worst]->pct)
             out->worst = i;

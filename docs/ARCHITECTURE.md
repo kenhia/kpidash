@@ -409,8 +409,8 @@ empty until Ken decides what fills them. Spec:
   the lowest priorities are dropped and the count is logged.
 - **Order** = demotion order: `KPIDASH_PRIORITY_CLIENTS`, then hostname.
 - **Attention is colour only** — nothing grows. Yellow (warn) or red (crit)
-  3 px border and band, the offending row in the same colour. RAM ≥ 80 / ≥ 90;
-  drives > 60 / > 75 (the retired card's thresholds). CPU, GPU and VRAM never
+  3 px border and band, the offending row in the same colour. RAM and every
+  drive warn at ≥ 80 % and are critical at ≥ 90 %. CPU, GPU and VRAM never
   raise attention. A non-intermittent host that stops reporting is red with
   `NO DATA <age>`, its metrics dimmed at their last values; an intermittent
   host that is asleep takes no slot.

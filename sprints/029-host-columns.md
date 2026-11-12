@@ -18,7 +18,7 @@ tile's top-core tick are fg white, not sapphire, and uptime is fg, not muted.
 | MAX_CLIENTS and PRIORITY_CLIENTS_MAX are 16 | **holds** |
 | the panel keeps no host-telemetry history | **holds**: only the dev graphs keep a chart |
 | ui_refresh snapshots MAX_CLIENTS client_info_t on the stack | **holds**, so it moved to a static buffer |
-| client_card.c may encode different drive thresholds | **it does**: orange above 60 %, red above 75 %. Kept, see below |
+| client_card.c may encode different drive thresholds | **it does**: orange above 60 %, red above 75 %. Kept at first, then overruled, see below |
 
 ## Decisions
 
@@ -53,11 +53,13 @@ All decisions live here and are unit-tested. The widget only draws.
   gets none (the overseer's default 1, which stands). Past 30, the first 30
   by priority are shown, and `ui.c` logs the count left out whenever it
   changes, not every second.
-- **Attention** is colour only. RAM uses the mock-up's ≥ 80 / ≥ 90. **Drives
-  keep the retired card's > 60 warn / > 75 crit**, because WI 4524 says to
-  keep the card's own thresholds when it had different ones. The alert render
-  shows the consequence: kubs0's `src` at 86 % is red, where 80/90 would make
-  it yellow. CPU, GPU and VRAM never raise attention. An always-on host
+- **Attention** is colour only. RAM and drives both warn at ≥ 80 % and are
+  critical at ≥ 90 %, judged on the rounded percent that is drawn, so the
+  figure and its colour always agree. The first pass kept the retired card's
+  drive thresholds (> 60 / > 75), following a clause in WI 4524. The alert
+  render showed the cost: a 63 % laptop drive raised a yellow border. The
+  overseer ruled for the mock-up's 80/90, which is what Ken approved, and the
+  clause had been its own hedge. CPU, GPU and VRAM never raise attention. An always-on host
   that stops reporting is `NO DATA <age>` with a red border, its metrics
   dimmed at their last values.
 - **Drives**: shown as reported, unless there are more than five. Then the
@@ -121,5 +123,4 @@ All decisions live here and are unit-tested. The widget only draws.
 ## Follow-ups
 
 - What fills row 0, columns 3-5 is Ken's call (roadmap "Next").
-- The drive thresholds are a ruling the overseer may want Ken to confirm: the
-  WI's own rule kept the card's 60/75, while the mock-up drew 80/90.
+- Drive thresholds: settled by the overseer (80/90, the mock-up's), not open.

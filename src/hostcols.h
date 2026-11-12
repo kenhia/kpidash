@@ -18,14 +18,17 @@
 #define HOSTCOLS_MAX (HOSTCOLS_COLS * HOSTCOLS_PER)
 #define HOSTCOLS_DISKS 5 /* drive rows in a full column */
 
-/* Attention thresholds. RAM is the mock-up's 80/90 (>=). The drive thresholds
- * are the retired client card's, kept as WI #4524 asks when the card already
- * encoded its own: warn above 60 %, critical above 75 %. CPU, GPU and VRAM
- * never raise attention — a loaded model holds VRAM above 90 % all day. */
+/* Attention thresholds, the mock-up's: RAM and every drive warn at >= 80 %
+ * and are critical at >= 90 %, judged on the rounded percent that is drawn so
+ * the figure and its colour always agree. (The retired card coloured drives
+ * from 60 / 75; the overseer ruled for the mock-up on korg:4527 — a laptop
+ * drive at 63 % raising a border is the noise the redesign removes.) CPU, GPU
+ * and VRAM never raise attention — a loaded model holds VRAM above 90 % all
+ * day. */
 #define HOSTCOLS_RAM_WARN 80
 #define HOSTCOLS_RAM_CRIT 90
-#define HOSTCOLS_DISK_WARN 60.0f
-#define HOSTCOLS_DISK_CRIT 75.0f
+#define HOSTCOLS_DISK_WARN 80
+#define HOSTCOLS_DISK_CRIT 90
 
 typedef enum { HC_ATT_NONE = 0, HC_ATT_WARN, HC_ATT_CRIT } hc_att_t;
 
@@ -73,7 +76,7 @@ int hostcols_select(const client_info_t *in, int n, const client_info_t **out, i
                     int *dropped);
 
 hc_att_t hostcols_ram_att(int pct);
-hc_att_t hostcols_disk_att(float pct);
+hc_att_t hostcols_disk_att(int pct);
 
 /* Build one host's display model at wall time `now`. */
 void hostcols_build(const client_info_t *c, double now, hc_host_t *out);

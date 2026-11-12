@@ -106,10 +106,11 @@ static void test_thresholds(void) {
     CHECK(hostcols_ram_att(80) == HC_ATT_WARN);
     CHECK(hostcols_ram_att(89) == HC_ATT_WARN);
     CHECK(hostcols_ram_att(90) == HC_ATT_CRIT);
-    CHECK(hostcols_disk_att(60.0f) == HC_ATT_NONE);
-    CHECK(hostcols_disk_att(60.5f) == HC_ATT_WARN);
-    CHECK(hostcols_disk_att(75.0f) == HC_ATT_WARN);
-    CHECK(hostcols_disk_att(75.5f) == HC_ATT_CRIT);
+    CHECK(hostcols_disk_att(63) == HC_ATT_NONE); /* the laptop drive: no border */
+    CHECK(hostcols_disk_att(79) == HC_ATT_NONE);
+    CHECK(hostcols_disk_att(80) == HC_ATT_WARN);
+    CHECK(hostcols_disk_att(89) == HC_ATT_WARN);
+    CHECK(hostcols_disk_att(90) == HC_ATT_CRIT);
 }
 
 static void add_disk(client_info_t *c, const char *label, float pct) {
@@ -155,9 +156,9 @@ static void test_build(void) {
     hostcols_build(&c, now, &h);
     CHECK(h.ram_att == HC_ATT_CRIT && h.att == HC_ATT_CRIT);
 
-    /* A drive over 60 % warns, and the drive carries the colour. */
+    /* A drive at 85 % warns, and the drive carries the colour. */
     c.ram_used_mb = 9500;
-    add_disk(&c, "src", 70.0f);
+    add_disk(&c, "src", 85.0f);
     hostcols_build(&c, now, &h);
     CHECK(h.att == HC_ATT_WARN);
     CHECK(h.disks[2].att == HC_ATT_WARN && h.worst == 2);
