@@ -402,7 +402,9 @@ them. Spec: `sprints/planning/hosts-wide-mockups.html` (`plan`, `colFull`,
 the widget is smaller than 20 px.
 
 - **Full column** (361×596): band; hostname (28 bold); uptime with the OS name
-  muted on the same line; CPU on one line — average (36 bold, blue) / top core
+  muted on the same line, shortened to name plus a two-part version
+  (`hostcols_short_os`, sprint 031: "Ubuntu 24.04.5 LTS" → "Ubuntu 24.04");
+  CPU on one line — average (36 bold, blue) / top core
   (28 bold, `WS_COLOR_TOP_CORE` #AB47BC); a 321×130 sparkline with the average
   filled blue and the busiest core as a purple line over it; RAM figure and bar
   in mauve; GPU figure, 321×70 sparkline, and VRAM figures and bar in peach when

@@ -254,8 +254,58 @@ static void test_nodata(void) {
     CHECK(strcmp(h.status, "NO DATA") == 0);
 }
 
+/* The full column's OS name (korg:4558): name plus a two-part version, so it
+ * fits rather than clipping. The first seven are the strings every reporting
+ * host published to rpi53's Redis on 2026-11-12. */
+static void test_short_os(void) {
+    static const struct {
+        const char *in, *want;
+    } rows[] = {
+        {"Ubuntu 24.04.5 LTS", "Ubuntu 24.04"},          /* kai, kubs0, kubsdb */
+        {"Ubuntu 26.04.1 LTS", "Ubuntu 26.04"},          /* gratch */
+        {"Debian GNU/Linux 13 (trixie)", "Debian 13"},   /* rpi53 */
+        {"macOS 27.0.1", "macOS 27.0"},                  /* kimac */
+        {"Win 11 Pro 26H2 26300.9818", "Win 11 Pro"},    /* cleo */
+        {"Ubuntu 22.04 LTS", "Ubuntu 22.04"},            /* already two parts */
+        {"macOS 27.0", "macOS 27.0"},
+        {"Raspbian GNU/Linux 12 (bookworm)", "Raspbian 12"},
+        {"Windows 11 Pro 24H2", "Windows 11 Pro"},
+        {"Win 10 Home 22H2 19045.5011", "Win 10 Home"},
+        {"Windows 11", "Windows 11"},                    /* the client's fallback */
+        {"Linux 5.15.0-173-generic", "Linux 5.15"},      /* the client's fallback */
+        {"Arch Linux", "Arch Linux"},                    /* rolling: no version */
+        {"Omarchy", "Omarchy"},
+        {"", ""},
+        {"something odd", "something odd"},              /* unrecognised */
+        {"(weird)", "(weird)"},                          /* would come out empty */
+    };
+    for (size_t i = 0; i < sizeof(rows) / sizeof(rows[0]); i++) {
+        char out[OS_NAME_LEN];
+        memset(out, 'x', sizeof(out));
+        hostcols_short_os(rows[i].in, out, sizeof(out));
+        if (strcmp(out, rows[i].want) != 0)
+            fprintf(stderr, "  short_os(\"%s\") = \"%s\", want \"%s\"\n", rows[i].in, out,
+                    rows[i].want);
+        CHECK(strcmp(out, rows[i].want) == 0);
+    }
+
+    /* A short buffer truncates rather than overruns. */
+    char tiny[7];
+    hostcols_short_os("Ubuntu 24.04.5 LTS", tiny, sizeof(tiny));
+    CHECK(strcmp(tiny, "Ubuntu") == 0);
+
+    /* hostcols_build uses it; os_name itself is left whole. */
+    client_info_t c = mk("kai");
+    strncpy(c.os_name, "Ubuntu 24.04.5 LTS", OS_NAME_LEN - 1);
+    hc_host_t h;
+    hostcols_build(&c, 1700000000.0, &h);
+    CHECK(strcmp(h.os, "Ubuntu 24.04") == 0);
+    CHECK(strcmp(c.os_name, "Ubuntu 24.04.5 LTS") == 0);
+}
+
 int main(void) {
     registry_init();
+    test_short_os();
     test_plan_table();
     test_order();
     test_asleep_takes_no_slot();

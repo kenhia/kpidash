@@ -4,6 +4,7 @@
  */
 #include "hostcols.h"
 
+#include <ctype.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -122,6 +123,90 @@ static void format_nodata(double last_seen, double now, char *buf, size_t len) {
         snprintf(buf, len, "NO DATA %ldd", age / 86400);
 }
 
+/* Windows' "26H2"-style feature update. */
+static bool is_feature_update(const char *t, size_t n) {
+    return n == 4 && isdigit((unsigned char)t[0]) && isdigit((unsigned char)t[1]) &&
+           (t[2] == 'H' || t[2] == 'h') && isdigit((unsigned char)t[3]);
+}
+
+/* A Windows build number: "26300.9818", "19045". The "11" of "Win 11" is not. */
+static bool is_build(const char *t, size_t n) {
+    bool dot = false;
+    for (size_t i = 0; i < n; i++) {
+        if (t[i] == '.')
+            dot = true;
+        else if (!isdigit((unsigned char)t[i]))
+            return false;
+    }
+    return dot || n >= 4;
+}
+
+/* Append n bytes of t to out as a space-separated word, truncating at len. */
+static void append_word(char *out, size_t len, size_t *pos, const char *t, size_t n) {
+    if (*pos > 0 && *pos + 1 < len)
+        out[(*pos)++] = ' ';
+    while (n-- > 0 && *pos + 1 < len)
+        out[(*pos)++] = *t++;
+    out[*pos] = '\0';
+}
+
+void hostcols_short_os(const char *in, char *out, size_t len) {
+    if (len == 0)
+        return;
+    out[0] = '\0';
+    size_t pos = 0;
+    bool windows = false, first = true;
+    const char *p = in;
+    int depth = 0;
+
+    while (*p) {
+        /* Skip whitespace and parenthesised spans, which may hold spaces. */
+        if (isspace((unsigned char)*p) || *p == '(' || depth > 0) {
+            if (*p == '(')
+                depth++;
+            else if (*p == ')' && depth > 0)
+                depth--;
+            p++;
+            continue;
+        }
+        const char *t = p;
+        while (*p && !isspace((unsigned char)*p) && *p != '(')
+            p++;
+        size_t n = (size_t)(p - t);
+
+        if (first)
+            windows = (n == 3 && strncmp(t, "Win", 3) == 0) ||
+                      (n == 7 && strncmp(t, "Windows", 7) == 0);
+        first = false;
+
+        if (n == 9 && strncmp(t, "GNU/Linux", 9) == 0)
+            continue;
+        if (windows) {
+            if (is_feature_update(t, n) || is_build(t, n))
+                break;
+            append_word(out, len, &pos, t, n);
+            continue;
+        }
+        if (isdigit((unsigned char)*t)) {
+            /* The version: at most two numeric parts, then nothing after it. */
+            size_t v = 0;
+            while (v < n && isdigit((unsigned char)t[v]))
+                v++;
+            if (v + 1 < n && t[v] == '.' && isdigit((unsigned char)t[v + 1])) {
+                v++;
+                while (v < n && isdigit((unsigned char)t[v]))
+                    v++;
+            }
+            append_word(out, len, &pos, t, v);
+            break;
+        }
+        append_word(out, len, &pos, t, n);
+    }
+
+    if (pos == 0)
+        snprintf(out, len, "%s", in);
+}
+
 static hc_att_t worse(hc_att_t a, hc_att_t b) {
     return a > b ? a : b;
 }
@@ -129,7 +214,7 @@ static hc_att_t worse(hc_att_t a, hc_att_t b) {
 void hostcols_build(const client_info_t *c, double now, hc_host_t *out) {
     memset(out, 0, sizeof(*out));
     memcpy(out->host, c->hostname, strnlen(c->hostname, HOSTNAME_LEN - 1));
-    memcpy(out->os, c->os_name, strnlen(c->os_name, OS_NAME_LEN - 1));
+    hostcols_short_os(c->os_name, out->os, sizeof(out->os));
 
     out->nodata = client_presence(c) == CLIENT_PRESENCE_OFFLINE;
     if (out->nodata)
