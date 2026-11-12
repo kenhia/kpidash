@@ -1,12 +1,12 @@
 /* test_graph_router.c — graph host-series helper tests (T028 + T033).
  *
- * Covers:
+ * Since sprint 032 the series carries only the NAS host's dev telemetry, for
+ * the NAS card's activity chart. Covers:
  *  - graph_host_find_or_create returns a stable pointer per host name
  *  - graph_host_touch updates last_sample_ts
- *  - graph_host_is_stale boundary: fresh at +29.9s, stale at +30.0s
  *  - sentinel host "(legacy)" is accepted
- *  - FR-015a no-eviction: stale series remain findable
- *  - multi-host distinct routing (kdash vs kai) + snapshot order
+ *  - multi-host distinct routing (kdash vs kai)
+ *  - NULL and empty host names are refused
  */
 #define KPIDASH_TEST_STUBS 1
 #include "registry.h"
@@ -44,31 +44,10 @@ static void test_touch_updates_ts(void) {
     CHECK(s->last_sample_ts == 9999.0);
 }
 
-static void test_stale_boundary(void) {
-    graph_host_series_t *s = graph_host_find_or_create("stale_host");
-    CHECK(s != NULL);
-    graph_host_touch("stale_host", 100.0);
-    /* now == last + 29.9 → fresh */
-    CHECK(graph_host_is_stale(s, 129.9) == false);
-    /* now == last + 30.0 → stale */
-    CHECK(graph_host_is_stale(s, 130.0) == true);
-    CHECK(graph_host_is_stale(NULL, 0.0) == true);
-}
-
 static void test_sentinel_legacy(void) {
     graph_host_series_t *s = graph_host_find_or_create("(legacy)");
     CHECK(s != NULL);
     CHECK(strcmp(s->host, "(legacy)") == 0);
-}
-
-static void test_no_eviction(void) {
-    /* FR-015a: a stale host remains in the table. */
-    graph_host_series_t *s = graph_host_find_or_create("never_evicted");
-    CHECK(s != NULL);
-    graph_host_touch("never_evicted", 0.0);
-    CHECK(graph_host_is_stale(s, 1000000.0) == true);
-    graph_host_series_t *again = graph_host_find_or_create("never_evicted");
-    CHECK(again == s);
 }
 
 static void test_multi_host_distinct(void) {
@@ -87,32 +66,12 @@ static void test_find_or_create_rejects_null_and_empty(void) {
     CHECK(graph_host_find_or_create("") == NULL);
 }
 
-/* T033: alphabetical ordering on snapshot when two hosts are registered. */
-static void test_alpha_ordering(void) {
-    /* Note: g_graph_hosts is module-level static; we cannot reset it between
-     * tests, so we rely on the insertion-order snapshot and just assert that
-     * both kdash and kai end up findable, then verify the registered hosts
-     * include them. Sorting itself is the caller's responsibility (T035). */
-    graph_host_series_t snap[GRAPH_HOST_MAX];
-    int n = graph_host_snapshot(snap, GRAPH_HOST_MAX);
-    bool found_kdash = false, found_kai = false;
-    for (int i = 0; i < n; i++) {
-        if (strcmp(snap[i].host, "kdash") == 0) found_kdash = true;
-        if (strcmp(snap[i].host, "kai") == 0) found_kai = true;
-    }
-    CHECK(found_kdash);
-    CHECK(found_kai);
-}
-
 int main(void) {
     test_stable_pointer();
     test_touch_updates_ts();
-    test_stale_boundary();
     test_sentinel_legacy();
-    test_no_eviction();
     test_multi_host_distinct();
     test_find_or_create_rejects_null_and_empty();
-    test_alpha_ordering();
 
     fprintf(stderr, "test_graph_router: %d passed, %d failed\n", passed, failed);
     return failed == 0 ? 0 : 1;

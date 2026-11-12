@@ -1,7 +1,7 @@
 /**
  * main.c — kpidash entry point (T016, T050)
  *
- * Initializes LVGL, Redis, registry, UI, and fortune.
+ * Initializes LVGL, Redis, registry and UI.
  * Runs a 1-second poll timer for Redis → UI refresh.
  */
 #include <signal.h>
@@ -12,7 +12,6 @@
 
 #include "admitted.h"
 #include "config.h"
-#include "fortune.h"
 #include "kpidash_version.h"
 #include "logfilter.h"
 #include "lvgl.h"
@@ -183,11 +182,6 @@ int main(void) {
     memstat_init();
     memstat_sample_now();
     lv_timer_create(memstat_timer_cb, 60000, NULL);
-
-#if KPIDASH_WIDGET_FORTUNE
-    /* Fortune (after ui_init so widget exists) */
-    fortune_init(&g_config);
-#endif
 
     printf("kpidash: running (Redis %s:%d, DRM %s)\n", g_config.redis_host, g_config.redis_port,
            g_config.drm_dev);

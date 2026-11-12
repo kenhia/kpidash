@@ -31,7 +31,7 @@ bool redis_reconnect_if_needed(void);
 
 /**
  * Run one full poll cycle (called every 1s from LVGL timer).
- * Updates registry, activities, repo status, fortune pushed, status ack.
+ * Updates the registry, status ack, dev commands and the card feeds.
  * Assumes redis_reconnect_if_needed() was checked before calling.
  */
 void redis_poll(void);
@@ -56,23 +56,6 @@ typedef struct mem_sample_s mem_sample_t;
  * Silently skips if the Redis context is null or in error state.
  */
 void redis_write_mem_sample(const mem_sample_t *s);
-
-/**
- * Write current fortune text to kpidash:fortune:current (no TTL).
- */
-void redis_write_fortune_current(const char *json);
-
-/**
- * Return the current in-memory activity list (populated by redis_poll).
- * *count is set to the number of valid entries.
- */
-const activity_t *redis_get_activities(int *count);
-
-/**
- * Return the current in-memory repo list (populated by redis_poll).
- * *count is set to the number of valid entries.
- */
-const repo_entry_t *redis_get_repos(int *count);
 
 /**
  * Write "1" to kpidash:system:ping, read it back, and return true if the
@@ -109,20 +92,6 @@ bool redis_parse_cmd_grid_json(const char *json, dev_cmd_state_t *state);
 bool redis_parse_cmd_textsize_json(const char *json, dev_cmd_state_t *state);
 
 /**
- * Parse kpidash:cmd:graph JSON into state.
- * json == NULL (key absent) → graph_enabled=true (default show).
- * JSON: {"enabled": true}
- */
-bool redis_parse_cmd_graph_json(const char *json, dev_cmd_state_t *state);
-
-/**
- * Parse kpidash:cmd:fortune_dev JSON into state.
- * json == NULL (key absent) → fortune_dev_enabled=false.
- * JSON: {"enabled": true}
- */
-bool redis_parse_cmd_fortune_dev_json(const char *json, dev_cmd_state_t *state);
-
-/**
  * Return a pointer to the current dev command state (updated each poll cycle).
  * Not thread-safe for writing; read from LVGL timer (main thread) only.
  */
@@ -134,19 +103,6 @@ const dev_cmd_state_t *redis_get_dev_cmd_state(void);
  * Same field layout as regular telemetry minus disks.
  */
 bool redis_parse_dev_telemetry_json(const char *json, dev_telemetry_t *dt);
-
-/**
- * Parse a single repo status JSON object into a repo_entry_t.
- * Does NOT fill host or path — caller sets those before/after.
- * Returns true on valid JSON, false on NULL or malformed input.
- */
-bool redis_parse_repo_json(const char *json, repo_entry_t *re);
-
-/**
- * Return the latest dev telemetry snapshot (polled when graph is enabled).
- * Check .valid before reading fields.
- */
-const dev_telemetry_t *redis_get_dev_telemetry(void);
 
 /* ---- Sprint 006: service status (T021/T023) ---- */
 

@@ -40,7 +40,7 @@ add_kpidash_test(test_redis_json
     ${CMAKE_SOURCE_DIR}/src/hosthist.c
     ${CMAKE_SOURCE_DIR}/src/registry.c
 )
-# Provide stub implementations of ui.h / status.h / fortune.h symbols
+# Provide stub implementations of ui.h / status.h symbols
 # so redis.c links without the full UI tree.
 target_compile_definitions(test_redis_json PRIVATE KPIDASH_TEST_STUBS=1)
 
@@ -50,19 +50,7 @@ target_include_directories(test_layout PRIVATE ${CMAKE_SOURCE_DIR}/src)
 target_compile_options(test_layout PRIVATE -Wall -Wextra -Wno-unused-parameter)
 add_test(NAME test_layout COMMAND test_layout)
 
-# Sprint 006 / T002: stub test executables for upcoming foundational work.
-# Full assertions land in T011 (layout_pool), T018 (icon_registry),
-# T020 (service_card), T033 (graph_router).
-add_executable(test_layout_pool
-    ${CMAKE_CURRENT_SOURCE_DIR}/test_layout_pool.c
-    ${CMAKE_SOURCE_DIR}/src/registry.c
-)
-target_include_directories(test_layout_pool PRIVATE ${CMAKE_SOURCE_DIR}/src)
-target_link_libraries(test_layout_pool kdash_core pthread)  # WI #2244
-target_compile_definitions(test_layout_pool PRIVATE KPIDASH_TEST_STUBS=1)
-target_compile_options(test_layout_pool PRIVATE -Wall -Wextra -Wno-unused-parameter)
-add_test(NAME test_layout_pool COMMAND test_layout_pool)
-
+# Sprint 006 / T033: the graph host series (now only the NAS host's).
 add_executable(test_graph_router
     ${CMAKE_CURRENT_SOURCE_DIR}/test_graph_router.c
     ${CMAKE_SOURCE_DIR}/src/registry.c

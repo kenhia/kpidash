@@ -46,8 +46,8 @@ check-dashboard: _kdash
 # TESTS_ONLY compiles. COVERAGE IS PARTIAL AND DELIBERATELY SO: it covers
 # config.c, redis.c, registry.c, hosthist.c, hostcols.c, icons.c and memstat.c
 # — every source the unit tests link — and NOT the dashboard-only sources
-# (main.c, ui.c, fortune.c,
-# screenshot.c, src/widgets/*), which need LVGL and libpng and so cannot be
+# (main.c, ui.c, screenshot.c,
+# src/widgets/*), which need LVGL and libpng and so cannot be
 # compiled on a bare dev host. Those stay covered by the deploy's own Release
 # build. See CLAUDE.md's note on the warning-clean claim.
 [doc("The same sources again at -O2, warnings fatal (partial coverage)")]
@@ -65,7 +65,7 @@ check-release: _kdash
 # check-release is scoped to TESTS_ONLY, which is five files, and NOT the five
 # the two warnings in WI #1934 were actually in. That gate could never have
 # caught the warnings it was written in response to. This one compiles
-# everything: main.c, ui.c, fortune.c, screenshot.c, src/widgets/*.
+# everything: main.c, ui.c, screenshot.c, src/widgets/*.
 #
 # Deliberately OUT of `just check`, for two reasons: it needs lib/lvgl, which
 # is the big submodule a tests-only build has never wanted, and it needs

@@ -4,7 +4,7 @@
  * Tests redis_parse_health_json() and redis_parse_telemetry_json()
  * without a live Redis connection. No hardware required.
  *
- * KPIDASH_TEST_STUBS=1 enables stub definitions for ui/status/fortune
+ * KPIDASH_TEST_STUBS=1 enables stub definitions for ui/status
  * symbols that redis.c references at link time.
  */
 #include <stdio.h>
@@ -23,7 +23,6 @@
 void ui_show_redis_error(const char *msg) { (void)msg; }
 void ui_hide_redis_error(void) {}
 void status_redis_check_ack(void *ctx) { (void)ctx; }
-void fortune_on_pushed(const char *json) { (void)json; }
 bool screenshot_save(const char *path) { (void)path; return false; }
 #endif
 
@@ -292,41 +291,6 @@ int main(void) {
         CHECK(s.textsize_enabled == false);
     }
 
-    /* T038: graph command */
-    {
-        dev_cmd_state_t s = {0};
-        bool ok = redis_parse_cmd_graph_json("{\"enabled\":true}", &s);
-        CHECK(ok);
-        CHECK(s.graph_enabled == true);
-        CHECK(s.graph_host_count == 0);
-    }
-    {
-        dev_cmd_state_t s = {0};
-        bool ok = redis_parse_cmd_graph_json("{\"enabled\":false}", &s);
-        CHECK(ok);
-        CHECK(s.graph_enabled == false);
-        CHECK(s.graph_host_count == 0);
-    }
-    {
-        dev_cmd_state_t s = {0};
-        bool ok = redis_parse_cmd_graph_json(NULL, &s);  /* absent key */
-        CHECK(ok);
-        CHECK(s.graph_enabled == true);
-        CHECK(s.graph_host_count == 0);
-    }
-    {
-        dev_cmd_state_t s = {0};
-        bool ok = redis_parse_cmd_graph_json("not json", &s);
-        CHECK(!ok);
-    }
-    {
-        dev_cmd_state_t s = {0};
-        bool ok = redis_parse_cmd_graph_json("{\"enabled\":true}", &s);
-        CHECK(ok);
-        CHECK(s.graph_enabled == true);
-        CHECK(s.graph_host_count == 0);
-    }
-
     /* ---- dev_telemetry parse tests ---- */
     {
         /* Full JSON with GPU */
@@ -384,61 +348,6 @@ int main(void) {
         CHECK(dt.gpu_present == true);
         CHECK(dt.gpu_compute_pct < 0.1f);  /* 0 since field missing */
         CHECK(dt.gpu_vram_used_mb == 1024);
-    }
-
-    /* ---- repo JSON parse tests ---- */
-    {
-        /* Full repo JSON with all fields */
-        repo_entry_t re = {0};
-        bool ok = redis_parse_repo_json(
-            "{\"name\":\"kpidash\",\"branch\":\"feature/x\","
-            "\"default_branch\":\"main\",\"is_dirty\":true,"
-            "\"detached_head\":false,\"ahead\":3,\"behind\":1,"
-            "\"untracked_count\":2,\"changed_count\":5,\"deleted_count\":1,"
-            "\"renamed_count\":0,\"last_commit_ts\":1700000000.5,"
-            "\"explicit\":true,\"ts\":1700000001.0}", &re);
-        CHECK(ok);
-        CHECK(strcmp(re.name, "kpidash") == 0);
-        CHECK(strcmp(re.branch, "feature/x") == 0);
-        CHECK(strcmp(re.default_branch, "main") == 0);
-        CHECK(re.is_dirty == true);
-        CHECK(re.detached_head == false);
-        CHECK(re.ahead == 3);
-        CHECK(re.behind == 1);
-        CHECK(re.untracked_count == 2);
-        CHECK(re.changed_count == 5);
-        CHECK(re.deleted_count == 1);
-        CHECK(re.renamed_count == 0);
-        CHECK(re.last_commit_ts > 1699999999.0);
-        CHECK(re.sort_order == 0);  /* explicit=true → 0 */
-        CHECK(re.ts > 1700000000.0);
-    }
-    {
-        /* Minimal repo JSON (backward compat — only name/branch/is_dirty) */
-        repo_entry_t re = {0};
-        bool ok = redis_parse_repo_json(
-            "{\"name\":\"old-repo\",\"branch\":\"main\","
-            "\"is_dirty\":false,\"explicit\":false,\"ts\":1.0}", &re);
-        CHECK(ok);
-        CHECK(strcmp(re.name, "old-repo") == 0);
-        CHECK(re.is_dirty == false);
-        CHECK(re.ahead == 0);
-        CHECK(re.behind == 0);
-        CHECK(re.detached_head == false);
-        CHECK(re.default_branch[0] == '\0');  /* absent → empty */
-        CHECK(re.sort_order == 1);  /* explicit=false → 1 */
-    }
-    {
-        /* NULL json → false */
-        repo_entry_t re = {0};
-        bool ok = redis_parse_repo_json(NULL, &re);
-        CHECK(!ok);
-    }
-    {
-        /* Invalid JSON → false */
-        repo_entry_t re = {0};
-        bool ok = redis_parse_repo_json("not json", &re);
-        CHECK(!ok);
     }
 
     printf("test_redis_json: %d passed, %d failed\n", passed, failed);

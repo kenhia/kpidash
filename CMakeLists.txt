@@ -107,15 +107,10 @@ add_executable(kpidash
     src/logfilter.c
     src/admitted.c
     src/ui.c
-    src/fortune.c
     src/widgets/host_columns.c
-    src/widgets/activities.c
-    src/widgets/repo_status.c
-    src/widgets/fortune.c
     src/widgets/status_bar.c
     src/widgets/dev_grid.c
     src/widgets/dev_textsize.c
-    src/widgets/dev_graph.c
     src/widgets/service_card.c
     src/widgets/apt_temps_card.c
     src/widgets/net_card.c

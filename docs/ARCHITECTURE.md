@@ -3,8 +3,8 @@
 ## Overview
 
 A fullscreen dashboard running on a Raspberry Pi 5 that displays real-time
-status for multiple client machines. Clients write telemetry, health pings,
-activity updates, and repo status to a local Redis instance. The dashboard
+status for multiple client machines. Clients write telemetry, health pings
+and card feeds (network, NAS, services) to a local Redis instance. The dashboard
 polls Redis every second and renders a live multi-widget display via
 LVGL/DRM/KMS with no mouse or keyboard interaction.
 
@@ -68,9 +68,9 @@ LVGL/DRM/KMS with no mouse or keyboard interaction.
 │  │                                     │                 │  │
 │  │  ┌──────────────────────────────────▼──────────────┐  │  │
 │  │  │ ui.c + widgets/ (LVGL screen composition)       │  │  │
-│  │  │  host_columns · activities · repo_status        │  │  │
-│  │  │  fortune · status_bar · dev_grid · dev_textsize │  │  │
-│  │  │  dev_graph · redis_error_overlay                │  │  │
+│  │  │  host_columns · net_card · nas_card             │  │  │
+│  │  │  service_card · status_bar · dev_grid           │  │  │
+│  │  │  dev_textsize · redis_error_overlay             │  │  │
 │  │  └──────────────────────────────────┬──────────────┘  │  │
 │  │                                     │                 │  │
 │  └─────────────────────────────────────┼─────────────────┘  │
@@ -127,24 +127,15 @@ LVGL/DRM/KMS with no mouse or keyboard interaction.
    compute into a 10-minute in-memory ring per host (`hosthist.c`, sprint
    029) for the host columns' sparklines.
 3. **Dev Telemetry**: client writes `kpidash:client:{h}:dev_telemetry` (JSON,
-   EX 5 s) at 1 s intervals with GPU compute, CPU avg/top, VRAM, RAM for the
-   dev graph. Only read when graph is enabled.
-4. **Activities**: client writes HSET + ZADD; dashboard ZREVRANGE top-10 +
-   HGETALL per activity. Active entries show live elapsed time via LVGL timer.
-   Displayed as table: host | duration | DoW | activity name.
-5. **Repos**: client writes HGETALL `kpidash:repos:{h}` (field=path,
-   value=JSON, EX 30 s). Dashboard shows repos where branch ≠ default or
-   is_dirty. Expanded fields include ahead/behind counts, untracked/changed/
-   deleted/renamed counts, detached head, last commit timestamp.
-6. **Fortune** (compiled out since sprint 024 — the network card has its
-   cell; `KPIDASH_WIDGET_FORTUNE` in `src/ui.h` brings it back): rotation
-   timer in dashboard runs `fortune` popen every 300 s and caches in
-   `kpidash:fortune:current`. Clients can push an override via
-   `kpidash:fortune:pushed` with TTL.
+   EX 5 s) at 1 s intervals with GPU compute, CPU avg/top, VRAM, RAM. Since
+   sprint 032 the dashboard GETs only the NAS host's key, for the NAS card's
+   activity chart; the per-host dev graphs that read every host's are gone.
+4. **Activities, repo status, Fortune**: removed in sprint 032; see
+   [Removed widgets](#removed-widgets). The dashboard reads none of their keys.
 6a. **Network health** (sprint 024): each Linux client writes
    `kdash:net:{host}` (kdashdata CD-27) every ~5 s, EX 15; the dashboard MGETs
    the configured hosts each poll into `netstate.c` (pure model) and draws
-   `widgets/net_card.c` in the rows-2-3 pool where Fortune was. The same MGET
+   `widgets/net_card.c` in row 1, columns 0-1. The same MGET
    reads each host's `kdash:net:ack:{host}` (sprint 027), which the panel
    applies to clear a reviewed warning; hosts that have ever published are
    persisted as the `[net]` section of the admitted-hosts file, so they read
@@ -152,8 +143,8 @@ LVGL/DRM/KMS with no mouse or keyboard interaction.
 7. **Status**: dashboard pushes warning/error messages to
    `kpidash:status:current`. Client CLIs read and acknowledge via
    `kpidash:status:ack:{id}`.
-8. **Dev Commands**: `kpidash:cmd:grid`, `kpidash:cmd:textsize`,
-   `kpidash:cmd:graph` control developer overlay widgets. Set via redis-cli
+8. **Dev Commands**: `kpidash:cmd:grid` and `kpidash:cmd:textsize` control
+   developer overlay widgets. Set via redis-cli
    with 300 s TTL. Auto-expire disables the overlay.
 9. **Screenshot**: `kpidash:screenshot` (consumed via GETDEL) triggers an
    in-process `lv_snapshot_take` → BMP at `/tmp/kpidash-shot.bmp`. Use the
@@ -173,7 +164,7 @@ LVGL/DRM/KMS with no mouse or keyboard interaction.
 12. **NAS big panel**: kpidash-client on gratch projects gratch-ui's collector
     file into `kdash:nas:gratch` (EX 15, kdashdata v1). Dashboard GETs it each
     poll into `nasstate.c` (pure model) and, once it has published, draws
-    `widgets/nas_card.c` in **gratch's dev-graph slot** — pool and root bars,
+    `widgets/nas_card.c` in row 1, columns 2-3 — pool and root bars,
     a CPU/RAM activity chart, one row per disk. See CLIENT-PROTOCOL.md §8f
     (sprint 028).
 
@@ -199,28 +190,24 @@ kpidash/
 │   ├── hostcols.{h,c}          # Host columns fill rule, order, attention (pure)
 │   ├── redis.{h,c}             # hiredis poll cycle + JSON parsing (cJSON)
 │   ├── status.{h,c}            # In-memory status message FIFO queue
-│   ├── fortune.{h,c}           # fortune popen + pushed-fortune override
 │   ├── ui.{h,c}                # Screen layout + redis error overlay
 │   ├── layout.h                # Cell-based unit system constants and macros
 │   ├── protocol.h              # Key macros, TTLs, capacity limits
 │   └── widgets/
 │       ├── common.h            # Shared color palette and font constants (WS_*)
 │       ├── host_columns.{h,c}  # Row 0 host columns / compact tiles (sprint 029)
-│       ├── activities.{h,c}    # Activity table (disabled — WI #365)
-│       ├── repo_status.{h,c}   # Repo card grid (disabled — WI #365)
+│       ├── net_card.{h,c}      # 10G network-health card (row 1, sprint 024)
+│       ├── nas_card.{h,c}      # NAS big panel (row 1, sprint 028)
 │       ├── service_card.{h,c}  # Service status card + host staleness card
 │       ├── apt_temps_card.{h,c}# Per-zone temp/humidity card (footer, WI #364)
-│       ├── fortune.{h,c}       # Fortune text label widget
 │       ├── status_bar.{h,c}    # Bottom status bar (warning/error)
 │       ├── dev_grid.{h,c}      # Pixel grid overlay (dev command)
-│       ├── dev_textsize.{h,c}  # Font size reference panel (dev command)
-│       └── dev_graph.{h,c}     # 5-series time-series chart (dev command)
+│       └── dev_textsize.{h,c}  # Font size reference panel (dev command)
 ├── tests/                      # all ctest, no hardware unless noted
 │   ├── test_config.c           # Config env var parsing
 │   ├── test_redis_json.c       # cJSON parsing helpers
 │   ├── test_layout.c           # Unit system macro arithmetic
-│   ├── test_layout_pool.c      # Rows-2-3 widget placement
-│   ├── test_graph_router.c     # Per-host graph series routing
+│   ├── test_graph_router.c     # Dev-telemetry series (NAS host only since 032)
 │   ├── test_icon_registry.c    # Nerd-font glyph lookup
 │   ├── test_apttemps_band.c    # Apt-temp band edges via libkdash (sprint 018)
 │   ├── test_service_card.c     # Service state/colour, payload parsing, freshness windows
@@ -283,15 +270,36 @@ Widget content (1×1): UNIT_W - 2×CELL_PAD = 624, UNIT_H - 2×CELL_PAD = 620
 ┌──────────────────────────────────────────────────────────────┐
 │  Row 0: [ host columns (6×1, the whole row) ]                │
 ├──────────────┬──────────────┬────────────────────────────────┤
-│  Row 1:      │  Activities  │  Repo Status                   │
-│  dev_graph   │  (2×1)       │  (2×1)                         │
-│  (2×1, opt)  │              │                                │
+│  Row 1:      │  Row 1:      │  (free)                        │
+│  10G card    │  NAS card    │                                │
+│  (2×1)       │  (2×1)       │                                │
 ├──────────────┴──────────────┴────────────────────────────────┤
-│  Row 2: (available for future widgets)                       │
+│  Row 2: (free)                                               │
 ├──────────────────────────────────────────────────────────────┤
-│  Footer (276px): Fortune strip + status bar                  │
+│  Footer (276px): service strip + status bar                  │
 └──────────────────────────────────────────────────────────────┘
 ```
+
+Both row-1 cards have fixed slots (sprint 032): the NAS card is hidden until
+`kdash:nas` has published, but its slot stays reserved, so the 10G card never
+moves. What fills the free cells is a later decision.
+
+## Removed widgets
+
+Removed in sprint 032 (korg:4562), code and all. Everything below is
+retrievable from the git tag **`last-with-dev-graphs-fortune`**
+(`git checkout last-with-dev-graphs-fortune -- <paths>`).
+
+| Widget | What it showed | Paths at the tag |
+|---|---|---|
+| Dev graphs | Per-host 2×1 time-series chart of CPU avg/top core, RAM, GPU compute/VRAM from `dev_telemetry`; one per host, placed by the rows-1-2 layout pool | `src/widgets/dev_graph.{h,c}`, `layout_pool_place()` in `src/registry.c`, `tests/test_layout_pool.c` |
+| Fortune | A rotating `fortune` quote, with a client push override (`kpidash:fortune:pushed`); compiled out since sprint 024 | `src/fortune.{h,c}`, `src/widgets/fortune.{h,c}` |
+| Activities | Table of agent/CLI activities with live elapsed timers (`kpidash:activities`); compiled out since sprint 012 (WI #365) | `src/widgets/activities.{h,c}`, `poll_activities()` in `src/redis.c` |
+| Repo Status | Card grid of repos off their default branch or dirty (`kpidash:repos:{host}`); compiled out since sprint 012 (WI #365) | `src/widgets/repo_status.{h,c}`, `poll_repos()` in `src/redis.c` |
+
+The host columns (sprints 029-031) replaced the dev graphs. The producers of
+the other three feeds still publish, and nothing reads them: see
+`docs/CLIENT-PROTOCOL.md`.
 
 ## Color Palette (Catppuccin Mocha)
 
@@ -320,7 +328,7 @@ Bold fonts generated via `lv_font_conv` from Montserrat-Bold.ttf at sizes
 (0xA0-0xFF), the punctuation publishers actually type (en/em dash, curly
 quotes, bullet, ellipsis), Nerd Font Logos (0xF300-0xF381), and Git icons
 (0xF1D2-0xF1D3). Regular-weight `lv_font_montserrat_20` from LVGL built-in is
-used for activity text.
+used for the host columns' labels.
 
 The glyph set is declared once, in `RANGE` in `fonts/generate.sh`; it is
 stated as a contract in `docs/CLIENT-PROTOCOL.md` §8a, and `just check-fonts`
@@ -335,8 +343,6 @@ is registered as LVGL's print callback in `main.c`; `lv_conf.h` therefore has
 - **No title bar** (FR-002a): LVGL root screen uses flex layout, no title bar object.
 - **No scroll** (FR-008): all containers have `LV_OBJ_FLAG_SCROLLABLE` cleared.
 - **Offline detection via TTL**: health key has EX 5; if missing → offline.
-- **Fortune compile-time constant**: `FORTUNE_INTERVAL_S 300` in `protocol.h`
-  — not an env var — to avoid accidental very short/long intervals.
 - **Priority eviction** (T056): `KPIDASH_PRIORITY_CLIENTS` comma list;
   priority clients never evicted when registry is full.
 
@@ -352,8 +358,9 @@ is registered as LVGL's print callback in `main.c`; `lv_conf.h` therefore has
 - **Service cards** (`src/widgets/service_card.c`): 220×240 px, 6 px coloured
   border, optional icon (lv_font_icons_56), name + status text. Rendered into
   the footer strip; one card per Redis key.
-- **Per-host graph router** (`src/registry.c`,
-  `src/widgets/dev_graph.c`): `dev_telemetry` samples carry a `host` field
+- **Per-host graph router** (`src/registry.c`; the dev graphs it fed were
+  removed in sprint 032, and only the NAS host's series is filled now, for the
+  NAS card): `dev_telemetry` samples carry a `host` field
   (default `"(legacy)"`). `graph_host_find_or_create()` returns a stable
   pointer; entries are touched on each sample and never evicted
   (`GRAPH_HOST_MAX=8`). Series go stale after

@@ -3,8 +3,8 @@
 
 #include "lvgl.h"
 
-/* WI #3956: the NAS big panel — a 2×1 pool widget for KPIDASH_NAS_HOST, in
- * the slot that host's dev graph would otherwise take. Left: pool usage bars,
+/* WI #3956: the NAS big panel — a 2×1 card for KPIDASH_NAS_HOST, fixed in
+ * row 1, columns 2-3, next to the 10G card (sprint 032). Left: pool usage bars,
  * the root filesystem, and a small CPU/RAM activity chart. Right: one row per
  * disk — temperature, spin state, SMART, wear. Reads nasstate (kdash:nas),
  * the host's client telemetry (root fs) and its dev_telemetry series. One

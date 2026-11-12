@@ -1,18 +1,20 @@
 /**
  * ui.c — Dashboard layout and widget management (T017, T017a, T055)
  *
- * Layout (no title bar, FR-002a; no scroll anywhere, FR-008):
+ * Layout (no title bar, FR-002a; no scroll anywhere, FR-008). Sprint 032
+ * removed the dev graphs, Fortune, Activities and Repo Status, and with them
+ * the rows-2-3 layout pool: two fixed cards need no placer.
  *
  *   ┌─────────────────────────────────────────────┐
  *   │  Host columns — Row 0, cols 0-5, 6×1 units  │
  *   │  (the whole row; sprint 030, WI #4543)      │
  *   ├──────────┬──────────┬───────────────────────┤
- *   │ DevGraph │Activities│  Repo Status           │
- *   │  (opt)   │  2×1     │  2×1                   │
+ *   │ 10G card │ NAS card │  (free)               │
+ *   │  2×1     │  2×1     │                       │
  *   ├──────────┴──────────┴───────────────────────┤
- *   │  Fortune widget (bottom strip)              │
+ *   │  (free)                                     │
  *   ├─────────────────────────────────────────────┤
- *   │  Status bar (hidden when no messages)       │
+ *   │  Footer: service strip, status bar          │
  *   └─────────────────────────────────────────────┘
  */
 #include "ui.h"
@@ -22,38 +24,24 @@
 #include <time.h>
 
 #include "config.h"
-#include "fortune.h"
 #include "hostcols.h"
 #include "layout.h"
 #include "protocol.h"
 #include "redis.h"
 #include "nasstate.h"
 #include "registry.h"
-#include "widgets/activities.h"
 #include "widgets/apt_temps_card.h"
-#include "widgets/dev_graph.h"
 #include "widgets/dev_grid.h"
 #include "widgets/dev_textsize.h"
-#include "widgets/fortune.h"
 #include "widgets/host_columns.h"
 #include "widgets/nas_card.h"
 #include "widgets/net_card.h"
-#include "widgets/repo_status.h"
 #include "widgets/service_card.h"
 #include "widgets/status_bar.h"
-
-/* WI #365 (sprint 012): the Activities and Repo Status widgets are turned off.
- * Compile-time toggles — set either to 1 to restore it. Expect significant
- * layout rework if brought back, since the pool/footer layout has moved on. */
-#define KPIDASH_WIDGET_ACTIVITIES 0
-#define KPIDASH_WIDGET_REPO_STATUS 0
 
 /* ---- Layout objects ---- */
 static lv_obj_t *g_screen = NULL;
 static lv_obj_t *g_host_columns = NULL; /* WI #4526: replaces the client card grid */
-static lv_obj_t *g_activities = NULL;
-static lv_obj_t *g_repo_status = NULL;
-static lv_obj_t *g_fortune = NULL;
 static lv_obj_t *g_netcard = NULL;
 static lv_obj_t *g_nascard = NULL; /* WI #3956 */
 static lv_obj_t *g_service_strip = NULL;  /* T013: footer Service-Strip container */
@@ -66,10 +54,6 @@ static lv_obj_t *g_dev_textsize = NULL;
 static int g_dev_grid_size = 0;        /* track pixel size so we recreate on change */
 static bool g_dev_grid_unit = false;   /* track unit mode */
 static float g_dev_grid_unit_size = 0; /* track unit size */
-
-/* Dev graph handles (Phase 6.1): one widget per graph_host_series_t, stored
- * directly in the series's `widget` slot. T035 retired the single-host
- * globals (g_dev_graph / g_graph_client). */
 
 /* ---- Helpers ---- */
 
@@ -122,39 +106,15 @@ void ui_init(void) {
      * Ken's later call. ---- */
     g_host_columns = host_columns_create(g_screen, COL_X(0), ROW_Y(0));
 
-    /* ---- Rows 2-3 (FR-002): pool widgets created here, positioned by
-     * ui_refresh() via layout_pool_place(). They are created once and
-     * shown/hidden + repositioned each refresh. ---- */
-#if KPIDASH_WIDGET_ACTIVITIES
-    g_activities = activities_widget_create(g_screen);
-    lv_obj_set_size(g_activities, UNIT_W_N(2), UNIT_H);
-    lv_obj_set_style_pad_all(g_activities, CELL_PAD, 0);
-    lv_obj_add_flag(g_activities, LV_OBJ_FLAG_HIDDEN);
-#endif
+    /* ---- Row 1: the 10G card in columns 0-1, then the NAS card in columns
+     * 2-3 (sprint 032). The NAS card is shown only once kdash:nas has
+     * published, but its slot is fixed, so the 10G card never moves.
+     * Columns 4-5 and row 2 stay empty. ---- */
+    g_netcard = net_card_create(g_screen); /* WI #4062 */
+    lv_obj_set_pos(g_netcard, COL_X(0), ROW_Y(1));
 
-#if KPIDASH_WIDGET_REPO_STATUS
-    g_repo_status = repo_status_widget_create(g_screen);
-    lv_obj_set_size(g_repo_status, UNIT_W_N(2), UNIT_H);
-    lv_obj_set_style_pad_all(g_repo_status, CELL_PAD, 0);
-    lv_obj_add_flag(g_repo_status, LV_OBJ_FLAG_HIDDEN);
-#endif
-
-#if KPIDASH_WIDGET_FORTUNE
-    /* T014: Fortune as 2×1 pool widget. */
-    g_fortune = fortune_create(g_screen, 0, 0);
-    fortune_set_widget(g_fortune);
-    lv_obj_add_flag(g_fortune, LV_OBJ_FLAG_HIDDEN);
-#endif
-
-#if KPIDASH_WIDGET_NETCARD
-    /* WI #4062: the network-health card, in Fortune's pool slot. */
-    g_netcard = net_card_create(g_screen);
-    lv_obj_add_flag(g_netcard, LV_OBJ_FLAG_HIDDEN);
-#endif
-
-    /* WI #3956: the NAS big panel. Placed only once kdash:nas has published,
-     * and then in place of the NAS host's own dev graph. */
-    g_nascard = nas_card_create(g_screen);
+    g_nascard = nas_card_create(g_screen); /* WI #3956 */
+    lv_obj_set_pos(g_nascard, COL_X(2) + CELL_PAD, ROW_Y(1) + CELL_PAD);
     lv_obj_add_flag(g_nascard, LV_OBJ_FLAG_HIDDEN);
 
     /* ---- Footer (FR-005): Service-Strip container ---- */
@@ -191,211 +151,29 @@ void ui_init(void) {
 
     /* FR-008 verification note: every widget created above uses
      * lv_obj_clear_flag(obj, LV_OBJ_FLAG_SCROLLABLE). The host columns,
-     * activities, repo status, fortune, status bar, and overlay are all
-     * non-scrollable. Verified in T055. */
+     * status bar, and overlay are all non-scrollable. Verified in T055. */
 }
 
 void ui_refresh(void) {
     refresh_host_columns();
 
-#if KPIDASH_WIDGET_ACTIVITIES
-    /* Activities widget */
-    int act_count = 0;
-    const activity_t *acts = redis_get_activities(&act_count);
-    activities_widget_update(g_activities, acts, act_count);
-#endif
-
-#if KPIDASH_WIDGET_REPO_STATUS
-    /* Repo status widget */
-    int repo_count = 0;
-    const repo_entry_t *repos = redis_get_repos(&repo_count);
-    repo_status_widget_update(g_repo_status, repos, repo_count);
-#endif
-
     /* Dev command overlays (T030) */
     const dev_cmd_state_t *cmd = redis_get_dev_cmd_state();
 
-    /* WI #250: evict graph host series stale beyond the grace period. Destroy
-     * the widget here (LVGL thread) before dropping the series so dead/legacy
-     * hosts don't linger as "NO NEW DATA" until a dashboard restart. */
+    /* ---- Row 1: the 10G and NAS cards (fixed slots, sprint 032). The NAS
+     * card's flag changes only on a real transition: clearing HIDDEN
+     * invalidates the whole object even when it is already shown, which the
+     * old pool placer paid for on both cards every second. ---- */
     {
-        graph_host_series_t ev[GRAPH_HOST_MAX];
-        int nev = graph_host_snapshot(ev, GRAPH_HOST_MAX);
-        double now_ev = (double)time(NULL);
-        for (int i = 0; i < nev; i++) {
-            if ((now_ev - ev[i].last_sample_ts) < GRAPH_HOST_EVICT_SECONDS) continue;
-            graph_host_series_t *live = graph_host_find_or_create(ev[i].host);
-            if (live && live->widget) {
-                dev_graph_destroy(live->widget);
-                live->widget = NULL;
-            }
-            graph_host_remove(ev[i].host);
-        }
-    }
-
-    /* ---- Sprint 006 / T012,T015,T035: rows-2-3 layout pool placement ----
-     * Multi-host graphs: one WIDGET_GRAPH request per discovered host series,
-     * sorted alphabetically (T035 / FR-013) so layout_pool_place()'s stable
-     * sort preserves that order. Each request's payload is the host name. */
-    {
-        /* Snapshot host series, sort alphabetically by host. */
-        graph_host_series_t g_snap[GRAPH_HOST_MAX];
-        int n_hosts = graph_host_snapshot(g_snap, GRAPH_HOST_MAX);
-        /* Already true; said out loud because aarch64 GCC cannot see it
-         * across the call and warns on the g_snap scan below
-         * (-Wstringop-overread, first printed by the sprint-028 deploy). */
-        if (n_hosts > GRAPH_HOST_MAX) n_hosts = GRAPH_HOST_MAX;
-        for (int i = 1; i < n_hosts; i++) {
-            graph_host_series_t tmp = g_snap[i];
-            int j = i;
-            while (j > 0 && strcmp(g_snap[j - 1].host, tmp.host) > 0) {
-                g_snap[j] = g_snap[j - 1];
-                j--;
-            }
-            g_snap[j] = tmp;
-        }
-
-        widget_request_t reqs[GRAPH_HOST_MAX + 5];
-        /* WI #3956: once the NAS host has published kdash:nas, its panel
-         * takes its graph's slot — the panel draws the activity itself. The
-         * pool has six 2×1 slots and five graphs plus the net card already
-         * filled them (comment 4011), so replacing is the only way in. */
-        const bool nas_panel = nas_has_record();
-        int nreq = 0;
-        bool show_graphs = cmd ? cmd->graph_enabled : true;
-        /* Host-name storage: payload pointers must outlive the placement
-         * call; reuse the snapshot's storage since g_snap lives on the stack
-         * through the whole placement block. */
-        if (show_graphs) {
-            for (int i = 0; i < n_hosts; i++) {
-                bool host_enabled = true;
-                if (cmd) {
-                    for (int h = 0; h < cmd->graph_host_count; h++) {
-                        if (strncmp(cmd->graph_hosts[h], g_snap[i].host, HOSTNAME_LEN) == 0) {
-                            host_enabled = cmd->graph_host_enabled[h];
-                            break;
-                        }
-                    }
-                }
-                if (!host_enabled)
-                    continue;
-                if (nas_panel && strcmp(g_snap[i].host, KPIDASH_NAS_HOST) == 0)
-                    continue;
-                reqs[nreq].kind = WIDGET_GRAPH;
-                reqs[nreq].cells = WIDGET_CELLS_GRAPH;
-                reqs[nreq].payload = g_snap[i].host;
-                nreq++;
-            }
-        }
-        if (nas_panel)
-            reqs[nreq++] = (widget_request_t){WIDGET_NAS, WIDGET_CELLS_NAS, NULL};
-#if KPIDASH_WIDGET_ACTIVITIES
-        reqs[nreq++] = (widget_request_t){WIDGET_ACTIVITIES, WIDGET_CELLS_ACTIVITIES, NULL};
-#endif
-#if KPIDASH_WIDGET_REPO_STATUS
-        reqs[nreq++] = (widget_request_t){WIDGET_REPO_STATUS, WIDGET_CELLS_REPO_STATUS, NULL};
-#endif
-#if KPIDASH_WIDGET_FORTUNE
-        reqs[nreq++] = (widget_request_t){WIDGET_FORTUNE, WIDGET_CELLS_FORTUNE, NULL};
-#endif
-#if KPIDASH_WIDGET_NETCARD
-        reqs[nreq++] = (widget_request_t){WIDGET_NETCARD, WIDGET_CELLS_NETCARD, NULL};
-#endif
-
-        widget_request_t placed[GRAPH_HOST_MAX + 5];
-        int nplaced = layout_pool_place(reqs, (size_t)nreq, placed,
-                                        sizeof(placed) / sizeof(placed[0]));
-
-        /* Track which hosts ended up placed so we can hide widgets for hosts
-         * dropped by the pool (e.g. exceeded the 12-cell budget). */
-        bool host_placed[GRAPH_HOST_MAX] = {0};
-        bool placed_acts = false, placed_repo = false, placed_fortune = false;
-        bool placed_netcard = false, placed_nas = false;
-        int alloc_row = 1, alloc_col = 0;
         double now_s = (double)time(NULL);
-        for (int i = 0; i < nplaced; i++) {
-            int cells = placed[i].cells;
-            if (alloc_col + cells > COLS) { alloc_row++; alloc_col = 0; }
-            int x = COL_X(alloc_col);
-            int y = ROW_Y(alloc_row);
-            alloc_col += cells;
-            switch (placed[i].kind) {
-                case WIDGET_GRAPH: {
-                    const char *host = (const char *)placed[i].payload;
-                    if (!host) break;
-                    graph_host_series_t *live = graph_host_find_or_create(host);
-                    if (!live) break;
-                    if (!live->widget) {
-                        live->widget = dev_graph_create(g_screen, host);
-                    }
-                    if (!live->widget) break;
-                    lv_obj_clear_flag(live->widget, LV_OBJ_FLAG_HIDDEN);
-                    lv_obj_set_pos(live->widget, x, y);
-                    if (live->telemetry.valid) {
-                        dev_graph_data_t gd = {
-                            .cpu_pct = live->telemetry.cpu_pct,
-                            .top_core_pct = live->telemetry.top_core_pct,
-                            .ram_used_mb = live->telemetry.ram_used_mb,
-                            .ram_total_mb = live->telemetry.ram_total_mb,
-                            .gpu_compute_pct = live->telemetry.gpu_compute_pct,
-                            .gpu_vram_used_mb = live->telemetry.gpu_vram_used_mb,
-                            .gpu_vram_total_mb = live->telemetry.gpu_vram_total_mb,
-                        };
-                        dev_graph_update(live->widget, &gd);
-                        dev_graph_set_host(live->widget, host);
-                    }
-                    dev_graph_set_stale(live->widget, graph_host_is_stale(live, now_s));
-                    /* Mark this snapshot slot as placed. */
-                    for (int s = 0; s < n_hosts; s++) {
-                        if (strcmp(g_snap[s].host, host) == 0) {
-                            host_placed[s] = true;
-                            break;
-                        }
-                    }
-                    break;
-                }
-                case WIDGET_ACTIVITIES:
-                    lv_obj_set_pos(g_activities, x, y);
-                    lv_obj_clear_flag(g_activities, LV_OBJ_FLAG_HIDDEN);
-                    placed_acts = true;
-                    break;
-                case WIDGET_REPO_STATUS:
-                    lv_obj_set_pos(g_repo_status, x, y);
-                    lv_obj_clear_flag(g_repo_status, LV_OBJ_FLAG_HIDDEN);
-                    placed_repo = true;
-                    break;
-                case WIDGET_FORTUNE:
-                    lv_obj_set_pos(g_fortune, x, y);
-                    lv_obj_clear_flag(g_fortune, LV_OBJ_FLAG_HIDDEN);
-                    placed_fortune = true;
-                    break;
-                case WIDGET_NAS:
-                    lv_obj_set_pos(g_nascard, x + CELL_PAD, y + CELL_PAD);
-                    lv_obj_clear_flag(g_nascard, LV_OBJ_FLAG_HIDDEN);
-                    nas_card_update(g_nascard, now_s);
-                    placed_nas = true;
-                    break;
-                case WIDGET_NETCARD:
-                    lv_obj_set_pos(g_netcard, x, y);
-                    lv_obj_clear_flag(g_netcard, LV_OBJ_FLAG_HIDDEN);
-                    net_card_update(g_netcard, now_s);
-                    placed_netcard = true;
-                    break;
-            }
+        net_card_update(g_netcard, now_s);
+        bool nas_hidden = lv_obj_has_flag(g_nascard, LV_OBJ_FLAG_HIDDEN);
+        if (nas_has_record()) {
+            if (nas_hidden) lv_obj_clear_flag(g_nascard, LV_OBJ_FLAG_HIDDEN);
+            nas_card_update(g_nascard, now_s);
+        } else if (!nas_hidden) {
+            lv_obj_add_flag(g_nascard, LV_OBJ_FLAG_HIDDEN);
         }
-        /* Hide widgets for hosts that were dropped by the pool. */
-        for (int s = 0; s < n_hosts; s++) {
-            if (host_placed[s]) continue;
-            graph_host_series_t *live = graph_host_find_or_create(g_snap[s].host);
-            if (live && live->widget) {
-                lv_obj_add_flag(live->widget, LV_OBJ_FLAG_HIDDEN);
-            }
-        }
-        if (!placed_acts && g_activities)  lv_obj_add_flag(g_activities, LV_OBJ_FLAG_HIDDEN);
-        if (!placed_repo && g_repo_status) lv_obj_add_flag(g_repo_status, LV_OBJ_FLAG_HIDDEN);
-        if (!placed_fortune && g_fortune) lv_obj_add_flag(g_fortune, LV_OBJ_FLAG_HIDDEN);
-        if (!placed_netcard && g_netcard) lv_obj_add_flag(g_netcard, LV_OBJ_FLAG_HIDDEN);
-        if (!placed_nas && g_nascard) lv_obj_add_flag(g_nascard, LV_OBJ_FLAG_HIDDEN);
     }
 
     /* WI #374: apply pending card-evict commands — destroy the card on the
@@ -570,10 +348,6 @@ void ui_refresh(void) {
         }
     }
 
-    /* Sprint 006 / T035: per-host dev_graph widgets are created, positioned,
-     * updated, and stale-toggled by the rows-2-3 layout pool block above
-     * (one widget per graph_host_series_t slot, alphabetically ordered). The
-     * legacy single-host dev_telemetry path has been retired. */
 }
 
 void ui_show_redis_error(const char *msg) {

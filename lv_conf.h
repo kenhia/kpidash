@@ -25,7 +25,7 @@
  * WI #1798: with LV_OS_PTHREAD and the default LV_DRAW_SW_DRAW_UNIT_CNT of 1,
  * lv_draw_sw.c hands every task to a render thread one at a time over a futex
  * signal/wait round-trip (lv_draw_sw.c:459 `lv_thread_sync_signal`). The three
- * dev_graph cards refresh 3 x 9 series x 300 points = ~8,100 lv_draw_line tasks
+ * dev_graph cards (removed in sprint 032) refreshed 3 x 9 series x 300 points = ~8,100 lv_draw_line tasks
  * a second, so that handshake ran ~8,300 times a second — and because
  * lv_draw_finalize_task_creation() calls lv_draw_dispatch() after every task,
  * the walk over the layer's pending-task list went roughly quadratic.
