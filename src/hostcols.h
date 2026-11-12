@@ -80,6 +80,16 @@ int hostcols_select(const client_info_t *in, int n, const client_info_t **out, i
 hc_att_t hostcols_ram_att(int pct);
 hc_att_t hostcols_disk_att(int pct);
 
+/* The full column's OS name (korg:4558): the OS or distro name, then its
+ * version cut to two numeric parts — "Ubuntu 24.04.5 LTS" -> "Ubuntu 24.04",
+ * "Debian GNU/Linux 13 (trixie)" -> "Debian 13". Drops "GNU/Linux",
+ * parenthesised codenames and everything after the version. Windows keeps its
+ * edition and drops the feature update and build ("Win 11 Pro 26H2
+ * 26300.9818" -> "Win 11 Pro"). A name with no version ("Arch Linux") is kept
+ * whole, and a string that would come out empty passes through unchanged.
+ * Display only: the published os_name is never altered. */
+void hostcols_short_os(const char *in, char *out, size_t len);
+
 /* Build one host's display model at wall time `now`. */
 void hostcols_build(const client_info_t *c, double now, hc_host_t *out);
 
