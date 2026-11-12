@@ -145,3 +145,10 @@ The ship turn redeploys from the merged `main`.
   unchanged.
 - Rollback: `~/kpidash.prev` holds the 029 binary (`ca9388c`), so
   `scripts/deploy.sh --rollback` returns the panel to 029 in one step.
+
+## Repaired in passing
+
+- `docs/ARCHITECTURE.md`'s palette table listed Teal as "CPU top core".
+  That was stale even under 029, which drew the top core white; Teal is the
+  10G fabric colour (`WS_COLOR_TEAL` in `common.h`). The row is corrected,
+  and the top core has its own `#AB47BC` row.
