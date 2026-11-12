@@ -8,10 +8,14 @@
 
 find_package(Git QUIET)
 
+# --match: only release-style tags (v1.2.3) name a build. A bookmark tag such as
+# sprint 032's `last-with-dev-graphs-fortune` would otherwise become every later
+# build's version prefix. With no v-tag in the repo this is the bare hash.
+
 set(_ver "unknown")
 if(GIT_EXECUTABLE)
     execute_process(
-        COMMAND ${GIT_EXECUTABLE} describe --always --dirty --tags
+        COMMAND ${GIT_EXECUTABLE} describe --always --dirty --tags --match v[0-9]*
         WORKING_DIRECTORY ${SRC_DIR}
         OUTPUT_VARIABLE _ver
         OUTPUT_STRIP_TRAILING_WHITESPACE
