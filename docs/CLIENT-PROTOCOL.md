@@ -109,6 +109,9 @@ is the host this whole rule exists to keep off the panel.
 `uptime_seconds` is optional. `os_name` is optional. It comes from `/etc/os-release`
 `PRETTY_NAME` on Linux and from `platform.mac_ver()` on macOS (`"macOS 27.0"`). The
 fallback everywhere else is `platform.system() + " " + platform.release()`.
+Send the full string: the dashboard shortens it for display only (sprint 031,
+"Debian GNU/Linux 13 (trixie)" is drawn as "Debian 13"), so producers should not
+trim it themselves.
 Key absence (TTL expired) = client offline.
 
 `availability` is optional (sprint 023, WI #3132). The only value is `"intermittent"`,
