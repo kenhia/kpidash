@@ -159,10 +159,9 @@ if(TARGET lvgl)
         ${CMAKE_SOURCE_DIR}/src/hostcols.c
         ${CMAKE_SOURCE_DIR}/src/hosthist.c
         ${CMAKE_SOURCE_DIR}/src/registry.c
-        ${CMAKE_SOURCE_DIR}/fonts/lv_font_montserrat_bold_14.c
-        ${CMAKE_SOURCE_DIR}/fonts/lv_font_montserrat_bold_16.c
         ${CMAKE_SOURCE_DIR}/fonts/lv_font_montserrat_bold_20.c
-        ${CMAKE_SOURCE_DIR}/fonts/lv_font_montserrat_bold_24.c
+        ${CMAKE_SOURCE_DIR}/fonts/lv_font_montserrat_bold_28.c
+        ${CMAKE_SOURCE_DIR}/fonts/lv_font_montserrat_bold_36.c
     )
     add_executable(test_widget_leak
         ${CMAKE_CURRENT_SOURCE_DIR}/test_widget_leak.c

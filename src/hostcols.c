@@ -126,12 +126,6 @@ static hc_att_t worse(hc_att_t a, hc_att_t b) {
     return a > b ? a : b;
 }
 
-static int cmp_disk_desc(const void *x, const void *y) {
-    const disk_entry_t *a = *(const disk_entry_t *const *)x;
-    const disk_entry_t *b = *(const disk_entry_t *const *)y;
-    return (a->pct < b->pct) - (a->pct > b->pct);
-}
-
 void hostcols_build(const client_info_t *c, double now, hc_host_t *out) {
     memset(out, 0, sizeof(*out));
     memcpy(out->host, c->hostname, strnlen(c->hostname, HOSTNAME_LEN - 1));
@@ -158,32 +152,29 @@ void hostcols_build(const client_info_t *c, double now, hc_host_t *out) {
                             : 0;
     }
 
-    /* Drives: as reported, unless there are more than five — then the five
-     * fullest, fullest first, so the one that matters is never the one cut. */
+    /* Drives: one row for the fullest (the first reported wins a tie), and a
+     * count of the others over the warn line. The border is judged on all. */
     int nd = c->disk_count;
     if (nd > MAX_DISKS)
         nd = MAX_DISKS;
-    if (nd < 0)
-        nd = 0;
-    const disk_entry_t *ds[MAX_DISKS];
-    for (int i = 0; i < nd; i++)
-        ds[i] = &c->disks[i];
-    if (nd > HOSTCOLS_DISKS) {
-        qsort(ds, (size_t)nd, sizeof(ds[0]), cmp_disk_desc);
-        nd = HOSTCOLS_DISKS;
-    }
-    out->ndisks = nd;
-    out->worst = -1;
     hc_att_t att = out->nodata ? HC_ATT_CRIT : HC_ATT_NONE;
     att = worse(att, out->ram_att);
+    int worst = -1, over = 0;
     for (int i = 0; i < nd; i++) {
-        hc_disk_t *d = &out->disks[i];
-        memcpy(d->name, ds[i]->label, strnlen(ds[i]->label, LABEL_LEN - 1));
-        d->pct = round_pct(ds[i]->pct);
+        hc_att_t da = hostcols_disk_att(round_pct(c->disks[i].pct));
+        att = worse(att, da);
+        if (da != HC_ATT_NONE)
+            over++;
+        if (worst < 0 || c->disks[i].pct > c->disks[worst].pct)
+            worst = i;
+    }
+    if (worst >= 0) {
+        hc_disk_t *d = &out->disk;
+        memcpy(d->name, c->disks[worst].label, strnlen(c->disks[worst].label, LABEL_LEN - 1));
+        d->pct = round_pct(c->disks[worst].pct);
         d->att = hostcols_disk_att(d->pct);
-        att = worse(att, d->att);
-        if (out->worst < 0 || ds[i]->pct > ds[out->worst]->pct)
-            out->worst = i;
+        out->has_disk = true;
+        out->disk_more = over - (d->att != HC_ATT_NONE);
     }
     out->att = att;
 }

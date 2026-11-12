@@ -6,17 +6,21 @@
 
 ## Now
 
-- **029 — Host columns** (korg proposal 4527). One 3×1 widget in row 0 replaces
-  the six host cards: a full column per host with sparklines, compact tiles past
-  ten hosts, up to thirty, attention by border colour. Spec:
+- **030 — Host columns across the full row** (korg proposal 4545). The 029
+  widget widened to all of row 0 (3792×628) with the text roughly doubled, CPU
+  average and top core on one line, and one row for the fullest drive in place
+  of the drive list. Spec: `planning/hosts-wide-mockups.html`.
+- **029 — Host columns** (korg proposal 4527, shipped). One widget in row 0
+  replaced the six host cards: a full column per host with sparklines, compact
+  tiles past ten hosts, up to thirty, attention by border colour. Spec:
   `planning/hosts-columns-mockups.html`; first brainstorm:
   `planning/refresh-mockups.html`.
 
 ## Next
 
-- **What fills row 0, columns 3-5.** Freed by 029 and deliberately left empty;
-  Ken decides what goes there (candidates from the refresh brainstorm: the dev
-  graphs, the NAS/network cards, Fortune's return).
+- **What fills the free host columns.** With seven hosts, three of row 0's ten
+  columns are empty (1111×596) since 030. A later brainstorm with Ken; he wants
+  something graphical there, not Fortune.
 - **Service card: kmon status with staleness alerting** (korg #902, M) — the
   card should distinguish "kmon says everything is fine" from "kmon has not
   said anything in a while", which currently look the same.

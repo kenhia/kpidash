@@ -16,7 +16,6 @@
 #define HOSTCOLS_COLS 10 /* full columns across the widget */
 #define HOSTCOLS_PER 3   /* compact tiles per column */
 #define HOSTCOLS_MAX (HOSTCOLS_COLS * HOSTCOLS_PER)
-#define HOSTCOLS_DISKS 5 /* drive rows in a full column */
 
 /* Attention thresholds, the mock-up's: RAM and every drive warn at >= 80 %
  * and are critical at >= 90 %, judged on the rounded percent that is drawn so
@@ -53,9 +52,12 @@ typedef struct {
     int gpu_pct;
     char vram[32]; /* "30.3 / 31.8" (GB) */
     int vram_pct;
-    int ndisks;
-    hc_disk_t disks[HOSTCOLS_DISKS];
-    int worst; /* index into disks of the fullest; -1 with no drives */
+    /* One drive row (WI #4544): the fullest drive by percent, so the drive
+     * that set the border is always the one drawn. The border itself still
+     * comes from every drive. */
+    bool has_disk;
+    hc_disk_t disk;
+    int disk_more; /* other drives at or over the warn line: the "+N" */
 } hc_host_t;
 
 /* The fill rule: n hosts -> how many full columns and how many compact tiles.
