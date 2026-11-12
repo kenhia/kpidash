@@ -59,3 +59,20 @@ output buffer, and `hostcols_build()` using the function while leaving
 - Offline render (`render_host_columns -f`) of the seven real strings, with
   every uptime set to a deliberately wide `up 189d 0h`: all seven columns show
   the short name with no ellipsis (`.scratch/031-render-top.png`).
+
+## Deployed
+
+Deployed 2026-11-12 at 12:03 PST, from kai, on the ship turn. That followed
+the overseer's clearance (korg:4558 comment 4605) and the squash merge
+`df59d7c` (PR #34).
+
+- **rpi53**: `scripts/deploy.sh` ran from merged `main`.
+  - The service is active with `NRestarts=0` and reports `df59d7c
+    (2026-11-12)`.
+  - The aarch64 build and link printed no warnings
+    (`.scratch/deploy-031-ship.log`, grepped).
+  - `~/kpidash` matches `build-pi/kpidash` (md5 `4e9216c0…`).
+- **Live capture** (`scripts/krpidss`, `.scratch/live-031-ship.png`): all
+  seven full columns show the short name with no ellipsis. kai, kubs0 and
+  kubsdb show "Ubuntu 24.04", gratch "Ubuntu 26.04", cleo "Win 11 Pro", kimac
+  "macOS 27.0" and rpi53 "Debian 13".
