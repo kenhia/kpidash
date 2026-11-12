@@ -19,6 +19,7 @@ function(add_kpidash_test target_name)
         ${CJSON_LIBRARIES}
         kdash_core   # WI #2244: registry.c calls kdash_apttemps_band()
         pthread
+        m            # WI #4523: hosthist.c uses floor()
     )
     target_compile_options(${target_name} PRIVATE -Wall -Wextra -Wno-unused-parameter)
     add_test(NAME ${target_name} COMMAND ${target_name})
@@ -36,6 +37,7 @@ add_kpidash_test(test_config
 add_kpidash_test(test_redis_json
     ${CMAKE_CURRENT_SOURCE_DIR}/test_redis_json.c
     ${CMAKE_SOURCE_DIR}/src/redis.c
+    ${CMAKE_SOURCE_DIR}/src/hosthist.c
     ${CMAKE_SOURCE_DIR}/src/registry.c
 )
 # Provide stub implementations of ui.h / status.h / fortune.h symbols
@@ -91,6 +93,7 @@ add_kpidash_test(test_service_card
     ${CMAKE_CURRENT_SOURCE_DIR}/test_service_card.c
     ${CMAKE_SOURCE_DIR}/src/registry.c
     ${CMAKE_SOURCE_DIR}/src/redis.c
+    ${CMAKE_SOURCE_DIR}/src/hosthist.c
 )
 target_compile_definitions(test_service_card PRIVATE KPIDASH_TEST_STUBS=1)
 
@@ -99,6 +102,7 @@ add_kpidash_test(test_stale_card
     ${CMAKE_CURRENT_SOURCE_DIR}/test_stale_card.c
     ${CMAKE_SOURCE_DIR}/src/registry.c
     ${CMAKE_SOURCE_DIR}/src/redis.c
+    ${CMAKE_SOURCE_DIR}/src/hosthist.c
 )
 target_compile_definitions(test_stale_card PRIVATE KPIDASH_TEST_STUBS=1)
 
@@ -107,6 +111,7 @@ add_kpidash_test(test_update_card
     ${CMAKE_CURRENT_SOURCE_DIR}/test_update_card.c
     ${CMAKE_SOURCE_DIR}/src/registry.c
     ${CMAKE_SOURCE_DIR}/src/redis.c
+    ${CMAKE_SOURCE_DIR}/src/hosthist.c
 )
 target_compile_definitions(test_update_card PRIVATE KPIDASH_TEST_STUBS=1)
 
@@ -148,18 +153,46 @@ add_test(NAME test_logfilter COMMAND test_logfilter)
 # Requires LVGL, which is only built in the full (non-TESTS_ONLY) configuration.
 if(TARGET lvgl)
     pkg_check_modules(PNG_TEST REQUIRED libpng)
+    # WI #4524: the host columns widget and everything it draws with.
+    set(HOST_COLUMNS_SRCS
+        ${CMAKE_SOURCE_DIR}/src/widgets/host_columns.c
+        ${CMAKE_SOURCE_DIR}/src/hostcols.c
+        ${CMAKE_SOURCE_DIR}/src/hosthist.c
+        ${CMAKE_SOURCE_DIR}/src/registry.c
+        ${CMAKE_SOURCE_DIR}/fonts/lv_font_montserrat_bold_14.c
+        ${CMAKE_SOURCE_DIR}/fonts/lv_font_montserrat_bold_16.c
+        ${CMAKE_SOURCE_DIR}/fonts/lv_font_montserrat_bold_20.c
+        ${CMAKE_SOURCE_DIR}/fonts/lv_font_montserrat_bold_24.c
+    )
     add_executable(test_widget_leak
         ${CMAKE_CURRENT_SOURCE_DIR}/test_widget_leak.c
         ${CMAKE_SOURCE_DIR}/src/memstat.c
+        ${HOST_COLUMNS_SRCS}
     )
     target_include_directories(test_widget_leak PRIVATE
         ${CMAKE_SOURCE_DIR}
         ${CMAKE_SOURCE_DIR}/src
+        ${CMAKE_SOURCE_DIR}/fonts
         ${PNG_TEST_INCLUDE_DIRS}
     )
-    target_link_libraries(test_widget_leak lvgl ${PNG_TEST_LIBRARIES} pthread)
+    target_link_libraries(test_widget_leak lvgl kdash_core ${PNG_TEST_LIBRARIES} pthread m)
     target_compile_options(test_widget_leak PRIVATE -Wall -Wextra -Wno-unused-parameter)
     add_test(NAME test_widget_leak COMMAND test_widget_leak)
+
+    # WI #4524/#4525: offline render of the widget to BMP, for review without
+    # a Pi. A tool, not a test — see the file's header for usage.
+    add_executable(render_host_columns
+        ${CMAKE_CURRENT_SOURCE_DIR}/render_host_columns.c
+        ${CMAKE_SOURCE_DIR}/src/bmp_write.c
+        ${HOST_COLUMNS_SRCS}
+    )
+    target_include_directories(render_host_columns PRIVATE
+        ${CMAKE_SOURCE_DIR}
+        ${CMAKE_SOURCE_DIR}/src
+        ${CMAKE_SOURCE_DIR}/fonts
+    )
+    target_link_libraries(render_host_columns lvgl kdash_core ${PNG_TEST_LIBRARIES} pthread m)
+    target_compile_options(render_host_columns PRIVATE -Wall -Wextra -Wno-unused-parameter)
 endif()
 
 # WI #4062: the network card's model. Pure — no LVGL, no Redis — and held to
@@ -188,3 +221,22 @@ target_compile_options(test_nasstate PRIVATE -Wall -Wextra -Wno-unused-parameter
 target_compile_definitions(test_nasstate PRIVATE
     KDASH_NAS_SCHEMA="${CMAKE_SOURCE_DIR}/lib/kdashdata/contracts/schemas/kdash-nas.schema.json")
 add_test(NAME test_nasstate COMMAND test_nasstate)
+
+# WI #4523: the per-host history ring behind the host columns sparklines.
+add_executable(test_hosthist
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_hosthist.c
+    ${CMAKE_SOURCE_DIR}/src/hosthist.c
+)
+target_include_directories(test_hosthist PRIVATE ${CMAKE_SOURCE_DIR}/src)
+target_link_libraries(test_hosthist m pthread)
+target_compile_options(test_hosthist PRIVATE -Wall -Wextra -Wno-unused-parameter)
+add_test(NAME test_hosthist COMMAND test_hosthist)
+
+# WI #4524/#4525: the host columns widget's pure half -- fill rule, order,
+# attention. Links registry.c for registry_priority_index / client_presence.
+add_kpidash_test(test_hostcols
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_hostcols.c
+    ${CMAKE_SOURCE_DIR}/src/hostcols.c
+    ${CMAKE_SOURCE_DIR}/src/registry.c
+)
+target_compile_definitions(test_hostcols PRIVATE KPIDASH_TEST_STUBS=1)

@@ -9,6 +9,7 @@
 #include <unistd.h>
 
 #include "fortune.h"
+#include "hosthist.h"
 #include "memstat.h"
 #include "nasstate.h"
 #include "netstate.h"
@@ -581,6 +582,11 @@ void redis_poll(void) {
             }
             if (telemetry_ok) {
                 redis_parse_telemetry_json(tr->str, c);
+                /* WI #4523: the host columns sparklines. Recorded only when
+                 * the key is present, so a host that stops reporting holds
+                 * its last trace instead of drawing a drop to zero. */
+                hosthist_record(c->hostname, (double)time(NULL), c->cpu_pct, c->top_core_pct,
+                                c->gpu.present ? c->gpu.compute_pct : 0.0f);
             }
         }
 

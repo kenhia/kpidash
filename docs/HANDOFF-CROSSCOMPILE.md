@@ -57,7 +57,7 @@ kpidash/
 │   ├── ui.{h,c}                # Screen layout + Redis error overlay
 │   ├── protocol.h              # Redis key macros + constants
 │   └── widgets/
-│       ├── client_card.{h,c}
+│       ├── host_columns.{h,c}
 │       ├── activities.{h,c}
 │       ├── repo_status.{h,c}
 │       ├── fortune.{h,c}
@@ -278,7 +278,7 @@ sudo -E ./kpidash
 | `KPIDASH_REDIS_PORT` | `6379` | Redis port |
 | `REDISCLI_AUTH` | (none) | Redis password — one copy per host in `/etc/khomelab/secrets.env`; `kpidash.service` reads it with `EnvironmentFile=` (see `ops/rpi53/dashboard/`) |
 | `KPIDASH_DRM_DEV` | `/dev/dri/card1` | DRM device path |
-| `KPIDASH_MAX_CLIENTS` | `16` | Max tracked clients |
+| `KPIDASH_MAX_CLIENTS` | `32` | Max tracked clients (30 fit on the host columns) |
 | `KPIDASH_ACTIVITY_MAX` | `10` | Max activities shown |
 | `KPIDASH_LOG_FILE` | `/var/log/kpidash/kpidash.log` | Log path (written to Redis) |
 | `KPIDASH_STATE_FILE` | `/var/lib/kpidash/admitted` | Hosts that have published at least once (sprint 022); loaded at startup so a down host keeps its card |
@@ -364,7 +364,6 @@ kpidash/
 │   ├── net.c / net.h           # UDP listener thread (cJSON parsing)
 │   ├── registry.c / registry.h # Thread-safe client array (mutex-protected)
 │   └── protocol.h              # Constants: port, buffer sizes, timeouts
-├── resources/                  # PNG images (nvme.png, hdd.png, ssd.png)
 ├── lib/
 │   └── lvgl/                   # LVGL v9.2.2 (git submodule, tag v9.2.2)
 └── docs/
@@ -552,8 +551,6 @@ file kpidash
 
 ```bash
 scp build-pi5/kpidash ken@PI_IP:~/src/kpidash/build/kpidash
-# Also sync any new resources:
-rsync -avz resources/ ken@PI_IP:~/src/kpidash/resources/
 ```
 
 ### 6.6 Native build (for reference)

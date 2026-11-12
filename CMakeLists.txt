@@ -98,6 +98,8 @@ add_executable(kpidash
     src/registry.c
     src/config.c
     src/redis.c
+    src/hosthist.c
+    src/hostcols.c
     src/screenshot.c
     src/bmp_write.c
     src/status.c
@@ -106,7 +108,7 @@ add_executable(kpidash
     src/admitted.c
     src/ui.c
     src/fortune.c
-    src/widgets/client_card.c
+    src/widgets/host_columns.c
     src/widgets/activities.c
     src/widgets/repo_status.c
     src/widgets/fortune.c
@@ -151,6 +153,7 @@ target_link_libraries(kpidash
     ${CJSON_LIBRARIES}
     ${PNG_LIBRARIES}
     pthread
+    m  # WI #4523: hosthist.c uses floor()
 )
 
 target_compile_options(kpidash PRIVATE -Wall -Wextra -Wno-unused-parameter)

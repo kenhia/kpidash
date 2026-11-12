@@ -6,12 +6,17 @@
 
 ## Now
 
-- **014 — kprojects harness** (korg #1263). Migrate off Spec-Kit: collapse the
-  twelve spec directories into `sprints/`, drop the Spec-Kit machinery, give the
-  repo its first real `just check` gate.
+- **029 — Host columns** (korg proposal 4527). One 3×1 widget in row 0 replaces
+  the six host cards: a full column per host with sparklines, compact tiles past
+  ten hosts, up to thirty, attention by border colour. Spec:
+  `planning/hosts-columns-mockups.html`; first brainstorm:
+  `planning/refresh-mockups.html`.
 
 ## Next
 
+- **What fills row 0, columns 3-5.** Freed by 029 and deliberately left empty;
+  Ken decides what goes there (candidates from the refresh brainstorm: the dev
+  graphs, the NAS/network cards, Fortune's return).
 - **Service card: kmon status with staleness alerting** (korg #902, M) — the
   card should distinguish "kmon says everything is fine" from "kmon has not
   said anything in a while", which currently look the same.
