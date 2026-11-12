@@ -1,0 +1,275 @@
+<meta name="claude:viewport-fit-sides" content="cover">
+<title>kpidash NAS Card</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;700&display=swap">
+<style>
+/* Layout: one dark Mocha column, same chrome as the earlier kpidash mock-up pages. Each figure is
+   row 2 of the panel at real pixels: the live 10G card on the left, a NAS card on the right.
+   Single dark look by choice, because the subject is a dark panel. */
+:root{
+  color-scheme:dark;
+  --crust:#11111B; --base:#1E1E2E; --raise:#232336; --s0:#313244; --s1:#45475A;
+  --muted:#6C7086; --sub:#A6ADC8; --fg:#CDD6F4;
+  --teal:#94E2D5; --lav:#B4BEFE; --peach:#FAB387; --yellow:#F9E2AF; --red:#F38BA8;
+  --font:"Montserrat",system-ui,-apple-system,"Segoe UI",sans-serif;
+}
+body{background:var(--crust);color:var(--fg);font-family:var(--font);font-size:16px;line-height:1.55;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:32px 80px}
+.wrap{max-width:1920px;margin:0 auto;display:flex;flex-direction:column;gap:48px}
+body.actual{padding-inline:0}
+body.actual .wrap{max-width:none}
+body.actual .wrap>*:not(#figsec){padding-inline:24px}
+body.actual .sechead,body.actual .vhead,body.actual .variant>p{padding-inline:24px}
+h1{font-size:40px;line-height:1.1;margin:0;color:var(--teal);font-weight:700;text-wrap:balance}
+h2{font-size:28px;margin:0;font-weight:700;text-wrap:balance}
+h3{font-size:20px;margin:0;font-weight:700}
+p{margin:0;max-width:68ch;color:var(--sub)}
+p b,li b{color:var(--fg)}
+.lede{font-size:18px}
+header{display:flex;flex-direction:column;gap:14px}
+.bar{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--crust);padding-block:10px;
+  display:flex;flex-wrap:wrap;gap:10px 24px;align-items:center;border-bottom:1px solid var(--s0)}
+.seg{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.seg span{font-size:13px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-right:4px}
+button{font:inherit;font-size:14px;font-weight:700;color:var(--fg);background:var(--base);border:1px solid var(--s1);
+  border-radius:999px;padding:6px 14px;cursor:pointer}
+button[aria-pressed="true"]{background:var(--teal);color:var(--crust);border-color:var(--teal)}
+button:focus-visible{outline:2px solid var(--lav);outline-offset:2px}
+section{display:flex;flex-direction:column;gap:24px}
+.sechead{display:flex;flex-direction:column;gap:8px}
+#figs{display:flex;flex-direction:column;gap:40px}
+.variant{display:flex;flex-direction:column;gap:12px}
+.vhead{display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 16px}
+.tag{font-size:13px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--crust);background:var(--lav);
+  border-radius:999px;padding:2px 10px}
+.canvas{overflow-x:auto;max-width:100%}
+.canvas svg{display:block;max-width:100%;height:auto}
+body.actual .canvas svg{max-width:none}
+ul{margin:0;padding-left:20px;color:var(--sub);max-width:68ch}
+li{margin-block:4px}
+.open{border-left:3px solid var(--peach);padding-left:14px;display:flex;flex-direction:column;gap:8px}
+.how{border-left:3px solid var(--teal);padding-left:14px;display:flex;flex-direction:column;gap:8px}
+</style>
+
+<div class="wrap">
+<header>
+  <h1>NAS card, four ways</h1>
+  <p class="lede">Each figure is the left two thirds of row 2 as it will be after the cleanup sprint: the live 10G card, then a NAS card drawn at the real 1264&times;628. The numbers are gratch's from this afternoon's capture.</p>
+  <div class="how">
+    <h3>To see it at the size it will be on the dashboard</h3>
+    <p>Open this page on cleo's monitor 2, press <b>Actual pixels</b>, and set the browser zoom to 50%.</p>
+  </div>
+</header>
+
+<div class="bar">
+  <div class="seg"><span>State</span>
+    <button id="st-ok" aria-pressed="true">All quiet</button>
+    <button id="st-warn" aria-pressed="false">Disk warning</button>
+    <button id="st-crit" aria-pressed="false">Pool degraded</button>
+    <button id="st-stale" aria-pressed="false">Stale feed</button></div>
+  <div class="seg"><span>Colour</span>
+    <button id="ac-lav" aria-pressed="false">Lavender</button>
+    <button id="ac-peach" aria-pressed="false">Peach</button>
+    <button id="ac-mauve" aria-pressed="true">Mauve</button></div>
+  <div class="seg"><span>Scale</span>
+    <button id="sc-fit" aria-pressed="true">Fit to page</button>
+    <button id="sc-actual" aria-pressed="false">Actual pixels</button></div>
+</div>
+
+<section id="figsec">
+  <div class="sechead">
+    <h2>The card today, then four candidates</h2>
+    <p>The switches above change every candidate at once. The 10G card and today's NAS card are screen captures, so they do not change.</p>
+  </div>
+  <div id="figs"></div>
+</section>
+
+<section>
+  <div class="sechead"><h2>The same in all four</h2></div>
+  <ul>
+    <li><b>No green border.</b> The frame is a thin neutral line, as on the 10G card. It turns yellow or red only when something is wrong, which is the rule the host columns use.</li>
+    <li><b>One colour for "healthy".</b> A healthy disk, a healthy pool bar and the SMART mark take the card's colour, the way teal means healthy on the 10G card. Standby is grey. Yellow and red keep their meaning.</li>
+    <li><b>The headline says the state.</b> "NAS OK" where the 10G card says "ALL 10G". When something is wrong the headline names it.</li>
+    <li><b>Nothing under 20 px.</b> Today's card uses 16 px for every detail line.</li>
+    <li><b>The activity chart is gone.</b> gratch's CPU and RAM are now in its host column in row 1.</li>
+  </ul>
+</section>
+
+<section>
+  <div class="sechead">
+    <h2>Things to decide while you look</h2>
+  </div>
+  <div class="open">
+    <h3>Which colour</h3>
+    <p>Lavender is the quietest next to teal and is not used for any reading elsewhere on the panel. Peach is the warmest contrast and is what the card's title uses today, but it is also the GPU colour in the host columns and sits close to warning yellow. Mauve is the RAM colour in the host columns.</p>
+  </div>
+  <div class="open">
+    <h3>How much disk detail</h3>
+    <p>A and C drop the long model strings to fit a tile ("990 EVO Plus", not "Samsung SSD 990 EVO Plus 4TB"). That needs a shortening rule in the dashboard, like the one for OS names. B and D have room for a little more of the name.</p>
+  </div>
+  <div class="open">
+    <h3>The 10G card's own small text</h3>
+    <p>Its labels are 14 and 16 px. Beside a NAS card at 20 px and up they will look smaller than they do now. Bringing the 10G card up to the same floor would be a separate sprint.</p>
+  </div>
+</section>
+</div>
+
+<script>
+const C={crust:'#11111B',mantle:'#181825',base:'#1E1E2E',raise:'#232336',s0:'#313244',s1:'#45475A',muted:'#6C7086',sub:'#A6ADC8',fg:'#CDD6F4',
+  red:'#F38BA8',peach:'#FAB387',mauve:'#CBA6F7',yellow:'#F9E2AF',teal:'#94E2D5',lav:'#B4BEFE'};
+let STATE='ok', ACC='mauve';
+const W=1264,H=628;
+
+const esc=s=>String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;');
+function T(x,y,s,o={}){return `<text x="${x}" y="${y}" font-size="${o.s||20}" font-weight="${o.w||400}" fill="${o.f||C.fg}" text-anchor="${o.a||'start'}"${o.ls?` letter-spacing="${o.ls}"`:''}>${esc(s)}</text>`}
+function T2(x,y,a,b,o={}){return `<text x="${x}" y="${y}" xml:space="preserve"><tspan font-size="24" font-weight="700" fill="${o.f||C.fg}">${esc(a)}</tspan><tspan dx="12" font-size="20" fill="${C.sub}">${esc(b)}</tspan></text>`}
+function R(x,y,w,h,f,o={}){return `<rect x="${x}" y="${y}" width="${Math.max(0,w)}" height="${h}" rx="${o.rx??0}" fill="${f}"${o.st?` stroke="${o.st}" stroke-width="${o.sw||1}"`:''}${o.da?` stroke-dasharray="${o.da}"`:''}/>`}
+function bar(x,y,w,h,p,col){return R(x,y,w,h,C.s0,{rx:h/2})+(p>0?R(x,y,Math.max(h,w*Math.min(p,100)/100),h,col,{rx:h/2}):'')}
+
+/* ---------- data: gratch, 2026-11-12 ---------- */
+function model(){
+  const st=STATE, acc=st==='stale'?C.muted:C[ACC];
+  const disks=[
+    {dev:'sda',  m:'860 EVO',      kind:'ssd', t:24, standby:false},
+    {dev:'sdb',  m:'ST8000VN0022', kind:'hdd', t:26, standby:true},
+    {dev:'sdc',  m:'ST8000VN0022', kind:'hdd', t:27, standby:true, extra:'realloc 8'},
+    {dev:'sdd',  m:'ST8000VN0022', kind:'hdd', t:26, standby:true},
+    {dev:'nvme0',m:'T710',         kind:'nvme',t:31, extra:'wear 0%'},
+    {dev:'nvme1',m:'SN7100',       kind:'nvme',t:30, extra:'wear 0%'},
+    {dev:'nvme2',m:'990 PRO',      kind:'nvme',t:37, extra:'wear 0%'},
+    {dev:'nvme3',m:'990 EVO Plus', kind:'nvme',t:31, extra:'wear 0%'}];
+  disks.forEach(d=>{d.smart='ok';d.lvl=d.standby?'idle':'ok'});
+  let head='NAS OK', hc=C.fg, sub='8 disks · scrub 4 d ago · 0 errors', health='ONLINE', frame=C.s1, poolC=acc;
+  if(st==='warn'){const d=disks[2];d.extra='pending 2';d.lvl='warn';head='sdc PENDING 2';hc=C.yellow;sub='1 disk needs a look · scrub 4 d ago';frame=C.yellow}
+  if(st==='crit'){const d=disks[3];d.smart='FAILED';d.lvl='crit';d.extra='SMART FAILED';head='nas DEGRADED';hc=C.red;sub='sdd failed SMART · pool has lost a disk';health='DEGRADED';frame=C.red;poolC=C.red}
+  if(st==='stale'){head='STALE · 4 m';hc=C.red;sub='last values shown · no data for 4 minutes';frame=C.muted}
+  const col=d=>st==='stale'?C.muted:d.lvl==='crit'?C.red:d.lvl==='warn'?C.yellow:d.lvl==='idle'?C.muted:acc;
+  const smartC=d=>st==='stale'?C.s1:d.smart==='ok'?acc:C.red;
+  const stateTxt=d=>d.standby?'standby':d.kind==='hdd'?'spinning':'active';
+  const collected=st==='stale'?'no feed':'collected 3 m ago';
+  return {st,acc,disks,head,hc,sub,health,frame,poolC,col,smartC,stateTxt,collected,
+    txt:st==='stale'?C.muted:C.fg, subc:st==='stale'?C.muted:C.sub};
+}
+function frame(m){return R(4,4,W-8,H-8,C.mantle,{rx:8,st:m.frame,sw:m.st==='ok'?2:3})}
+function headline(m){return T(32,74,m.head,{s:48,w:700,f:m.hc})+T(32,108,m.sub,{f:m.subc})}
+function statbox(x,y,l,v,m){return R(x,y,170,80,C.base,{rx:6,st:C.s0})+T(x+14,y+28,l,{f:C.muted,ls:'.04em'})+T(x+14,y+64,v,{s:28,w:700,f:m.txt})}
+
+/* ---------- A: Rail ---------- */
+function vA(){
+  const m=model();let s=frame(m)+headline(m);
+  s+=statbox(698,24,'POOL','17%',m)+statbox(880,24,'HOTTEST','37°',m)+statbox(1062,24,'DATA AGE',m.st==='stale'?'4 m':'3 m',m);
+  s+=T(32,152,'nas · '+m.health,{w:700,f:m.health==='ONLINE'?m.txt:C.red})+T(812,152,'992 GB / 5.9 TB · 17%',{a:'end',f:m.subc})+bar(32,164,780,28,17,m.poolC);
+  s+=T(836,152,'root',{w:700,f:m.txt})+T(1232,152,'13 / 913 GB · 1%',{a:'end',f:m.subc})+bar(836,164,396,28,1,m.acc);
+  s+=R(32,222,1200,6,m.acc,{rx:3});
+  const tw=139;
+  /* Ken's order and use labels: root, the three pool disks, cache, the three cold disks. */
+  const ROLE={nvme2:'root',nvme0:'nas pool',nvme1:'nas pool',nvme3:'nas pool',sda:'cache',sdb:'cold',sdc:'cold',sdd:'cold'};
+  const ORDER=Object.keys(ROLE);
+  const COLD='#2B3046'; /* base with 12% Mocha blue, mixed ahead of time so the fill stays opaque */
+  ORDER.map(k=>m.disks.find(d=>d.dev===k)).forEach((d,i)=>{
+    const x=Math.round(32+i*(1200-tw)/7), px=x+14, c=m.col(d), role=ROLE[d.dev];
+    s+=R(x+tw/2-3,225,6,18,m.acc)+R(x,240,tw,356,role==='cold'?COLD:C.base,{rx:8})+R(x,240,tw,6,c,{rx:3});
+    s+=T(px,278,role,{w:700,f:m.st==='stale'?C.muted:role==='nas pool'?C.peach:C.sub});
+    s+=T(px,318,d.dev,{s:24,w:700,f:m.txt})+T(px,346,d.kind,{f:C.muted});
+    s+=T(px,410,d.t+'°',{s:44,w:700,f:d.standby?C.sub:m.txt})+bar(px,424,tw-28,8,(d.t-20)/40*100,c);
+    s+=T(px,468,m.stateTxt(d),{f:m.subc});
+    if(d.extra&&d.smart==='ok')s+=T(px,496,d.extra,{f:d.lvl==='warn'?C.yellow:m.subc,w:d.lvl==='warn'?700:400});
+    const sc=m.smartC(d);
+    s+=R(px,540,tw-28,36,sc,{rx:18})+T(x+tw/2,565,d.smart==='ok'?'SMART':'FAILED',{a:'middle',w:700,f:m.st==='stale'?C.muted:C.crust});
+  });
+  return s;
+}
+
+/* ---------- B: Gauge ---------- */
+function vB(){
+  const m=model();let s=frame(m)+headline(m)+T(1232,60,m.collected,{a:'end',f:m.subc});
+  const cx=212,cy=322,r=110,circ=2*Math.PI*r;
+  s+=T(cx,166,'nas · '+m.health,{s:24,w:700,a:'middle',f:m.health==='ONLINE'?m.txt:C.red});
+  s+=`<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${C.s0}" stroke-width="30"/>`;
+  s+=`<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${m.poolC}" stroke-width="30" stroke-linecap="round" stroke-dasharray="${(circ*.17).toFixed(1)} ${circ.toFixed(1)}" transform="rotate(-90 ${cx} ${cy})"/>`;
+  s+=T(cx,cy+12,'17%',{s:48,w:700,a:'middle',f:m.txt})+T(cx,cy+44,'used',{a:'middle',f:C.muted});
+  s+=T(cx,486,'992 GB of 5.9 TB',{s:24,w:700,a:'middle',f:m.txt})+T(cx,516,'scrub 4 d ago · 0 errors',{a:'middle',f:m.subc});
+  s+=T(52,560,'root',{w:700,f:m.txt})+T(372,560,'13 / 913 GB · 1%',{a:'end',f:m.subc})+bar(52,572,320,16,1,m.acc);
+  const x0=440,cw=386,rh=114;
+  m.disks.forEach((d,i)=>{
+    const x=x0+Math.floor(i/4)*(cw+20), y=140+(i%4)*rh, c=m.col(d);
+    s+=R(x,y+6,8,rh-28,c,{rx:4})+T2(x+24,y+36,d.dev,d.m,{f:m.txt});
+    s+=T(x+cw,y+40,d.t+'°',{s:36,w:700,a:'end',f:d.standby?C.sub:m.txt});
+    let line=m.stateTxt(d)+' · SMART '+d.smart+(d.extra&&d.smart==='ok'?' · '+d.extra:'');
+    s+=T(x+24,y+72,line,{f:d.lvl==='warn'?C.yellow:d.lvl==='crit'?C.red:m.subc,w:(d.lvl==='warn'||d.lvl==='crit')?700:400});
+  });
+  return s;
+}
+
+/* ---------- C: Bays ---------- */
+function vC(){
+  const m=model();let s=frame(m)+headline(m)+T(1232,60,m.collected,{a:'end',f:m.subc});
+  s+=T(32,172,'nas · '+m.health,{s:24,w:700,f:m.health==='ONLINE'?m.txt:C.red})+bar(32,186,340,36,17,m.poolC);
+  s+=T(32,252,'992 GB / 5.9 TB · 17%',{f:m.subc})+T(32,280,'scrub 4 d ago · 0 errors',{f:m.subc});
+  s+=T(32,352,'root',{s:24,w:700,f:m.txt})+bar(32,366,340,36,1,m.acc)+T(32,432,'13 GB / 913 GB · 1%',{f:m.subc});
+  const x0=410,bw=195,gap=14;
+  m.disks.forEach((d,i)=>{
+    const sata=i<4, x=x0+(i%4)*(bw+gap), y=sata?130:406, h=sata?262:190, c=m.col(d), hot=d.lvl==='warn'||d.lvl==='crit';
+    s+=R(x,y,bw,h,d.standby&&!hot?C.mantle:C.base,{rx:10,st:hot?c:C.s0,sw:hot?3:2,da:d.standby&&!hot?'8 6':null});
+    s+=`<circle cx="${x+bw-24}" cy="${y+28}" r="9" fill="${c}"/>`;
+    s+=T(x+16,y+38,d.dev,{s:24,w:700,f:m.txt})+T(x+16,y+66,d.m,{f:m.subc});
+    if(sata){
+      for(let k=0;k<4;k++)s+=R(x+16,y+88+k*11,bw-32,4,C.s0,{rx:2});
+      s+=T(x+16,y+188,d.t+'°',{s:48,w:700,f:d.standby?C.sub:m.txt});
+      s+=T(x+16,y+222,m.stateTxt(d),{f:m.subc});
+      const e=d.smart==='ok'?(d.extra||'SMART ok'):d.extra;
+      s+=T(x+16,y+248,e,{f:hot?c:m.subc,w:hot?700:400});
+    }else{
+      s+=T(x+16,y+124,d.t+'°',{s:36,w:700,f:m.txt})+T(x+bw-16,y+124,d.extra,{a:'end',f:m.subc});
+      s+=T(x+16,y+154,'SMART '+d.smart,{f:m.subc});
+      for(let k=0;k<11;k++)s+=R(x+16+k*12,y+h-18,7,10,C.s1,{rx:1});
+    }
+  });
+  return s;
+}
+
+/* ---------- D: Tidy ---------- */
+function vD(){
+  const m=model();let s=frame(m);
+  s+=T(24,52,'gratch · NAS',{s:28,w:700,f:m.acc});
+  s+=T(1240,50,m.st==='ok'?m.collected:m.head,{a:'end',w:m.st==='ok'?400:700,s:m.st==='ok'?20:24,f:m.st==='ok'?m.subc:m.hc});
+  const pool=(y,name,det,txt,p,c)=>T(24,y+22,name,{s:24,w:700,f:name.includes('DEGRADED')?C.red:m.txt})+T(614,y+22,det,{a:'end',f:m.subc})
+    +R(24,y+34,590,40,C.s0,{rx:6})+R(24,y+34,Math.max(12,590*p/100),40,c,{rx:6})+T(40+Math.max(12,590*p/100),y+61,txt,{w:700,f:m.txt});
+  s+=pool(88,'nas · '+m.health,'scrub 4 d ago · 0 err','992 GB / 5.9 TB · 17%',17,m.poolC);
+  s+=pool(196,'root','boot disk','13 GB / 913 GB · 1%',1,m.acc);
+  const sb=(x,l,v)=>R(x,330,186,110,C.base,{rx:6,st:C.s0})+T(x+16,364,l,{f:C.muted,ls:'.04em'})+T(x+16,416,v,{s:36,w:700,f:m.txt});
+  s+=sb(24,'DISKS','8')+sb(226,'STANDBY','3')+sb(428,'HOTTEST','37°');
+  m.disks.forEach((d,i)=>{
+    const y=84+i*64, c=m.col(d), hot=d.lvl==='warn'||d.lvl==='crit';
+    s+=R(640,y+4,8,50,c,{rx:4})+T2(662,y+24,d.dev,d.m,{f:m.txt});
+    const line=d.kind+' · '+d.t+'° · '+m.stateTxt(d)+' · SMART '+d.smart+(d.extra&&d.smart==='ok'?' · '+d.extra:'');
+    s+=T(662,y+50,line,{f:hot?c:m.subc,w:hot?700:400});
+  });
+  return s;
+}
+
+const VARIANTS=[
+  {k:'A',name:'Rail',fn:vA,note:'The 10G card’s skeleton: state headline, three figures top right, a bus line, one tile per disk hanging from it. Temperature is the big number. Model names are left out. <b>Picked, and revised 2026-11-12:</b> mauve, disks in Ken’s order (root, the three pool disks, cache, the three cold disks), the use above each disk with "nas pool" in peach, and a blue-tinted tile for the cold disks.'},
+  {k:'B',name:'Gauge',fn:vB,note:'The pool as a ring on the left, since "how full" is the one number that changes slowly and matters most. Disks as a two-column list with the temperature at the right.'},
+  {k:'C',name:'Bays',fn:vC,note:'Drawn like the box: four drive bays above four M.2 sticks. A disk in standby is a dashed, darker bay. The lamp in each corner carries the state.'},
+  {k:'D',name:'Tidy',fn:vD,note:'Today’s layout with the smallest change: no green border, bigger text, three figures where the chart was. The title stays "gratch · NAS" and trouble is named at the top right.'}];
+
+function pair(inner,label){
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${W*2}" height="${H}" viewBox="0 0 ${W*2} ${H}" font-family="Montserrat, system-ui, sans-serif" role="img" aria-label="${esc(label)}">`
+    +R(0,0,W*2,H,C.crust)+`<image href="net-card.png" x="0" y="0" width="${W}" height="${H}"/>`+`<g transform="translate(${W} 0)">${inner}</g></svg>`;
+}
+function render(){
+  let h=`<div class="variant"><div class="vhead"><span class="tag">Today</span><h3>The live cards, captured this afternoon</h3></div><div class="canvas">${pair(`<image href="nas-now.png" x="0" y="0" width="${W}" height="${H}"/>`,'The live 10G card beside the live NAS card')}</div></div>`;
+  for(const v of VARIANTS)
+    h+=`<div class="variant"><div class="vhead"><span class="tag">${v.k}</span><h3>${v.name}</h3></div><p>${v.note}</p><div class="canvas">${pair(v.fn(),'10G card beside NAS card candidate '+v.k+', '+v.name)}</div></div>`;
+  document.getElementById('figs').innerHTML=h;
+}
+function group(prefix,keys,apply){
+  keys.forEach(k=>document.getElementById(prefix+k).addEventListener('click',()=>{
+    keys.forEach(j=>document.getElementById(prefix+j).setAttribute('aria-pressed',String(j===k)));apply(k)}));
+}
+group('st-',['ok','warn','crit','stale'],k=>{STATE=k;render()});
+group('ac-',['lav','peach','mauve'],k=>{ACC=k;render()});
+group('sc-',['fit','actual'],k=>document.body.classList.toggle('actual',k==='actual'));
+if(location.hash==='#actual')document.getElementById('sc-actual').click();
+render();
+</script>

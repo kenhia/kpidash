@@ -79,20 +79,6 @@ typedef struct {
     bool textsize_enabled;
 } dev_cmd_state_t;
 
-/* ---- Dev telemetry snapshot (fast GPU+CPU+RAM from dev_telemetry key) ---- */
-typedef struct {
-    bool valid; /* true if key was present and parsed */
-    char host[HOSTNAME_LEN]; /* sprint 006/T034: source host; "(legacy)" if absent */
-    float cpu_pct;
-    float top_core_pct;
-    uint32_t ram_used_mb;
-    uint32_t ram_total_mb;
-    bool gpu_present;
-    float gpu_compute_pct;
-    uint32_t gpu_vram_used_mb;
-    uint32_t gpu_vram_total_mb;
-} dev_telemetry_t;
-
 /* ---- Registry API (global singleton, thread-safe) ---- */
 void registry_init(void);
 void registry_lock(void);
@@ -528,24 +514,5 @@ void update_format_title(const update_entry_t *e, char *buf, size_t n);
 /* Card body: one issue line per kind, in entry order; an unreadable payload
  * renders as "<kind>: detail unknown". */
 void update_format_body(const update_entry_t *e, char *buf, size_t n);
-
-/* ---- Graph host series (T006) ----
- * Once one per dev-graph host. Since sprint 032 removed the dev graphs, only
- * the NAS host's series is filled (redis_poll Step 5), and its one reader is
- * the NAS card's activity chart. */
-#define GRAPH_HOST_MAX 8
-
-typedef struct {
-    char host[64];
-    double last_sample_ts;
-    dev_telemetry_t telemetry; /* latest sample, written by redis_poll */
-} graph_host_series_t;
-
-/* Lookup an existing host series, or allocate a new slot.
- * Returns NULL if the table is full. */
-graph_host_series_t *graph_host_find_or_create(const char *host);
-
-/* Update last_sample_ts for the named host (no-op if not present). */
-void graph_host_touch(const char *host, double ts);
 
 #endif /* REGISTRY_H */

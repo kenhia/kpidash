@@ -127,9 +127,10 @@ LVGL/DRM/KMS with no mouse or keyboard interaction.
    compute into a 10-minute in-memory ring per host (`hosthist.c`, sprint
    029) for the host columns' sparklines.
 3. **Dev Telemetry**: client writes `kpidash:client:{h}:dev_telemetry` (JSON,
-   EX 5 s) at 1 s intervals with GPU compute, CPU avg/top, VRAM, RAM. Since
-   sprint 032 the dashboard GETs only the NAS host's key, for the NAS card's
-   activity chart; the per-host dev graphs that read every host's are gone.
+   EX 5 s) at 1 s intervals with GPU compute, CPU avg/top, VRAM, RAM. The
+   dashboard reads none of it since sprint 033: the per-host dev graphs went in
+   032, and the NAS card's activity chart, the last reader, in 033. kdeskdash
+   still reads it, so the producer stays.
 4. **Activities, repo status, Fortune**: removed in sprint 032; see
    [Removed widgets](#removed-widgets). The dashboard reads none of their keys.
 6a. **Network health** (sprint 024): each Linux client writes
@@ -164,9 +165,9 @@ LVGL/DRM/KMS with no mouse or keyboard interaction.
 12. **NAS big panel**: kpidash-client on gratch projects gratch-ui's collector
     file into `kdash:nas:gratch` (EX 15, kdashdata v1). Dashboard GETs it each
     poll into `nasstate.c` (pure model) and, once it has published, draws
-    `widgets/nas_card.c` in row 1, columns 2-3 — pool and root bars,
-    a CPU/RAM activity chart, one row per disk. See CLIENT-PROTOCOL.md §8f
-    (sprint 028).
+    `widgets/nas_card.c` in row 1, columns 2-3 — a state headline, pool
+    and root bars, eight disk tiles labelled by use (sprint 033, "A · Rail"
+    in mauve). See CLIENT-PROTOCOL.md §8f (sprint 028).
 
 ## Source Structure
 
@@ -197,7 +198,7 @@ kpidash/
 │       ├── common.h            # Shared color palette and font constants (WS_*)
 │       ├── host_columns.{h,c}  # Row 0 host columns / compact tiles (sprint 029)
 │       ├── net_card.{h,c}      # 10G network-health card (row 1, sprint 024)
-│       ├── nas_card.{h,c}      # NAS big panel (row 1, sprint 028)
+│       ├── nas_card.{h,c}      # NAS big panel (row 1, sprint 028; restyled 033)
 │       ├── service_card.{h,c}  # Service status card + host staleness card
 │       ├── apt_temps_card.{h,c}# Per-zone temp/humidity card (footer, WI #364)
 │       ├── status_bar.{h,c}    # Bottom status bar (warning/error)
@@ -207,7 +208,6 @@ kpidash/
 │   ├── test_config.c           # Config env var parsing
 │   ├── test_redis_json.c       # cJSON parsing helpers
 │   ├── test_layout.c           # Unit system macro arithmetic
-│   ├── test_graph_router.c     # Dev-telemetry series (NAS host only since 032)
 │   ├── test_icon_registry.c    # Nerd-font glyph lookup
 │   ├── test_apttemps_band.c    # Apt-temp band edges via libkdash (sprint 018)
 │   ├── test_service_card.c     # Service state/colour, payload parsing, freshness windows
@@ -358,16 +358,6 @@ is registered as LVGL's print callback in `main.c`; `lv_conf.h` therefore has
 - **Service cards** (`src/widgets/service_card.c`): 220×240 px, 6 px coloured
   border, optional icon (lv_font_icons_56), name + status text. Rendered into
   the footer strip; one card per Redis key.
-- **Per-host graph router** (`src/registry.c`; the dev graphs it fed were
-  removed in sprint 032, and only the NAS host's series is filled now, for the
-  NAS card): `dev_telemetry` samples carry a `host` field
-  (default `"(legacy)"`). `graph_host_find_or_create()` returns a stable
-  pointer; entries are touched on each sample and never evicted
-  (`GRAPH_HOST_MAX=8`). Series go stale after
-  `GRAPH_HOST_STALE_SECONDS=30.0` and the dev_graph widget overlays a
-  "NO NEW DATA" banner via `dev_graph_set_stale()`. The current UI renders a
-  single dev_graph for the most-recently-seen host; full multi-host expansion
-  (T035) is deferred to a follow-up sprint.
 
 ## Sprint 017 — Host Staleness Cards
 

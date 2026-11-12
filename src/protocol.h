@@ -35,7 +35,6 @@
 /* ---- Redis key macros (%s = hostname or id placeholder) ---- */
 #define KPIDASH_KEY_HEALTH "kpidash:client:%s:health"
 #define KPIDASH_KEY_TELEMETRY "kpidash:client:%s:telemetry"
-#define KPIDASH_KEY_DEV_TELEMETRY "kpidash:client:%s:dev_telemetry"
 #define KPIDASH_KEY_CLIENTS "kpidash:clients"
 #define KPIDASH_KEY_STATUS_CURRENT "kpidash:status:current"
 #define KPIDASH_KEY_STATUS_ACK "kpidash:status:ack:%s"
@@ -132,8 +131,8 @@
 /* WI #3956: NAS health for the big panel, kdashdata kdash-nas v1 (sprint 020).
  * Written by kpidash-client on the NAS host every ~5 s with EX 15, a
  * projection of gratch-ui's collector file. The panel shows ONE NAS, so the
- * host is a constant rather than a config list. Its activity chart reads
- * that host's dev_telemetry, the one dev_telemetry key still polled. */
+ * host is a constant rather than a config list. Which disk is for what is
+ * not in the feed; nas_disk_uses.h supplies it (sprint 033). */
 #define KDASH_KEY_NAS_PREFIX "kdash:nas:"
 #define KPIDASH_NAS_HOST "gratch"
 
