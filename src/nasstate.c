@@ -3,6 +3,7 @@
 #include "nasstate.h"
 
 #include <cjson/cJSON.h>
+#include <stdarg.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -188,4 +189,174 @@ void nas_format_bytes(int64_t b, char *buf, size_t n) {
     const double tb = 1e12, gb = 1e9;
     if ((double)b >= tb) snprintf(buf, n, "%.1f TB", (double)b / tb);
     else snprintf(buf, n, "%.0f GB", (double)b / gb);
+}
+
+/* ---- Disk use and order (sprint 033) ---- */
+
+#include "nas_disk_uses.h"
+
+#define NAS_SLOT_UNLISTED 1000
+
+static int disk_slot(const nas_disk_t *d, nas_use_t *use) {
+    for (size_t i = 0; i < sizeof(NAS_DISK_USES) / sizeof(NAS_DISK_USES[0]); i++)
+        if (strcmp(d->model, NAS_DISK_USES[i].model) == 0) {
+            if (use) *use = NAS_DISK_USES[i].use;
+            return NAS_DISK_USES[i].slot;
+        }
+    if (use) *use = NAS_USE_NONE;
+    return NAS_SLOT_UNLISTED;
+}
+
+nas_use_t nas_disk_use(const nas_disk_t *d) {
+    nas_use_t u = NAS_USE_NONE;
+    if (d) disk_slot(d, &u);
+    return u;
+}
+
+const char *nas_use_label(nas_use_t u) {
+    switch (u) {
+    case NAS_USE_ROOT: return "root";
+    case NAS_USE_POOL: return "nas pool";
+    case NAS_USE_CACHE: return "cache";
+    case NAS_USE_COLD: return "cold";
+    case NAS_USE_NONE:
+    default: return "";
+    }
+}
+
+const char *nas_short_device(const char *dev) {
+    const char *s = strrchr(dev, '/');
+    return s ? s + 1 : dev;
+}
+
+/* Slot first, then the device name: the tie-break for disks that share a
+ * model, and the whole order among unlisted ones. */
+static bool disk_before(const nas_disk_t *a, const nas_disk_t *b) {
+    int sa = disk_slot(a, NULL), sb = disk_slot(b, NULL);
+    if (sa != sb) return sa < sb;
+    return strcmp(nas_short_device(a->device), nas_short_device(b->device)) < 0;
+}
+
+int nas_disk_order(const nas_record_t *r, int *idx, int max) {
+    if (!r || !idx || max <= 0) return 0;
+    int all[NAS_DISKS_MAX];
+    int n = r->ndisks < NAS_DISKS_MAX ? r->ndisks : NAS_DISKS_MAX;
+    for (int i = 0; i < n; i++) {
+        int j = i;
+        while (j > 0 && disk_before(&r->disks[i], &r->disks[all[j - 1]])) {
+            all[j] = all[j - 1];
+            j--;
+        }
+        all[j] = i;
+    }
+    if (n > max) n = max;
+    memcpy(idx, all, (size_t)n * sizeof(int));
+    return n;
+}
+
+void nas_disk_reason(const nas_disk_t *d, char *buf, size_t n) {
+    if (!buf || n == 0) return;
+    buf[0] = '\0';
+    if (!d || nas_disk_level(d) < NAS_WARN) return;
+    bool nvme = strcmp(d->kind, "nvme") == 0;
+    double t_warn = nvme ? 70.0 : 50.0, t_crit = nvme ? 80.0 : 60.0;
+    /* Worst first, matching nas_disk_level's thresholds. */
+    if (d->smart_passed == 0) snprintf(buf, n, "SMART FAILED");
+    else if (d->percentage_used >= 100) snprintf(buf, n, "WEAR %lld%%", (long long)d->percentage_used);
+    else if (d->has_temp && d->temp_c >= t_crit) snprintf(buf, n, "HOT %.0f\xc2\xb0", d->temp_c);
+    else if (d->pending_sectors > 0) snprintf(buf, n, "PENDING %lld", (long long)d->pending_sectors);
+    else if (d->media_errors > 0) snprintf(buf, n, "MEDIA ERR %lld", (long long)d->media_errors);
+    else if (d->percentage_used >= 80) snprintf(buf, n, "WEAR %lld%%", (long long)d->percentage_used);
+    else if (d->has_temp && d->temp_c >= t_warn) snprintf(buf, n, "HOT %.0f\xc2\xb0", d->temp_c);
+}
+
+static void append(char *buf, size_t n, const char *fmt, ...) __attribute__((format(printf, 3, 4)));
+static void append(char *buf, size_t n, const char *fmt, ...) {
+    size_t used = strlen(buf);
+    if (used + 1 >= n) return;
+    va_list ap;
+    va_start(ap, fmt);
+    vsnprintf(buf + used, n - used, fmt, ap);
+    va_end(ap);
+}
+
+void nas_headline(const nas_record_t *r, nas_feed_t feed, double now, char *head, size_t hn,
+                  char *sub, size_t sn, nas_level_t *level) {
+    if (!head || !sub || hn == 0 || sn == 0) return;
+    head[0] = sub[0] = '\0';
+    nas_level_t lvl = r ? nas_overall_level(r) : NAS_OK;
+    char age[16];
+
+    if (!r || feed == NAS_FEED_NONE) {
+        snprintf(head, hn, "NO FEED");
+        snprintf(sub, sn, "nothing published yet");
+        if (level) *level = NAS_NEUTRAL;
+        return;
+    }
+    if (feed == NAS_FEED_STALE) {
+        nas_format_age(now - r->ts, age, sizeof(age));
+        snprintf(head, hn, "STALE \xc2\xb7 %s", age);
+        snprintf(sub, sn, "last values shown \xc2\xb7 no data for %s", age);
+        if (level) *level = lvl;
+        return;
+    }
+
+    /* The headline: the first thing in trouble, in precedence order. */
+    const nas_pool_t *bad_pool = NULL;
+    for (int i = 0; i < r->npools && !bad_pool; i++)
+        if (nas_pool_level(&r->pools[i]) > NAS_OK) bad_pool = &r->pools[i];
+    int order[NAS_DISKS_MAX];
+    int nd = nas_disk_order(r, order, NAS_DISKS_MAX);
+    const nas_disk_t *bad_disk = NULL;
+    int nattn = 0;
+    for (int i = 0; i < nd; i++) {
+        const nas_disk_t *d = &r->disks[order[i]];
+        nas_level_t dl = nas_disk_level(d);
+        if (dl < NAS_WARN) continue;
+        nattn++;
+        if (!bad_disk || dl > nas_disk_level(bad_disk)) bad_disk = d;
+    }
+
+    if (bad_pool) {
+        if (strcmp(bad_pool->health, "ONLINE") != 0)
+            snprintf(head, hn, "%s %s", bad_pool->name, bad_pool->health);
+        else if (bad_pool->errors > 0)
+            snprintf(head, hn, "%s %lld ERRORS", bad_pool->name, (long long)bad_pool->errors);
+        else
+            snprintf(head, hn, "%s SCRUB ERRORS", bad_pool->name);
+    } else if (bad_disk) {
+        char why[32];
+        nas_disk_reason(bad_disk, why, sizeof(why));
+        snprintf(head, hn, "%s %s", nas_short_device(bad_disk->device), why);
+    } else if (!r->has_collected) {
+        snprintf(head, hn, "COLLECTOR DOWN");
+    } else if (r->source_stale) {
+        snprintf(head, hn, "SOURCE STALE");
+    } else {
+        snprintf(head, hn, "NAS OK");
+    }
+
+    /* The sub line: disks, then the first pool's scrub and error count. */
+    if (nattn > 0)
+        append(sub, sn, "%d disk%s need%s a look", nattn, nattn == 1 ? "" : "s",
+               nattn == 1 ? "s" : "");
+    else
+        append(sub, sn, "%d disk%s", r->ndisks, r->ndisks == 1 ? "" : "s");
+    if (r->npools > 0) {
+        const nas_pool_t *p = &r->pools[0];
+        if (p->has_scrub && strcmp(p->scrub_state, "scanning") == 0) {
+            append(sub, sn, " \xc2\xb7 scrubbing");
+        } else if (p->has_scrub && p->scrub_end_ts > 0) {
+            nas_format_age(now - p->scrub_end_ts, age, sizeof(age));
+            append(sub, sn, " \xc2\xb7 scrub %s ago", age);
+        } else {
+            append(sub, sn, " \xc2\xb7 no scrub");
+        }
+        if (nattn == 0) {
+            long long errs = (p->errors > 0 ? p->errors : 0) +
+                             (p->has_scrub && p->scrub_errors > 0 ? p->scrub_errors : 0);
+            append(sub, sn, " \xc2\xb7 %lld error%s", errs, errs == 1 ? "" : "s");
+        }
+    }
+    if (level) *level = lvl;
 }

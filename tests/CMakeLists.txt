@@ -50,17 +50,6 @@ target_include_directories(test_layout PRIVATE ${CMAKE_SOURCE_DIR}/src)
 target_compile_options(test_layout PRIVATE -Wall -Wextra -Wno-unused-parameter)
 add_test(NAME test_layout COMMAND test_layout)
 
-# Sprint 006 / T033: the graph host series (now only the NAS host's).
-add_executable(test_graph_router
-    ${CMAKE_CURRENT_SOURCE_DIR}/test_graph_router.c
-    ${CMAKE_SOURCE_DIR}/src/registry.c
-)
-target_include_directories(test_graph_router PRIVATE ${CMAKE_SOURCE_DIR}/src)
-target_link_libraries(test_graph_router kdash_core pthread)  # WI #2244
-target_compile_definitions(test_graph_router PRIVATE KPIDASH_TEST_STUBS=1)
-target_compile_options(test_graph_router PRIVATE -Wall -Wextra -Wno-unused-parameter)
-add_test(NAME test_graph_router COMMAND test_graph_router)
-
 add_executable(test_icon_registry
     ${CMAKE_CURRENT_SOURCE_DIR}/test_icon_registry.c
     ${CMAKE_SOURCE_DIR}/src/icons.c
@@ -180,6 +169,30 @@ if(TARGET lvgl)
     )
     target_link_libraries(render_host_columns lvgl kdash_core ${PNG_TEST_LIBRARIES} pthread m)
     target_compile_options(render_host_columns PRIVATE -Wall -Wextra -Wno-unused-parameter)
+
+    # Sprint 033: offline render of the NAS card in its four states, for
+    # review against sprints/planning/nas-card-mockups.html (vA).
+    add_executable(render_nas_card
+        ${CMAKE_CURRENT_SOURCE_DIR}/render_nas_card.c
+        ${CMAKE_SOURCE_DIR}/src/widgets/nas_card.c
+        ${CMAKE_SOURCE_DIR}/src/nasstate.c
+        ${CMAKE_SOURCE_DIR}/src/registry.c
+        ${CMAKE_SOURCE_DIR}/src/bmp_write.c
+        ${CMAKE_SOURCE_DIR}/fonts/lv_font_montserrat_bold_20.c
+        ${CMAKE_SOURCE_DIR}/fonts/lv_font_montserrat_bold_24.c
+        ${CMAKE_SOURCE_DIR}/fonts/lv_font_montserrat_bold_28.c
+        ${CMAKE_SOURCE_DIR}/fonts/lv_font_montserrat_bold_48.c
+    )
+    target_include_directories(render_nas_card PRIVATE
+        ${CMAKE_SOURCE_DIR}
+        ${CMAKE_SOURCE_DIR}/src
+        ${CMAKE_SOURCE_DIR}/fonts
+        ${CJSON_INCLUDE_DIRS}
+    )
+    target_link_libraries(render_nas_card lvgl kdash_core ${CJSON_LIBRARIES} ${PNG_TEST_LIBRARIES} pthread m)
+    target_compile_options(render_nas_card PRIVATE -Wall -Wextra -Wno-unused-parameter)
+    target_compile_definitions(render_nas_card PRIVATE
+        NAS_LIVE_FIXTURE="${CMAKE_CURRENT_SOURCE_DIR}/fixtures/nas-gratch-2026-11-12.json")
 endif()
 
 # WI #4062: the network card's model. Pure — no LVGL, no Redis — and held to
@@ -206,7 +219,8 @@ target_include_directories(test_nasstate PRIVATE ${CMAKE_SOURCE_DIR}/src ${CJSON
 target_link_libraries(test_nasstate ${CJSON_LIBRARIES})
 target_compile_options(test_nasstate PRIVATE -Wall -Wextra -Wno-unused-parameter)
 target_compile_definitions(test_nasstate PRIVATE
-    KDASH_NAS_SCHEMA="${CMAKE_SOURCE_DIR}/lib/kdashdata/contracts/schemas/kdash-nas.schema.json")
+    KDASH_NAS_SCHEMA="${CMAKE_SOURCE_DIR}/lib/kdashdata/contracts/schemas/kdash-nas.schema.json"
+    NAS_LIVE_FIXTURE="${CMAKE_CURRENT_SOURCE_DIR}/fixtures/nas-gratch-2026-11-12.json")
 add_test(NAME test_nasstate COMMAND test_nasstate)
 
 # WI #4523: the per-host history ring behind the host columns sparklines.

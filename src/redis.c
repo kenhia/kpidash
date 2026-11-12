@@ -228,59 +228,6 @@ const dev_cmd_state_t *redis_get_dev_cmd_state(void) {
     return &g_dev_cmd;
 }
 
-/* ---- Dev telemetry (Phase 6.1) ---- */
-
-bool redis_parse_dev_telemetry_json(const char *json, dev_telemetry_t *dt) {
-    memset(dt, 0, sizeof(*dt));
-    if (!json)
-        return true; /* absent key = invalid */
-    cJSON *root = cJSON_Parse(json);
-    if (!root)
-        return false;
-
-    dt->valid = true;
-
-    cJSON *o;
-    o = cJSON_GetObjectItemCaseSensitive(root, "cpu_pct");
-    if (cJSON_IsNumber(o))
-        dt->cpu_pct = (float)o->valuedouble;
-    o = cJSON_GetObjectItemCaseSensitive(root, "top_core_pct");
-    if (cJSON_IsNumber(o))
-        dt->top_core_pct = (float)o->valuedouble;
-    o = cJSON_GetObjectItemCaseSensitive(root, "ram_used_mb");
-    if (cJSON_IsNumber(o))
-        dt->ram_used_mb = (uint32_t)o->valueint;
-    o = cJSON_GetObjectItemCaseSensitive(root, "ram_total_mb");
-    if (cJSON_IsNumber(o))
-        dt->ram_total_mb = (uint32_t)o->valueint;
-
-    cJSON *gpu_obj = cJSON_GetObjectItemCaseSensitive(root, "gpu");
-    if (cJSON_IsObject(gpu_obj)) {
-        dt->gpu_present = true;
-        o = cJSON_GetObjectItemCaseSensitive(gpu_obj, "compute_pct");
-        if (cJSON_IsNumber(o))
-            dt->gpu_compute_pct = (float)o->valuedouble;
-        o = cJSON_GetObjectItemCaseSensitive(gpu_obj, "vram_used_mb");
-        if (cJSON_IsNumber(o))
-            dt->gpu_vram_used_mb = (uint32_t)o->valueint;
-        o = cJSON_GetObjectItemCaseSensitive(gpu_obj, "vram_total_mb");
-        if (cJSON_IsNumber(o))
-            dt->gpu_vram_total_mb = (uint32_t)o->valueint;
-    }
-
-    /* Sprint 006 / T034: pick up source host; default to "(legacy)" sentinel
-     * for unupgraded clients (FR-013 edge case). */
-    o = cJSON_GetObjectItemCaseSensitive(root, "host");
-    if (cJSON_IsString(o) && o->valuestring && o->valuestring[0]) {
-        strncpy(dt->host, o->valuestring, sizeof(dt->host) - 1);
-    } else {
-        strncpy(dt->host, "(legacy)", sizeof(dt->host) - 1);
-    }
-
-    cJSON_Delete(root);
-    return true;
-}
-
 bool redis_parse_cmd_grid_json(const char *json, dev_cmd_state_t *state) {
     state->grid_enabled = false;
     state->grid_size = 0;
@@ -416,27 +363,6 @@ void redis_poll(void) {
         freeReplyObject(tsr);
 
     g_dev_cmd = new_cmd;
-
-    /* Step 5: Dev telemetry, for the NAS host only. Its series feeds the NAS
-     * card's activity chart, which is the only reader left since the per-host
-     * dev graphs were removed (sprint 032), so no other host's key is fetched. */
-    {
-        char dt_key[256];
-        snprintf(dt_key, sizeof(dt_key), KPIDASH_KEY_DEV_TELEMETRY, KPIDASH_NAS_HOST);
-        redisReply *dtr = redisCommand(g_ctx, "GET %s", dt_key);
-        if (dtr && dtr->type == REDIS_REPLY_STRING) {
-            dev_telemetry_t parsed = {0};
-            if (redis_parse_dev_telemetry_json(dtr->str, &parsed) && parsed.valid) {
-                graph_host_series_t *series = graph_host_find_or_create(parsed.host);
-                if (series) {
-                    series->telemetry = parsed;
-                }
-                graph_host_touch(parsed.host, (double)time(NULL));
-            }
-        }
-        if (dtr)
-            freeReplyObject(dtr);
-    }
 
     /* Step 6: Service status (sprint 006 / FR-022) */
     redis_poll_services();

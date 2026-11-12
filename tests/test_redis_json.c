@@ -291,64 +291,6 @@ int main(void) {
         CHECK(s.textsize_enabled == false);
     }
 
-    /* ---- dev_telemetry parse tests ---- */
-    {
-        /* Full JSON with GPU */
-        dev_telemetry_t dt = {0};
-        bool ok = redis_parse_dev_telemetry_json(
-            "{\"cpu_pct\":42.5,\"top_core_pct\":88.1,"
-            "\"ram_used_mb\":8192,\"ram_total_mb\":32768,"
-            "\"gpu\":{\"compute_pct\":75.0,\"vram_used_mb\":4096,\"vram_total_mb\":8192},"
-            "\"ts\":1700000000.0}", &dt);
-        CHECK(ok);
-        CHECK(dt.valid == true);
-        CHECK(dt.cpu_pct > 42.4f && dt.cpu_pct < 42.6f);
-        CHECK(dt.top_core_pct > 88.0f && dt.top_core_pct < 88.2f);
-        CHECK(dt.ram_used_mb == 8192);
-        CHECK(dt.ram_total_mb == 32768);
-        CHECK(dt.gpu_present == true);
-        CHECK(dt.gpu_compute_pct > 74.9f && dt.gpu_compute_pct < 75.1f);
-        CHECK(dt.gpu_vram_used_mb == 4096);
-        CHECK(dt.gpu_vram_total_mb == 8192);
-    }
-    {
-        /* JSON without GPU */
-        dev_telemetry_t dt = {0};
-        bool ok = redis_parse_dev_telemetry_json(
-            "{\"cpu_pct\":10.0,\"top_core_pct\":25.0,"
-            "\"ram_used_mb\":2048,\"ram_total_mb\":16384}", &dt);
-        CHECK(ok);
-        CHECK(dt.valid == true);
-        CHECK(dt.gpu_present == false);
-        CHECK(dt.gpu_compute_pct < 0.1f);
-        CHECK(dt.ram_used_mb == 2048);
-    }
-    {
-        /* NULL JSON (key absent) → valid=false */
-        dev_telemetry_t dt = {0};
-        dt.valid = true;  /* pre-set to verify it gets cleared */
-        bool ok = redis_parse_dev_telemetry_json(NULL, &dt);
-        CHECK(ok);
-        CHECK(dt.valid == false);
-    }
-    {
-        /* Invalid JSON */
-        dev_telemetry_t dt = {0};
-        bool ok = redis_parse_dev_telemetry_json("not json", &dt);
-        CHECK(!ok);
-        CHECK(dt.valid == false);
-    }
-    {
-        /* GPU with null compute_pct (missing field) */
-        dev_telemetry_t dt = {0};
-        bool ok = redis_parse_dev_telemetry_json(
-            "{\"cpu_pct\":5.0,\"gpu\":{\"vram_used_mb\":1024,\"vram_total_mb\":4096}}", &dt);
-        CHECK(ok);
-        CHECK(dt.valid == true);
-        CHECK(dt.gpu_present == true);
-        CHECK(dt.gpu_compute_pct < 0.1f);  /* 0 since field missing */
-        CHECK(dt.gpu_vram_used_mb == 1024);
-    }
 
     printf("test_redis_json: %d passed, %d failed\n", passed, failed);
     return failed > 0 ? 1 : 0;

@@ -310,7 +310,7 @@ SET kpidash:fortune:pushed '{"text":"...","source":"pushed","pushed_by":"kubs0"}
 
 | Key | Type | Written by | Read by | TTL |
 |-----|------|-----------|---------|-----|
-| `kpidash:client:{hostname}:dev_telemetry` | STRING (JSON) | client (~1 s) | dashboard | 5 s |
+| `kpidash:client:{hostname}:dev_telemetry` | STRING (JSON) | client (~1 s) | kdeskdash (not the dashboard since sprint 033) | 5 s |
 
 ```json
 {
@@ -330,13 +330,14 @@ SET kpidash:fortune:pushed '{"text":"...","source":"pushed","pushed_by":"kubs0"}
 High-frequency telemetry stream, written at `dev_interval_s` (default 1 s,
 configurable in `[client]` config section). Contains 5 metrics (GPU compute,
 CPU avg, CPU top, VRAM, RAM). It was written for the per-host dev graphs,
-which sprint 032 removed. Since then the dashboard GETs only
-`KPIDASH_NAS_HOST`'s key (gratch), for the NAS card's CPU/RAM chart (§8f).
-Other hosts' keys are still read by kdeskdash (`src/dev_telemetry.c` there),
-so the producer stays.
+which sprint 032 removed. The NAS card's CPU/RAM chart kept gratch's key
+polled until sprint 033 dropped the chart, so the dashboard reads no
+`dev_telemetry` key at all now. Every host's key is still read by kdeskdash
+(`src/dev_telemetry.c` there), so the producer stays.
 
-**Sprint 006**: The `host` field (default `"(legacy)"` when absent) routes
-samples to a per-host series in the dashboard (`GRAPH_HOST_MAX=8`).
+**Sprint 006**: The `host` field (default `"(legacy)"` when absent) names the
+source host. The dashboard's per-host series that routed on it went with the
+last reader in sprint 033.
 
 ---
 
@@ -818,25 +819,42 @@ The panel has a fixed slot in row 1, columns 2-3, next to the 10G card
 (sprint 032). It is hidden until the key has published this run, and its slot
 stays reserved either way, so the 10G card never moves.
 
-- **Left:** one bar per ZFS pool, showing usable used over usable total (after
-  parity, never `alloc_bytes`), with health and the last scrub. Under that is the
-  root filesystem bar, taken from gratch's own `kpidash:client:gratch:telemetry`
-  disk labelled `root`. Under that is a CPU % / RAM % chart fed from gratch's
-  `dev_telemetry`.
-- **Right:** one row per disk, up to 8, with `+N more` below. Each row shows
-  device and model, kind, temperature, spin state, SMART verdict, NVMe wear, and
-  any non-zero reallocated, pending or media-error count. A coloured stripe gives
-  the level.
+Since sprint 033 the card is "A · Rail" in mauve (design:
+`sprints/planning/nas-card-mockups.html`, function `vA`), the 10G card's
+skeleton in the NAS's own colour. Nothing on it is under 20 px.
+
+- **Headline.** `NAS OK`, or the first thing in trouble: a pool
+  (`nas DEGRADED`, `nas 3 ERRORS`), then the worst disk (`sdc PENDING 2`,
+  `sdd SMART FAILED`), then the collector (`COLLECTOR DOWN`, `SOURCE STALE`).
+  The line under it counts disks (or the ones that need a look), gives the
+  first pool's last scrub and, when all is well, its error count. Three stat
+  boxes: pool %, hottest disk, data age (the collector's clock).
+- **Bars.** The first pool's usable used over usable total (after parity,
+  never `alloc_bytes`), red when the pool is not ONLINE, and the root
+  filesystem from gratch's own `kpidash:client:gratch:telemetry` disk labelled
+  `root`. A second pool would count toward the headline and frame but gets no
+  bar; gratch has one.
+- **Disk tiles.** Eight, in Ken's order — the root NVMe, the three pool
+  NVMes, the cache SSD, the three cold HDDs — each with its use above it
+  (`nas pool` in peach), device, kind, temperature with a bar, power state,
+  one extra fact (pending, media errors, wear, reallocated) and a SMART pill.
+  The feed carries no use or pool membership, so the dashboard supplies both
+  from `src/nas_disk_uses.h`, matched on the exact model string; a disk it
+  does not list gets no label and sorts last. Cold tiles have a pre-mixed
+  blue-tinted fill.
 - **Levels.** Red: a pool that is neither ONLINE nor DEGRADED, SMART failed,
   NVMe wear ≥100 %, or HDD/SSD ≥60 °C (NVMe ≥80 °C). Yellow: DEGRADED, pool or
   scrub errors, pending sectors or media errors, wear ≥80 %, HDD/SSD ≥50 °C
   (NVMe ≥70 °C), or a stale or missing collector. Grey (neutral): **standby**,
   which is normal for an IronWolf, and a constant reallocated count. With no
   history there is no rise to warn about.
-- **Freshness, as on the host cards.** The header reads `collected N ago` from
-  the collector's clock. If the key is gone, or its `ts` is more than 15 s old,
-  the header reads `STALE · age` in red and the border and stripes go grey, with
-  the last values kept in view. A stale feed never looks healthy.
+- **Frame and colour.** Mauve is healthy; standby is grey; yellow and red
+  keep their meaning. The frame is a thin neutral line and turns yellow or red
+  (3 px) only when the overall level is WARN or CRIT. It is never green.
+- **Freshness, as on the host cards.** If the key is gone, or its `ts` is more
+  than 15 s old, the headline reads `STALE · age` in red and the frame, rail,
+  tiles and pills go grey, with the last values kept in view. A stale feed
+  never looks healthy.
 
 ---
 

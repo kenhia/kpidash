@@ -6,20 +6,20 @@
 
 ## Now
 
-- **030 — Host columns across the full row** (korg proposal 4545). The 029
-  widget widened to all of row 0 (3792×628) with the text roughly doubled, CPU
-  average and top core on one line, and one row for the fullest drive in place
-  of the drive list. Spec: `planning/hosts-wide-mockups.html`.
-- **029 — Host columns** (korg proposal 4527, shipped). One widget in row 0
-  replaced the six host cards: a full column per host with sparklines, compact
-  tiles past ten hosts, up to thirty, attention by border colour. Spec:
-  `planning/hosts-columns-mockups.html`; first brainstorm:
-  `planning/refresh-mockups.html`.
+- **033 — NAS card restyle** (korg proposal 4567). The NAS card rebuilt to
+  "A · Rail" in mauve, the 10G card's skeleton in the NAS's own colour: a
+  state headline, eight disk tiles in Ken's order with a use label above each,
+  nothing under 20 px, the CPU/RAM chart dropped. Spec:
+  `planning/nas-card-mockups.html` (vA).
+- **030-032** (shipped). 030 widened the host columns across all of row 0
+  (`planning/hosts-wide-mockups.html`); 031 gave them short OS names; 032
+  removed the dev graphs, Fortune, Activities and Repo Status and fixed the
+  10G and NAS cards in row 1. 029 built the host columns
+  (`planning/hosts-columns-mockups.html`, first brainstorm
+  `planning/refresh-mockups.html`).
 
 ## Next
 
-- **NAS card restyle** (next slice after sprint 032) — make the NAS card sit
-  with the 10G card in row 1, from a range of mock-ups Ken picks from.
 - **What fills the free cells** — row 1 columns 4-5 and all of row 2 have
   been empty since sprint 032 removed the dev graphs. A later brainstorm.
 - **What fills the free host columns.** With seven hosts, three of row 0's ten

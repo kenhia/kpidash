@@ -1,0 +1,126 @@
+{
+  "collected_ts": 1794526316.01881,
+  "source_stale": false,
+  "source_version": "0.1.0-7f28ad6",
+  "pools": [
+    {
+      "name": "nas",
+      "health": "ONLINE",
+      "used_bytes": 991935139840,
+      "avail_bytes": 4866400251904,
+      "errors": 0,
+      "scrub": {
+        "state": "finished",
+        "end_ts": 1794097981.0,
+        "errors": 0
+      }
+    }
+  ],
+  "disks": [
+    {
+      "device": "/dev/sda",
+      "model": "Samsung SSD 860 EVO 500GB",
+      "kind": "ssd",
+      "power_state": "active",
+      "smart_passed": true,
+      "smart_ts": 1794526316.01881,
+      "temp_c": 25,
+      "reallocated_sectors": 0,
+      "pending_sectors": null,
+      "percentage_used": null,
+      "media_errors": null
+    },
+    {
+      "device": "/dev/sdb",
+      "model": "ST8000VN0022-2EL112",
+      "kind": "hdd",
+      "power_state": "standby",
+      "smart_passed": true,
+      "smart_ts": 1793997011.07885,
+      "temp_c": 26,
+      "reallocated_sectors": 0,
+      "pending_sectors": 0,
+      "percentage_used": null,
+      "media_errors": null
+    },
+    {
+      "device": "/dev/sdc",
+      "model": "ST8000VN0022-2EL112",
+      "kind": "hdd",
+      "power_state": "standby",
+      "smart_passed": true,
+      "smart_ts": 1794466391.012602,
+      "temp_c": 27,
+      "reallocated_sectors": 8,
+      "pending_sectors": 0,
+      "percentage_used": null,
+      "media_errors": null
+    },
+    {
+      "device": "/dev/sdd",
+      "model": "ST8000VN0022-2EL112",
+      "kind": "hdd",
+      "power_state": "standby",
+      "smart_passed": true,
+      "smart_ts": 1793921107.285018,
+      "temp_c": 26,
+      "reallocated_sectors": 0,
+      "pending_sectors": 0,
+      "percentage_used": null,
+      "media_errors": null
+    },
+    {
+      "device": "/dev/nvme0",
+      "model": "CT4000T710SSD8",
+      "kind": "nvme",
+      "power_state": "active",
+      "smart_passed": true,
+      "smart_ts": 1794526316.01881,
+      "temp_c": 32,
+      "reallocated_sectors": null,
+      "pending_sectors": null,
+      "percentage_used": 0,
+      "media_errors": 0
+    },
+    {
+      "device": "/dev/nvme1",
+      "model": "WD_BLACK SN7100 4TB",
+      "kind": "nvme",
+      "power_state": "active",
+      "smart_passed": true,
+      "smart_ts": 1794526316.01881,
+      "temp_c": 31,
+      "reallocated_sectors": null,
+      "pending_sectors": null,
+      "percentage_used": 0,
+      "media_errors": 0
+    },
+    {
+      "device": "/dev/nvme2",
+      "model": "Samsung SSD 990 PRO 1TB",
+      "kind": "nvme",
+      "power_state": "active",
+      "smart_passed": true,
+      "smart_ts": 1794526316.01881,
+      "temp_c": 38,
+      "reallocated_sectors": null,
+      "pending_sectors": null,
+      "percentage_used": 0,
+      "media_errors": 0
+    },
+    {
+      "device": "/dev/nvme3",
+      "model": "Samsung SSD 990 EVO Plus 4TB",
+      "kind": "nvme",
+      "power_state": "active",
+      "smart_passed": true,
+      "smart_ts": 1794526316.01881,
+      "temp_c": 31,
+      "reallocated_sectors": null,
+      "pending_sectors": null,
+      "percentage_used": 0,
+      "media_errors": 0
+    }
+  ],
+  "ts": 1794526355.7014694
+}

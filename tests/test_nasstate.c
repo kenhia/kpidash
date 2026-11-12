@@ -177,6 +177,143 @@ static void test_capacity(void) {
     CHECK(r.ndisks == NAS_DISKS_MAX);
 }
 
+/* ---- Sprint 033: disk use, order and the headline ---- */
+
+/* gratch's own record, captured from rpi53 on 2026-11-12: the model strings
+ * nas_disk_uses.h matches on, in the order the producer sends them. */
+static bool load_live(nas_record_t *r) {
+    char *json = slurp(NAS_LIVE_FIXTURE);
+    bool ok = json && nas_parse(json, r) == 0;
+    free(json);
+    return ok;
+}
+
+static nas_disk_t *disk_named(nas_record_t *r, const char *dev) {
+    for (int i = 0; i < r->ndisks; i++)
+        if (strcmp(nas_short_device(r->disks[i].device), dev) == 0) return &r->disks[i];
+    return NULL;
+}
+
+static void test_live_order_and_uses(void) {
+    nas_record_t r;
+    CHECK(load_live(&r));
+    CHECK(r.ndisks == 8);
+    int idx[NAS_DISKS_MAX];
+    int n = nas_disk_order(&r, idx, 8);
+    CHECK(n == 8);
+    /* Ken's order, and the use label above each. */
+    static const char *const dev[] = {"nvme2", "nvme0", "nvme1", "nvme3",
+                                      "sda",   "sdb",   "sdc",   "sdd"};
+    static const char *const use[] = {"root",  "nas pool", "nas pool", "nas pool",
+                                      "cache", "cold",     "cold",     "cold"};
+    for (int i = 0; i < n && i < 8; i++) {
+        const nas_disk_t *d = &r.disks[idx[i]];
+        CHECK(strcmp(nas_short_device(d->device), dev[i]) == 0);
+        CHECK(strcmp(nas_use_label(nas_disk_use(d)), use[i]) == 0);
+    }
+}
+
+/* nvmeN is not stable across boots: the model, not the name, holds a slot. */
+static void test_order_follows_model_not_name(void) {
+    nas_record_t r;
+    CHECK(load_live(&r));
+    nas_disk_t *root = disk_named(&r, "nvme2"), *pool = disk_named(&r, "nvme0");
+    CHECK(root && pool);
+    if (!root || !pool) return;
+    strcpy(root->device, "/dev/nvme0");
+    strcpy(pool->device, "/dev/nvme2");
+    int idx[NAS_DISKS_MAX];
+    nas_disk_order(&r, idx, NAS_DISKS_MAX);
+    CHECK(strcmp(r.disks[idx[0]].device, "/dev/nvme0") == 0);
+    CHECK(nas_disk_use(&r.disks[idx[0]]) == NAS_USE_ROOT);
+    CHECK(strcmp(r.disks[idx[1]].device, "/dev/nvme2") == 0);
+}
+
+/* A disk the table does not know: no label, after every listed one. */
+static void test_unlisted_disk_sorts_last(void) {
+    nas_record_t r;
+    CHECK(load_live(&r));
+    nas_disk_t *sda = disk_named(&r, "sda");
+    CHECK(sda != NULL);
+    if (!sda) return;
+    strcpy(sda->model, "Some New Disk 8TB");
+    int idx[NAS_DISKS_MAX];
+    int n = nas_disk_order(&r, idx, NAS_DISKS_MAX);
+    CHECK(n == 8);
+    CHECK(&r.disks[idx[7]] == sda);
+    CHECK(nas_disk_use(sda) == NAS_USE_NONE);
+    CHECK(strcmp(nas_use_label(NAS_USE_NONE), "") == 0);
+    /* `max` caps the list without disturbing the order. */
+    CHECK(nas_disk_order(&r, idx, 3) == 3);
+    CHECK(strcmp(nas_short_device(r.disks[idx[0]].device), "nvme2") == 0);
+}
+
+/* The four states the card is judged in: ok, disk warning, pool degraded,
+ * stale. */
+static void test_headline_states(void) {
+    nas_record_t r;
+    CHECK(load_live(&r));
+    double now = r.ts + 2;
+    char head[64], sub[128];
+    nas_level_t lvl = NAS_CRIT;
+
+    nas_headline(&r, NAS_FEED_LIVE, now, head, sizeof(head), sub, sizeof(sub), &lvl);
+    CHECK(strcmp(head, "NAS OK") == 0);
+    CHECK(strcmp(sub, "8 disks \xc2\xb7 scrub 4 d ago \xc2\xb7 0 errors") == 0);
+    CHECK(lvl == NAS_OK);
+
+    nas_record_t w = r;
+    disk_named(&w, "sdc")->pending_sectors = 2;
+    nas_headline(&w, NAS_FEED_LIVE, now, head, sizeof(head), sub, sizeof(sub), &lvl);
+    CHECK(strcmp(head, "sdc PENDING 2") == 0);
+    CHECK(strcmp(sub, "1 disk needs a look \xc2\xb7 scrub 4 d ago") == 0);
+    CHECK(lvl == NAS_WARN);
+
+    /* The pool outranks the disk that failed it. */
+    nas_record_t c = r;
+    strcpy(c.pools[0].health, "DEGRADED");
+    disk_named(&c, "sdd")->smart_passed = 0;
+    nas_headline(&c, NAS_FEED_LIVE, now, head, sizeof(head), sub, sizeof(sub), &lvl);
+    CHECK(strcmp(head, "nas DEGRADED") == 0);
+    CHECK(strcmp(sub, "1 disk needs a look \xc2\xb7 scrub 4 d ago") == 0);
+    CHECK(lvl == NAS_CRIT);
+
+    nas_headline(&r, NAS_FEED_STALE, r.ts + 240, head, sizeof(head), sub, sizeof(sub), &lvl);
+    CHECK(strcmp(head, "STALE \xc2\xb7 4 m") == 0);
+    CHECK(strcmp(sub, "last values shown \xc2\xb7 no data for 4 m") == 0);
+}
+
+static void test_headline_other_causes(void) {
+    nas_record_t r;
+    CHECK(load_live(&r));
+    double now = r.ts + 2;
+    char head[64], sub[128];
+    nas_level_t lvl;
+
+    nas_record_t e = r;
+    e.pools[0].errors = 3;
+    nas_headline(&e, NAS_FEED_LIVE, now, head, sizeof(head), sub, sizeof(sub), &lvl);
+    CHECK(strcmp(head, "nas 3 ERRORS") == 0);
+    CHECK(strcmp(sub, "8 disks \xc2\xb7 scrub 4 d ago \xc2\xb7 3 errors") == 0);
+
+    nas_record_t h = r;
+    disk_named(&h, "nvme2")->temp_c = 81;
+    nas_headline(&h, NAS_FEED_LIVE, now, head, sizeof(head), sub, sizeof(sub), &lvl);
+    CHECK(strcmp(head, "nvme2 HOT 81\xc2\xb0") == 0);
+    CHECK(lvl == NAS_CRIT);
+
+    nas_record_t s = r;
+    s.source_stale = true;
+    nas_headline(&s, NAS_FEED_LIVE, now, head, sizeof(head), sub, sizeof(sub), &lvl);
+    CHECK(strcmp(head, "SOURCE STALE") == 0);
+    CHECK(lvl == NAS_WARN);
+
+    /* sdc's constant reallocated count and the standby HDDs are not news. */
+    char why[32];
+    nas_disk_reason(disk_named(&r, "sdc"), why, sizeof(why));
+    CHECK(why[0] == '\0');
+}
+
 int main(void) {
     test_schema_example_parses();
     test_collector_down_example();
@@ -185,6 +322,11 @@ int main(void) {
     test_levels();
     test_formatting();
     test_capacity();
+    test_live_order_and_uses();
+    test_order_follows_model_not_name();
+    test_unlisted_disk_sorts_last();
+    test_headline_states();
+    test_headline_other_causes();
     fprintf(stderr, "test_nasstate: %d passed, %d failed\n", passed, failed);
     return failed == 0 ? 0 : 1;
 }

@@ -94,6 +94,35 @@ nas_level_t nas_disk_level(const nas_disk_t *d);
 /* Worst of every pool, every disk and the collector. */
 nas_level_t nas_overall_level(const nas_record_t *r);
 
+/* ---- Disk use and order (sprint 033). The table is nas_disk_uses.h. ---- */
+
+typedef enum { NAS_USE_NONE = 0, NAS_USE_ROOT, NAS_USE_POOL, NAS_USE_CACHE, NAS_USE_COLD } nas_use_t;
+
+/* NAS_USE_NONE for a model the table does not list. */
+nas_use_t nas_disk_use(const nas_disk_t *d);
+/* "root", "nas pool", "cache", "cold"; "" for NAS_USE_NONE. */
+const char *nas_use_label(nas_use_t u);
+/* Fill `idx` with indices into r->disks in display order (Ken's: root, pool,
+ * cache, cold, then anything unlisted), at most `max`. Returns the count. */
+int nas_disk_order(const nas_record_t *r, int *idx, int max);
+
+/* "sdc" from "/dev/sdc". */
+const char *nas_short_device(const char *dev);
+
+/* The one fact that makes a disk WARN or CRIT, as the headline names it:
+ * "SMART FAILED", "PENDING 2", "MEDIA ERR 3", "WEAR 91%", "HOT 72°". Empty
+ * for a disk that is OK or NEUTRAL. */
+void nas_disk_reason(const nas_disk_t *d, char *buf, size_t n);
+
+/* The card's headline and the line under it, and the level that colours
+ * both and the frame. In order of precedence: a stale feed ("STALE · 4 m"),
+ * a pool in trouble ("nas DEGRADED", "nas 3 ERRORS"), the worst disk
+ * ("sdc PENDING 2"), the collector ("COLLECTOR DOWN", "SOURCE STALE"), and
+ * otherwise "NAS OK". The sub line counts disks, says when the first pool
+ * was scrubbed and, when all is well, how many errors it has. */
+void nas_headline(const nas_record_t *r, nas_feed_t feed, double now, char *head, size_t hn,
+                  char *sub, size_t sn, nas_level_t *level);
+
 /* "45 s", "12 m", "3 h", "2 d". */
 void nas_format_age(double seconds, char *buf, size_t n);
 /* "921 GB", "5.3 TB". */

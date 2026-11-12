@@ -97,13 +97,6 @@ bool redis_parse_cmd_textsize_json(const char *json, dev_cmd_state_t *state);
  */
 const dev_cmd_state_t *redis_get_dev_cmd_state(void);
 
-/**
- * Parse kpidash:client:<host>:dev_telemetry JSON into a dev_telemetry_t.
- * json == NULL (key absent) → valid=false.
- * Same field layout as regular telemetry minus disks.
- */
-bool redis_parse_dev_telemetry_json(const char *json, dev_telemetry_t *dt);
-
 /* ---- Sprint 006: service status (T021/T023) ---- */
 
 /**
