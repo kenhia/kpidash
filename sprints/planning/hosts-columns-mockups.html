@@ -1,0 +1,268 @@
+<meta name="claude:viewport-fit-sides" content="cover">
+<title>kpidash Host Columns</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;700&display=swap">
+<style>
+/* Same page chrome as refresh-mockups.html: one dark Mocha column, figures at real panel
+   pixels. Single look by choice, because the subject is a dark panel. */
+:root{
+  color-scheme:dark;
+  --crust:#11111B; --base:#1E1E2E; --raise:#232336; --s0:#313244; --s1:#45475A;
+  --muted:#6C7086; --sub:#A6ADC8; --fg:#CDD6F4;
+  --teal:#94E2D5; --lav:#B4BEFE; --peach:#FAB387; --yellow:#F9E2AF; --red:#F38BA8; --green:#A6E3A1;
+  --font:"Montserrat",system-ui,-apple-system,"Segoe UI",sans-serif;
+}
+body{background:var(--crust);color:var(--fg);font-family:var(--font);font-size:16px;line-height:1.55;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:32px 80px}
+.wrap{max-width:1920px;margin:0 auto;display:flex;flex-direction:column;gap:48px}
+h1{font-size:40px;line-height:1.1;margin:0;color:var(--teal);font-weight:700;text-wrap:balance}
+h2{font-size:28px;margin:0;font-weight:700;text-wrap:balance}
+h3{font-size:20px;margin:0;font-weight:700}
+p{margin:0;max-width:68ch;color:var(--sub)}
+p b,li b,td b{color:var(--fg)}
+.lede{font-size:18px}
+header{display:flex;flex-direction:column;gap:14px}
+.bar{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--crust);padding-block:10px;
+  display:flex;flex-wrap:wrap;gap:10px 24px;align-items:center;border-bottom:1px solid var(--s0)}
+.seg{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.seg span{font-size:13px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-right:4px}
+button{font:inherit;font-size:14px;font-weight:700;color:var(--fg);background:var(--base);border:1px solid var(--s1);
+  border-radius:999px;padding:6px 14px;cursor:pointer}
+button[aria-pressed="true"]{background:var(--teal);color:var(--crust);border-color:var(--teal)}
+button:focus-visible{outline:2px solid var(--lav);outline-offset:2px}
+section{display:flex;flex-direction:column;gap:24px}
+.sechead{display:flex;flex-direction:column;gap:8px}
+.variant{display:flex;flex-direction:column;gap:12px}
+.vhead{display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 16px}
+.tag{font-size:13px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--crust);background:var(--lav);
+  border-radius:999px;padding:2px 10px}
+.size{font-size:14px;color:var(--muted)}
+.canvas{overflow-x:auto;max-width:100%}
+.canvas svg{display:block;max-width:100%;height:auto}
+body.actual .canvas svg{max-width:none}
+ul{margin:0;padding-left:20px;color:var(--sub);max-width:68ch}
+li{margin-block:4px}
+code{font-family:ui-monospace,Consolas,monospace;font-size:.9em;color:var(--lav)}
+.tablewrap{overflow-x:auto;max-width:100%}
+table{border-collapse:collapse;font-size:15px;font-variant-numeric:tabular-nums}
+th,td{padding:6px 18px 6px 0;text-align:right;border-bottom:1px solid var(--s0);color:var(--sub)}
+th{font-size:13px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:700}
+th:first-child,td:first-child{text-align:left}
+.open{border-left:3px solid var(--peach);padding-left:14px;display:flex;flex-direction:column;gap:8px}
+</style>
+
+<div class="wrap">
+<header>
+  <h1>Host columns, second pass</h1>
+  <p class="lede">Variant C from the first page with your four changes: top core in the CPU graph, no verdict header, a priority order, and compact tiles in the "quiet fleet" style once more than ten hosts report. One widget, three cells wide (1896&times;628), replacing the six host cards.</p>
+  <p>The first six hosts carry numbers from the panel capture. Everything from gratch onward is a placeholder, there to fill columns.</p>
+</header>
+
+<div class="bar">
+  <div class="seg"><span>State</span>
+    <button id="st-normal" aria-pressed="true">All quiet</button>
+    <button id="st-alert" aria-pressed="false">Something's wrong</button></div>
+  <div class="seg"><span>Asleep laptops</span>
+    <button id="as-hide" aria-pressed="true">Hidden</button>
+    <button id="as-dim" aria-pressed="false">Dimmed in place</button></div>
+  <div class="seg"><span>Scale</span>
+    <button id="sc-fit" aria-pressed="true">Fit to page</button>
+    <button id="sc-actual" aria-pressed="false">Actual pixels</button></div>
+</div>
+
+<section>
+  <div class="sechead">
+    <h2>The widget at four fleet sizes</h2>
+    <p>Hosts sort by priority, left to right. When they stop fitting, the lowest-priority hosts drop to compact tiles, three to a column, starting from the right.</p>
+  </div>
+  <div id="figs"></div>
+</section>
+
+<section>
+  <div class="sechead">
+    <h2>How it behaves</h2>
+  </div>
+  <ul>
+    <li><b>CPU graph.</b> The filled blue area is average CPU; the thin sapphire line above it is the busiest single core. The big number is the average, the small one is the top core. Ten minutes of history, kept in memory on the panel.</li>
+    <li><b>Attention.</b> Nothing changes size. A host that needs a look gets a yellow border, one that needs you now gets a red one, and the row that caused it (RAM, a drive) is drawn in the same colour. A host that stopped reporting gets a red border and says how long ago.</li>
+    <li><b>Thresholds.</b> RAM and each drive: yellow at 80%, red at 90%. CPU, GPU and VRAM never raise attention; a loaded model keeps VRAM above 90% all day.</li>
+    <li><b>Priority.</b> The order in <code>KPIDASH_PRIORITY_CLIENTS</code>, which the panel already reads. Hosts not in the list come after it, by name. The same order decides who goes compact first.</li>
+    <li><b>Compact tile.</b> Name, uptime, then one bar each for CPU (with a tick at the top core), RAM, GPU if there is one, and the fullest drive.</li>
+    <li><b>Drives in a full column.</b> Up to five, fullest first when there are more.</li>
+  </ul>
+  <div class="tablewrap">
+  <table>
+    <thead><tr><th>Hosts</th><th>Full columns</th><th>Compact tiles</th><th>Compact columns</th></tr></thead>
+    <tbody id="rules"></tbody>
+  </table>
+  </div>
+  <p>Thirty is the ceiling (ten columns of three). The panel's host limit is 16 today, so the sprint raises it to 32.</p>
+</section>
+
+<section>
+  <div class="sechead">
+    <h2>Two things I chose for you</h2>
+    <p>Both are in the proposal as defaults. Say so if you want either the other way.</p>
+  </div>
+  <div class="open">
+    <h3>Asleep laptops are hidden</h3>
+    <p>A host on the intermittent list that is not reporting takes no slot, so the fleet reflows when a laptop wakes. The switch above shows the alternative, where it keeps its slot and dims.</p>
+  </div>
+  <div class="open">
+    <h3>The other three cells of the top row stay empty for now</h3>
+    <p>The widget takes columns 0 to 2 of row 0. Dev graphs, NAS and 10G stay where they are. Columns 3 to 5 of row 0 are left dark until you pick what goes there, one step at a time.</p>
+  </div>
+</section>
+</div>
+
+<script>
+const C={crust:'#11111B',base:'#1E1E2E',raise:'#232336',s0:'#313244',s1:'#45475A',muted:'#6C7086',sub:'#A6ADC8',fg:'#CDD6F4',
+  green:'#A6E3A1',blue:'#89B4FA',red:'#F38BA8',peach:'#FAB387',mauve:'#CBA6F7',yellow:'#F9E2AF',teal:'#94E2D5',sapph:'#74C7EC',lav:'#B4BEFE'};
+let STATE='normal', ASLEEP='hide';
+
+/* ---------- helpers (same as the first page) ---------- */
+const esc=s=>String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;');
+function T(x,y,s,o={}){return `<text x="${x}" y="${y}" font-size="${o.s||16}" font-weight="${o.w||400}" fill="${o.f||C.fg}" text-anchor="${o.a||'start'}"${o.ls?` letter-spacing="${o.ls}"`:''}${o.op?` opacity="${o.op}"`:''}>${esc(s)}</text>`}
+function R(x,y,w,h,f,o={}){return `<rect x="${x}" y="${y}" width="${Math.max(0,w)}" height="${h}" rx="${o.rx??0}" fill="${f}"${o.st?` stroke="${o.st}" stroke-width="${o.sw||1}"`:''}${o.op!=null?` opacity="${o.op}"`:''}/>`}
+function svg(w,h,body,label){return `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" font-family="Montserrat, system-ui, sans-serif" role="img" aria-label="${esc(label)}">${R(0,0,w,h,C.crust)}${body}</svg>`}
+const attC=a=>a==='crit'?C.red:a==='warn'?C.yellow:C.s1;
+function rng(seed){let a=seed>>>0;return()=>{a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
+const pct=(a,b)=>b?Math.round(a/b*100):0;
+const lvl=p=>p>=90?'crit':p>=80?'warn':null;
+function bar(x,y,w,h,p,col){return R(x,y,w,h,C.s0,{rx:h/2})+(p>0?R(x,y,Math.max(h,w*Math.min(p,100)/100),h,col,{rx:h/2}):'')}
+function pts(arr,x,y,w,h){const n=arr.length;return arr.map((v,i)=>`${(x+i*w/(n-1)).toFixed(1)},${(y+h-Math.min(v,100)/100*h).toFixed(1)}`)}
+function line(arr,x,y,w,h,col,o={}){const p=pts(arr,x,y,w,h);
+  return (o.fill?`<path d="M${x},${y+h} L${p.join(' L')} L${x+w},${y+h} Z" fill="${col}" opacity="${o.fill}"/>`:'')+
+    `<polyline points="${p.join(' ')}" fill="none" stroke="${col}" stroke-width="${o.sw||2}" stroke-linejoin="round" stroke-linecap="round"/>`}
+
+/* ---------- data: array order IS the priority order ---------- */
+function hostsData(){
+  const H=[
+   {n:'kai',os:'Ubuntu 24.04',up:'21d 21h',cpu:3,core:14,ram:[9.3,123.5],vram:[30.3,31.8],gpu:0,disks:[['root',535,1800],['ai',645,1800]]},
+   {n:'kubs0',os:'Ubuntu 24.04',up:'24d 22h',cpu:2,core:9,ram:[11.5,125.6],vram:[13.4,16.0],gpu:0,disks:[['root',130,1800],['ai',60.2,1800],['src',378,1800]]},
+   {n:'cleo',os:'Win 11 Pro',up:'5d 20h',cpu:18,core:69,ram:[21.4,31.4],vram:[2.6,7.7],gpu:5,disks:[['C',623,1800],['D',241,931],['F',0,120]]},
+   {n:'kubsdb',os:'Ubuntu 24.04',up:'13d 21h',cpu:1,core:5,ram:[2.5,62.7],disks:[['root',30.7,455],['datastore',9,916],['gratch',69.2,4500]]},
+   {n:'gratch',os:'Ubuntu 26.04',up:'19d 4h',cpu:1,core:6,ram:[12.4,31.3],disks:[['root',13,913],['nas',991,5900]]},
+   {n:'kimac',os:'macOS 27.0',up:'35d 14h',cpu:2,core:4,ram:[3.2,8],disks:[['data',45.3,460]]},
+   {n:'rpi53',os:'Debian 13',up:'1h 41m',cpu:12,core:48,ram:[0.45,7.9],disks:[['root',8.8,468],['firmware',0.1,0.5]]},
+   {n:'krgate',os:'Debian 13',up:'11d 2h',cpu:1,core:3,ram:[0.6,3.8],disks:[['root',6.1,58]]},
+   {n:'komarchy',os:'Omarchy',up:'3h 12m',cpu:4,core:22,ram:[5.1,15.5],disks:[['root',88,476]]},
+   {n:'thrall',os:'Arch',up:'asleep 2d',asleep:1,cpu:0,core:0,ram:[0,62.7],vram:[0,24],gpu:0,disks:[['root',212,931]]},
+   {n:'kit',os:'Win 11 Arm',up:'asleep 6h',asleep:1,cpu:0,core:0,ram:[0,31.6],disks:[['C',141,476]]},
+   {n:'ksandbox',os:'Ubuntu 24.04',up:'2h 05m',cpu:6,core:31,ram:[1.9,7.8],disks:[['root',21,64]]},
+   {n:'kbook2',os:'Win 11 Pro',up:'47m',cpu:9,core:40,ram:[9.8,15.8],vram:[1.1,6],gpu:2,disks:[['C',301,476]]},
+  ];
+  const r0=rng(7);
+  ['rpidash3','deskdash','kwork','krpi4','kvm1','kvm2','kvm3','ktest1','ktest2','ktest3','ktest4','ktest5','ktest6','ktest7','ktest8','ktest9','ktest10','ktest11','ktest12']
+    .forEach(n=>{const tot=[3.8,7.8,15.5,31.3][Math.floor(r0()*4)],dt=[58,117,476][Math.floor(r0()*3)];
+      H.push({n,os:'Debian 13',up:Math.ceil(r0()*30)+'d '+Math.floor(r0()*24)+'h',cpu:Math.round(r0()*8),core:Math.round(8+r0()*30),
+        ram:[+(tot*(.15+r0()*.4)).toFixed(1),tot],disks:[['root',Math.round(dt*(.1+r0()*.5)),dt]]})});
+  if(STATE==='alert'){
+    H[0].ram=[118.6,123.5];                 /* kai: RAM critical */
+    H[1].disks[2]=['src',1548,1800];        /* kubs0: a drive filling */
+    H[6].off='NO DATA 4 m';                 /* rpi53: stopped reporting */
+    H[11].disks[0]=['root',59.5,64];        /* ksandbox: compact tile, critical */
+    H[12].ram=[13.4,15.8];                  /* kbook2: compact tile, warning */
+  }
+  H.forEach((h,i)=>{
+    const r=rng(100+i);
+    h.hist=[];h.chist=[];
+    for(let k=0;k<120;k++){const sp=r()<.07?15+r()*45:0, a=h.asleep?0:Math.max(0,h.cpu+r()*4-2+sp*.35);
+      h.hist.push(Math.min(100,a)); h.chist.push(h.asleep?0:Math.min(100,a+Math.max(2,h.core-h.cpu)*(.5+r()*.6)+sp*.6));}
+    h.ghist=h.vram?Array.from({length:120},(_,k)=>h.asleep?0:(i===0&&k>70&&k<92)?70+r()*25:(r()<.04?10+r()*20:h.gpu+r()*.6)):null;
+    h.rp=pct(h.ram[0],h.ram[1]);
+    h.disks=h.disks.map(d=>({n:d[0],p:pct(d[1],d[2])}));
+    if(h.disks.length>5) h.disks=[...h.disks].sort((a,b)=>b.p-a.p).slice(0,5);
+    h.worst=h.disks.reduce((m,d)=>d.p>m.p?d:m);
+    const ls=[h.off?'crit':null,lvl(h.rp),...h.disks.map(d=>lvl(d.p))];
+    h.att=h.asleep?null:ls.includes('crit')?'crit':ls.includes('warn')?'warn':null;
+  });
+  return ASLEEP==='hide'?H.filter(h=>!h.asleep):H;
+}
+
+/* ---------- layout rule ---------- */
+const COLS=10, PER=3;
+function plan(n){n=Math.min(n,COLS*PER); if(n<=COLS) return {full:n,compact:0};
+  const full=Math.max(0,Math.floor((COLS*PER-n)/(PER-1))); return {full,compact:n-full}}
+
+/* ---------- a full column ---------- */
+function colFull(h,x,y0,cw,ch){
+  const a=h.att, L=x+14, Rr=x+cw-14, w=cw-28; let s='';
+  s+=R(x,y0,cw,ch,C.raise,{rx:8,st:a?attC(a):C.s1,sw:a?3:1});
+  s+=R(x,y0,cw,a?10:6,a?attC(a):(h.asleep?C.s1:C.green),{rx:3});
+  s+=`<g opacity="${h.asleep?.45:1}">`;
+  s+=T(L,y0+40,h.n,{s:20,w:700})+T(L,y0+60,h.os,{s:14,f:C.muted});
+  s+=T(L,y0+80,h.off||(h.asleep?h.up:'up '+h.up),{s:14,f:h.off?C.red:C.muted,w:h.off?700:400});
+  s+=`<g opacity="${h.off?.4:1}">`;
+  if(!h.asleep){
+    s+=T(L,y0+122,'CPU',{s:14,f:C.muted,ls:1})+T(Rr,y0+124,h.cpu+'%',{s:24,w:700,f:C.blue,a:'end'});
+    s+=line(h.hist,L,y0+136,w,60,C.blue,{sw:2,fill:.22});
+    s+=line(h.chist,L,y0+136,w,60,C.sapph,{sw:1.5});
+    s+=T(L,y0+216,'top core',{s:14,f:C.muted})+T(Rr,y0+216,h.core+'%',{s:14,w:700,f:C.sapph,a:'end'});
+    const ra=lvl(h.rp), rc=ra?attC(ra):null;
+    s+=T(L,y0+256,'RAM',{s:14,f:rc||C.muted,ls:1,w:ra?700:400})+T(Rr,y0+256,h.rp+'%',{s:16,w:700,f:rc||C.fg,a:'end'})+bar(L,y0+266,w,8,h.rp,rc||C.mauve);
+    if(h.vram){
+      s+=T(L,y0+308,'GPU',{s:14,f:C.muted,ls:1})+T(Rr,y0+310,h.gpu+'%',{s:24,w:700,f:C.green,a:'end'});
+      s+=line(h.ghist,L,y0+320,w,40,C.green,{sw:3,fill:.15});
+      s+=T(L,y0+386,'VRAM',{s:14,f:C.muted,ls:1})+T(Rr,y0+386,`${h.vram[0]} / ${h.vram[1]}`,{s:14,f:C.sub,a:'end'})+bar(L,y0+396,w,8,pct(h.vram[0],h.vram[1]),C.peach);
+    }
+  }
+  h.disks.forEach((d,k)=>{const y=y0+438+k*32, da=lvl(d.p), dc=da?attC(da):null;
+    s+=T(L,y,d.n,{s:14,f:dc||C.sub,w:da?700:400})+T(Rr,y,d.p+'%',{s:14,f:dc||C.muted,a:'end',w:da?700:400})+bar(L,y+7,w,6,d.p,dc||C.lav)});
+  return s+'</g></g>';
+}
+
+/* ---------- a compact tile ---------- */
+function tile(h,x,y,cw,th){
+  const a=h.att, L=x+12, Rr=x+cw-12; let s='';
+  s+=R(x,y,cw,th,C.raise,{rx:8,st:a?attC(a):C.s1,sw:a?3:1});
+  s+=`<g opacity="${h.asleep?.45:1}">`;
+  s+=`<circle cx="${x+19}" cy="${y+29}" r="6" fill="${h.asleep?C.s1:h.off?C.red:C.green}"/>`+T(x+33,y+36,h.n,{s:20,w:700});
+  s+=T(L,y+60,h.off||(h.asleep?h.up:'up '+h.up),{s:14,f:h.off?C.red:C.muted,w:h.off?700:400});
+  const ra=lvl(h.rp), da=lvl(h.worst.p);
+  const rows=[['cpu',h.cpu,C.blue,null,h.core],['ram',h.rp,C.mauve,ra]];
+  if(h.vram) rows.push(['gpu',h.gpu,C.green,null]);
+  rows.push([h.worst.n.slice(0,5),h.worst.p,C.lav,da]);
+  const bx=x+58, bw=cw-58-52;
+  s+=`<g opacity="${h.off?.4:1}">`;
+  rows.forEach((m,k)=>{const yy=y+92+k*26, c=m[3]?attC(m[3]):null, v=h.asleep&&k<rows.length-1?0:m[1];
+    s+=T(L,yy+5,m[0],{s:14,f:c||C.muted,w:c?700:400})+bar(bx,yy-4,bw,8,v,c||m[2]);
+    if(m[4]&&!h.asleep) s+=R(bx+bw*Math.min(m[4],100)/100-1,yy-7,3,14,C.sapph,{rx:1});
+    s+=T(Rr,yy+5,(h.asleep&&k<rows.length-1)?'':v+'%',{s:14,f:c||C.sub,a:'end',w:c?700:400})});
+  return s+'</g></g>';
+}
+
+/* ---------- the widget ---------- */
+function widget(H){
+  const W=1896,HH=628, cw=175, gap=10, x0=28, y0=16, ch=596, th=(ch-2*gap)/3;
+  let s=R(4,4,W-8,HH-8,C.base,{rx:8,st:C.s0});
+  const p=plan(H.length);
+  for(let i=0;i<p.full;i++) s+=colFull(H[i],x0+i*(cw+gap),y0,cw,ch);
+  for(let j=0;j<p.compact;j++){const c=p.full+Math.floor(j/PER), r=j%PER;
+    s+=tile(H[p.full+j],x0+c*(cw+gap),y0+r*(th+gap),cw,th)}
+  return svg(W,HH,s,`Host columns with ${H.length} hosts`);
+}
+
+function variant(tag,name,size,html,text){return `<div class="variant"><div class="vhead"><span class="tag">${tag}</span><h3>${name}</h3><span class="size">${size}</span></div><div class="canvas">${html}</div><p>${text}</p></div>`}
+const NOTES={10:'The whole fleet at full size. This is where you are once the six current hosts are joined by gratch, krgate and whichever laptops are awake.',
+  11:'Nine full columns; the two lowest-priority hosts share the last column, with room for a third.',
+  20:'Five full columns and fifteen compact tiles.',
+  30:'The ceiling. Every host is a tile.'};
+function render(){
+  const all=hostsData();
+  document.getElementById('figs').innerHTML=[10,11,20,30].map(n=>{const H=all.slice(0,n), p=plan(H.length);
+    return variant(H.length+' hosts',`${p.full} full, ${p.compact} compact`,'1896 × 628',widget(H),NOTES[n])}).join('<div style="height:28px"></div>');
+  document.getElementById('rules').innerHTML=[6,10,11,12,13,14,17,20,24,30].map(n=>{const p=plan(n);
+    return `<tr><td><b>${n}</b></td><td>${p.full}</td><td>${p.compact}</td><td>${Math.ceil(p.compact/PER)}</td></tr>`}).join('');
+}
+function press(a,b){a.setAttribute('aria-pressed','true');b.setAttribute('aria-pressed','false')}
+const $=id=>document.getElementById(id);
+$('st-normal').onclick=()=>{STATE='normal';press($('st-normal'),$('st-alert'));render()};
+$('st-alert').onclick=()=>{STATE='alert';press($('st-alert'),$('st-normal'));render()};
+$('as-hide').onclick=()=>{ASLEEP='hide';press($('as-hide'),$('as-dim'));render()};
+$('as-dim').onclick=()=>{ASLEEP='dim';press($('as-dim'),$('as-hide'));render()};
+$('sc-fit').onclick=()=>{document.body.classList.remove('actual');press($('sc-fit'),$('sc-actual'))};
+$('sc-actual').onclick=()=>{document.body.classList.add('actual');press($('sc-actual'),$('sc-fit'))};
+if(location.hash.includes('alert')){STATE='alert';press($('st-alert'),$('st-normal'))}
+if(location.hash.includes('dim')){ASLEEP='dim';press($('as-dim'),$('as-hide'))}
+render();
+</script>

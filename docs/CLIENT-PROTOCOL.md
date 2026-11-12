@@ -70,7 +70,7 @@ starts still gets its card and goes RED.
 | **Path** | `/var/lib/kpidash/admitted`, overridable with `KPIDASH_STATE_FILE` |
 | **Format** | one lowercase hostname per line — readable and repairable with `cat`. The headerless lines at the top are the host cards' set; a `[net]` line starts the network card's (§8d, WI #4085). A section a build does not know is skipped |
 | **Written** | only when a host is admitted that was not admitted before (to either set); never on a timer. Both sets are rewritten together |
-| **Bound** | `MAX_CLIENTS`, the same bound as the card grid |
+| **Bound** | `MAX_CLIENTS` (32 since sprint 029), the same bound as the host registry |
 | **Pruning** | none, like the set itself |
 | **Missing or corrupt** | starts empty; individual bad lines are skipped, not fatal |
 

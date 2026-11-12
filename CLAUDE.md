@@ -150,7 +150,7 @@ that feed it: `kpidash-client` (the telemetry daemon + CLI) and `kpidash-mcp`
 - **Two git submodules.** Clone with `--recurse-submodules`. `lib/lvgl` is the
   big one and only a Pi/native build needs it. `lib/kdashdata` (sprint 018,
   WI #2244) is small and **the gate does need it** — `src/registry.c` calls
-  `kdash_apttemps_band()`, and registry.c compiles into six test targets.
+  `kdash_apttemps_band()`, and registry.c compiles into nine gate test targets.
   kpidash links `kdash_core` only: the pure logic, no sockets, no hiredis —
   the I/O shell (`kdash`) is deliberately not linked, because kpidash has its
   own Redis layer and is not migrating it.
@@ -170,7 +170,8 @@ that feed it: `kpidash-client` (the telemetry daemon + CLI) and `kpidash-mcp`
   once the optimiser does. Two warnings survived unseen that way until sprint
   017 read the deploy output.
   - `just check-release` compiles at `-O2 -Werror`, but **only what TESTS_ONLY
-    compiles**: `config.c`, `redis.c`, `registry.c`, `icons.c`, `memstat.c`.
+    compiles**: `config.c`, `redis.c`, `registry.c`, `hosthist.c`, `hostcols.c`,
+    `icons.c`, `memstat.c`.
     Worth knowing why that is not enough: neither of the two warnings it was
     written in response to was in those files, so on its own it could not have
     caught them. It is in `just check` because it is cheap and needs no LVGL.

@@ -3,9 +3,10 @@
  *
  * Layout (no title bar, FR-002a; no scroll anywhere, FR-008):
  *
- *   ┌─────────────────────────────────────────────┐
- *   │  [client cards grid — Row 0, 6×1 units]     │
- *   ├──────────┬──────────┬───────────────────────┤
+ *   ┌──────────────────────────┬──────────────────┐
+ *   │  Host columns — Row 0,   │  (empty, row 0   │
+ *   │  cols 0-2, 3×1 units     │   cols 3-5)      │
+ *   ├──────────┬──────────┬────┴──────────────────┤
  *   │ DevGraph │Activities│  Repo Status           │
  *   │  (opt)   │  2×1     │  2×1                   │
  *   ├──────────┴──────────┴───────────────────────┤
@@ -22,6 +23,7 @@
 
 #include "config.h"
 #include "fortune.h"
+#include "hostcols.h"
 #include "layout.h"
 #include "protocol.h"
 #include "redis.h"
@@ -29,11 +31,11 @@
 #include "registry.h"
 #include "widgets/activities.h"
 #include "widgets/apt_temps_card.h"
-#include "widgets/client_card.h"
 #include "widgets/dev_graph.h"
 #include "widgets/dev_grid.h"
 #include "widgets/dev_textsize.h"
 #include "widgets/fortune.h"
+#include "widgets/host_columns.h"
 #include "widgets/nas_card.h"
 #include "widgets/net_card.h"
 #include "widgets/repo_status.h"
@@ -48,7 +50,7 @@
 
 /* ---- Layout objects ---- */
 static lv_obj_t *g_screen = NULL;
-static lv_obj_t *g_card_grid = NULL;
+static lv_obj_t *g_host_columns = NULL; /* WI #4526: replaces the client card grid */
 static lv_obj_t *g_activities = NULL;
 static lv_obj_t *g_repo_status = NULL;
 static lv_obj_t *g_fortune = NULL;
@@ -57,11 +59,6 @@ static lv_obj_t *g_nascard = NULL; /* WI #3956 */
 static lv_obj_t *g_service_strip = NULL;  /* T013: footer Service-Strip container */
 static lv_obj_t *g_status_bar = NULL;
 static lv_obj_t *g_redis_err = NULL;
-
-/* Track which hostnames have cards so we can add/remove dynamically */
-static char g_card_hostnames[MAX_CLIENTS][HOSTNAME_LEN];
-static lv_obj_t *g_cards[MAX_CLIENTS];
-static int g_card_count = 0;
 
 /* Dev overlay handles (T030) */
 static lv_obj_t *g_dev_grid = NULL;
@@ -84,54 +81,30 @@ static void clear_bg(lv_obj_t *obj) {
     lv_obj_clear_flag(obj, LV_OBJ_FLAG_SCROLLABLE);
 }
 
-static lv_obj_t *find_card(const char *hostname) {
-    for (int i = 0; i < g_card_count; i++) {
-        if (strncmp(g_card_hostnames[i], hostname, HOSTNAME_LEN) == 0)
-            return g_cards[i];
-    }
-    return NULL;
-}
+/* WI #4524/#4525: snapshot the registry, pick and order the hosts that get a
+ * slot, and hand the widget their display models. Static buffers: with
+ * MAX_CLIENTS at 32, client_info_t snapshots are too large to keep putting on
+ * the stack every second. */
+static void refresh_host_columns(void) {
+    static client_info_t clients[MAX_CLIENTS];
+    static hc_host_t models[HOSTCOLS_MAX];
+    static int last_dropped = 0;
 
-static void add_card(const char *hostname) {
-    if (g_card_count >= MAX_CLIENTS)
-        return;
-    lv_obj_t *card = client_card_create(g_card_grid, hostname);
-    /* WI #1934: `hostname` always arrives as a client_info_t.hostname —
-     * char[HOSTNAME_LEN], NUL-terminated — but the parameter is a plain
-     * pointer, so -O2 cannot see that bound and reads the strncpy as a
-     * possible truncation. Copy the exact length instead, clamped to the
-     * destination. The memset keeps strncpy's zero-fill of the tail, so a
-     * reused slot cannot leave a longer previous name's bytes behind. */
-    {
-        size_t hn = strnlen(hostname, HOSTNAME_LEN - 1);
-        memset(g_card_hostnames[g_card_count], 0, HOSTNAME_LEN);
-        memcpy(g_card_hostnames[g_card_count], hostname, hn);
+    int n = registry_snapshot(clients, MAX_CLIENTS);
+    const client_info_t *sel[HOSTCOLS_MAX];
+    int dropped = 0;
+    int ns = hostcols_select(clients, n, sel, HOSTCOLS_MAX, &dropped);
+    if (dropped != last_dropped) {
+        /* Logged on change, not every second: the journal is for news. */
+        if (dropped > 0)
+            fprintf(stderr, "ui: %d host(s) past the %d-slot host columns limit are not shown\n",
+                    dropped, HOSTCOLS_MAX);
+        last_dropped = dropped;
     }
-    g_cards[g_card_count] = card;
-    g_card_count++;
-}
-
-static void remove_absent_cards(const client_info_t *clients, int n) {
-    for (int i = 0; i < g_card_count;) {
-        bool found = false;
-        for (int j = 0; j < n; j++) {
-            if (strncmp(g_card_hostnames[i], clients[j].hostname, HOSTNAME_LEN) == 0) {
-                found = true;
-                break;
-            }
-        }
-        if (!found) {
-            lv_obj_delete(g_cards[i]);
-            /* Compact arrays */
-            for (int k = i; k < g_card_count - 1; k++) {
-                g_cards[k] = g_cards[k + 1];
-                strncpy(g_card_hostnames[k], g_card_hostnames[k + 1], HOSTNAME_LEN);
-            }
-            g_card_count--;
-        } else {
-            i++;
-        }
-    }
+    double now = (double)time(NULL);
+    for (int i = 0; i < ns; i++)
+        hostcols_build(sel[i], now, &models[i]);
+    host_columns_update(g_host_columns, models, ns);
 }
 
 /* ---- Public API ---- */
@@ -144,16 +117,9 @@ void ui_init(void) {
     /* Footer sub-layout constants (status bar pinned at very bottom). */
     static const int32_t status_bar_h = 40;
 
-    /* ---- Client card grid (Row 1, full width — FR-001) ---- */
-    g_card_grid = lv_obj_create(g_screen);
-    clear_bg(g_card_grid);
-    lv_obj_set_size(g_card_grid, UNIT_W_N(COLS), UNIT_H);
-    lv_obj_set_pos(g_card_grid, COL_X(0), ROW_Y(0));
-    lv_obj_set_flex_flow(g_card_grid, LV_FLEX_FLOW_ROW_WRAP);
-    lv_obj_set_flex_align(g_card_grid, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_START,
-                          LV_FLEX_ALIGN_START);
-    lv_obj_set_style_pad_column(g_card_grid, 0, 0);
-    lv_obj_set_style_pad_row(g_card_grid, 0, 0);
+    /* ---- Host columns (WI #4526): row 0, columns 0-2. Row 0 columns 3-5
+     * are deliberately left empty — what fills them is Ken's later call. ---- */
+    g_host_columns = host_columns_create(g_screen, COL_X(0), ROW_Y(0));
 
     /* ---- Rows 2-3 (FR-002): pool widgets created here, positioned by
      * ui_refresh() via layout_pool_place(). They are created once and
@@ -223,60 +189,13 @@ void ui_init(void) {
     lv_obj_clear_flag(err_lbl, LV_OBJ_FLAG_SCROLLABLE);
 
     /* FR-008 verification note: every widget created above uses
-     * lv_obj_clear_flag(obj, LV_OBJ_FLAG_SCROLLABLE). The card grid,
+     * lv_obj_clear_flag(obj, LV_OBJ_FLAG_SCROLLABLE). The host columns,
      * activities, repo status, fortune, status bar, and overlay are all
      * non-scrollable. Verified in T055. */
 }
 
 void ui_refresh(void) {
-    /* Snapshot current registry */
-    client_info_t clients[MAX_CLIENTS];
-    int n = registry_snapshot(clients, MAX_CLIENTS);
-
-    /* Sort by priority: priority clients first (in config order),
-     * then remaining clients in their original registration order. */
-    for (int i = 0; i < n - 1; i++) {
-        for (int j = i + 1; j < n; j++) {
-            int pi = registry_priority_index(clients[i].hostname);
-            int pj = registry_priority_index(clients[j].hostname);
-            /* Both priority: lower index wins. Priority vs non: priority wins.
-             * Both non-priority: preserve order (stable, no swap). */
-            bool swap = false;
-            if (pi < 0 && pj >= 0)
-                swap = true; /* j is priority, i is not */
-            else if (pi >= 0 && pj >= 0 && pj < pi)
-                swap = true; /* both priority, j has higher precedence */
-            if (swap) {
-                client_info_t tmp = clients[i];
-                clients[i] = clients[j];
-                clients[j] = tmp;
-            }
-        }
-    }
-
-    /* Add new cards, remove absent ones */
-    for (int i = 0; i < n; i++) {
-        if (!find_card(clients[i].hostname)) {
-            add_card(clients[i].hostname);
-        }
-    }
-    remove_absent_cards(clients, n);
-
-    /* Reorder card LVGL objects to match sorted client order. */
-    for (int i = 0; i < n; i++) {
-        lv_obj_t *card = find_card(clients[i].hostname);
-        if (card)
-            lv_obj_move_to_index(card, i);
-    }
-
-    /* Update all cards */
-    for (int i = 0; i < n; i++) {
-        lv_obj_t *card = find_card(clients[i].hostname);
-        if (!card)
-            continue;
-        client_card_update_health(card, &clients[i]);
-        client_card_update_telemetry(card, &clients[i]);
-    }
+    refresh_host_columns();
 
 #if KPIDASH_WIDGET_ACTIVITIES
     /* Activities widget */

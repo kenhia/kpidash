@@ -1,0 +1,455 @@
+<meta name="claude:viewport-fit-sides" content="cover">
+<title>kpidash Refresh Mock-ups</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;700&display=swap">
+<style>
+/* Layout: one dark Mocha column, like standing in front of the panel. Each variant is a
+   figure drawn at real panel pixels, with its trade-off beside it. Single look by choice:
+   the subject is a dark panel, so the page stays in its palette. */
+:root{
+  color-scheme:dark;
+  --crust:#11111B; --base:#1E1E2E; --raise:#232336; --s0:#313244; --s1:#45475A;
+  --muted:#6C7086; --sub:#A6ADC8; --fg:#CDD6F4;
+  --teal:#94E2D5; --lav:#B4BEFE; --peach:#FAB387; --yellow:#F9E2AF; --red:#F38BA8; --green:#A6E3A1;
+  --font:"Montserrat",system-ui,-apple-system,"Segoe UI",sans-serif;
+}
+body{background:var(--crust);color:var(--fg);font-family:var(--font);font-size:16px;line-height:1.55;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:32px 80px}
+.wrap{max-width:1920px;margin:0 auto;display:flex;flex-direction:column;gap:56px}
+h1{font-size:40px;line-height:1.1;margin:0;color:var(--teal);font-weight:700;text-wrap:balance}
+h2{font-size:28px;margin:0;font-weight:700;text-wrap:balance}
+h3{font-size:20px;margin:0;font-weight:700}
+p{margin:0;max-width:68ch;color:var(--sub)}
+p b,li b{color:var(--fg)}
+.lede{font-size:18px}
+header{display:flex;flex-direction:column;gap:14px}
+.bar{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--crust);padding-block:10px;
+  display:flex;flex-wrap:wrap;gap:10px 24px;align-items:center;border-bottom:1px solid var(--s0)}
+.seg{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.seg span{font-size:13px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-right:4px}
+button{font:inherit;font-size:14px;font-weight:700;color:var(--fg);background:var(--base);border:1px solid var(--s1);
+  border-radius:999px;padding:6px 14px;cursor:pointer}
+button[aria-pressed="true"]{background:var(--teal);color:var(--crust);border-color:var(--teal)}
+button:focus-visible{outline:2px solid var(--lav);outline-offset:2px}
+section{display:flex;flex-direction:column;gap:28px}
+.sechead{display:flex;flex-direction:column;gap:8px}
+.variant{display:flex;flex-direction:column;gap:12px}
+.vhead{display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 16px}
+.tag{font-size:13px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--crust);background:var(--lav);
+  border-radius:999px;padding:2px 10px}
+.tag.wild{background:var(--peach)}
+.size{font-size:14px;color:var(--muted)}
+.canvas{overflow-x:auto;max-width:100%}
+.canvas svg{display:block;max-width:100%;height:auto}
+body.actual .canvas svg{max-width:none}
+.row{display:flex;flex-wrap:wrap;gap:8px}
+.ideas{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px}
+.idea{background:var(--base);border:1px solid var(--s0);border-radius:8px;padding:14px 16px;display:flex;flex-direction:column;gap:6px;min-width:0}
+.idea p{font-size:14px}
+.idea .meta{font-size:13px;color:var(--muted)}
+.idea .live{color:var(--teal);font-weight:700}
+ul{margin:0;padding-left:20px;color:var(--sub);max-width:68ch}
+li{margin-block:4px}
+code{font-family:ui-monospace,Consolas,monospace;font-size:.9em;color:var(--lav)}
+.note{border-left:3px solid var(--s1);padding-left:14px}
+</style>
+
+<div class="wrap">
+<header>
+  <h1>kpidash refresh</h1>
+  <p class="lede">Host cards and dev graphs, redrawn in the look the 10G and NAS cards set. Every card is drawn at real panel pixels (one cell is 632&times;628) with the fonts and sizes the repo already generates.</p>
+  <p>Numbers for kai, kubs0, cleo, rpi53, kubsdb and kimac are from this morning's panel capture. gratch, krgate, komarchy, thrall and kit are placeholders, there to show what ten or eleven hosts look like. GPU bursts in the graphs are invented so the thick line has something to do.</p>
+</header>
+
+<div class="bar">
+  <div class="seg"><span>State</span>
+    <button id="st-normal" aria-pressed="true">All quiet</button>
+    <button id="st-alert" aria-pressed="false">Something's wrong</button></div>
+  <div class="seg"><span>Scale</span>
+    <button id="sc-fit" aria-pressed="true">Fit to page</button>
+    <button id="sc-actual" aria-pressed="false">Actual pixels</button></div>
+</div>
+
+<section>
+  <div class="sechead">
+    <h2>Host cards</h2>
+    <p>Today each host takes a full cell and two thirds of it is drive bars. All five variants shrink drives to thin bars that only change colour when a volume is filling up, and move RAM off red so red only ever means trouble.</p>
+  </div>
+  <div id="hosts"></div>
+</section>
+
+<section>
+  <div class="sechead">
+    <h2>Dev graphs</h2>
+    <p>Today each graph is two cells wide and VRAM and RAM spend most of that space as flat lines. A is the same chart with a real thick line. B to E stop treating levels as traces.</p>
+  </div>
+  <div id="graphs"></div>
+  <div class="note">
+    <h3>The thick line is achievable</h3>
+    <p>The LVGL in <code>lib/lvgl</code> tags every chart line segment with its series index, and its own chart examples restyle segments from a <code>LV_EVENT_DRAW_TASK_ADDED</code> callback. Setting the line width there per series gives a true 5 px GPU line and lets the six flanking series go. Not yet tried on the Pi; at 300 points the cost should be lower than today's nine series.</p>
+  </div>
+</section>
+
+<section>
+  <div class="sechead">
+    <h2>Whole-panel layouts</h2>
+    <p>Block plans on the real 6&times;3 grid plus footer. Grey is unchanged, lavender is redesigned, teal is space that opens up, filled here with one suggestion each.</p>
+  </div>
+  <div id="layouts"></div>
+</section>
+
+<section>
+  <div class="sechead">
+    <h2>What the space could hold</h2>
+    <p>Ordered by how little new plumbing each needs. I would not fill every cell: the rule that has held on your other dashboards is that spare room should buy bigger items, not more of them.</p>
+  </div>
+  <div class="ideas" id="ideas"></div>
+</section>
+</div>
+
+<script>
+const C={crust:'#11111B',base:'#1E1E2E',raise:'#232336',s0:'#313244',s1:'#45475A',muted:'#6C7086',sub:'#A6ADC8',fg:'#CDD6F4',
+  green:'#A6E3A1',blue:'#89B4FA',red:'#F38BA8',peach:'#FAB387',mauve:'#CBA6F7',yellow:'#F9E2AF',teal:'#94E2D5',sapph:'#74C7EC',lav:'#B4BEFE'};
+let STATE='normal';
+
+/* ---------- helpers ---------- */
+const esc=s=>String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;');
+function T(x,y,s,o={}){return `<text x="${x}" y="${y}" font-size="${o.s||16}" font-weight="${o.w||400}" fill="${o.f||C.fg}" text-anchor="${o.a||'start'}"${o.ls?` letter-spacing="${o.ls}"`:''}${o.op?` opacity="${o.op}"`:''}>${esc(s)}</text>`}
+function R(x,y,w,h,f,o={}){return `<rect x="${x}" y="${y}" width="${Math.max(0,w)}" height="${h}" rx="${o.rx??0}" fill="${f}"${o.st?` stroke="${o.st}" stroke-width="${o.sw||1}"`:''}${o.op!=null?` opacity="${o.op}"`:''}/>`}
+function svg(w,h,body,label){return `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" font-family="Montserrat, system-ui, sans-serif" role="img" aria-label="${esc(label)}">${R(0,0,w,h,C.crust)}${body}</svg>`}
+function card(x,y,w,h,att){return R(x+4,y+4,w-8,h-8,C.base,{rx:8,st:att?attC(att):C.s0,sw:att?3:1})}
+const attC=a=>a==='crit'?C.red:a==='warn'?C.yellow:C.s1;
+function mix(a,b,t){const p=h=>[1,3,5].map(i=>parseInt(h.slice(i,i+2),16));const A=p(a),B=p(b);
+  return '#'+A.map((v,i)=>Math.round(v+(B[i]-v)*t).toString(16).padStart(2,'0')).join('')}
+function rng(seed){let a=seed>>>0;return()=>{a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
+const fG=g=>g>=1000?(g/1000).toFixed(1)+'T':g>=100?Math.round(g)+'G':g.toFixed(1)+'G';
+const pct=(a,b)=>b?Math.round(a/b*100):0;
+const lvl=p=>p>=90?'crit':p>=80?'warn':null;
+function bar(x,y,w,h,p,col){return R(x,y,w,h,C.s0,{rx:h/2})+(p>0?R(x,y,Math.max(h,w*Math.min(p,100)/100),h,col,{rx:h/2}):'')}
+function pts(arr,x,y,w,h,max=100){const n=arr.length;return arr.map((v,i)=>`${(x+i*w/(n-1)).toFixed(1)},${(y+h-Math.min(v,max)/max*h).toFixed(1)}`)}
+function line(arr,x,y,w,h,col,o={}){const p=pts(arr,x,y,w,h,o.max);
+  return (o.fill?`<path d="M${x},${y+h} L${p.join(' L')} L${x+w},${y+h} Z" fill="${col}" opacity="${o.fill}"/>`:'')+
+    `<polyline points="${p.join(' ')}" fill="none" stroke="${col}" stroke-width="${o.sw||2}" stroke-linejoin="round" stroke-linecap="round"${o.op?` opacity="${o.op}"`:''}/>`}
+function grid(x,y,w,h){return [.25,.5,.75].map(f=>`<line x1="${x}" x2="${x+w}" y1="${y+h*f}" y2="${y+h*f}" stroke="${C.s0}" stroke-width="1"/>`).join('')}
+
+/* ---------- data ---------- */
+function hostsData(){
+  const H=[
+   {n:'kai',os:'Ubuntu 24.04',up:'21d 21h',cpu:0,core:0,ram:[9.3,123.5],vram:[30.3,31.8],gpu:0,disks:[['root',535,1800],['ai',645,1800]],dev:1},
+   {n:'kubs0',os:'Ubuntu 24.04',up:'24d 22h',cpu:0,core:3,ram:[11.5,125.6],vram:[13.4,16.0],gpu:0,disks:[['root',130,1800],['ai',60.2,1800],['src',378,1800]],dev:1},
+   {n:'cleo',os:'Win 11 Pro',up:'5d 20h',cpu:18,core:69,ram:[21.4,31.4],vram:[2.6,7.7],gpu:5,disks:[['C',623,1800],['D',241,931],['F',0,120]]},
+   {n:'rpi53',os:'Debian 13',up:'1h 41m',cpu:12,core:48,ram:[0.45,7.9],disks:[['root',8.8,468],['firmware',0.1,0.5]]},
+   {n:'kubsdb',os:'Ubuntu 24.04',up:'13d 21h',cpu:0,core:0,ram:[2.5,62.7],disks:[['root',30.7,455],['datastore',9,916],['gratch',69.2,4500]],dev:1},
+   {n:'kimac',os:'macOS 27.0',up:'35d 14h',cpu:2,core:4,ram:[3.2,8],disks:[['data',45.3,460]],dev:1},
+   {n:'gratch',os:'Ubuntu 26.04',up:'19d 4h',cpu:1,core:6,ram:[12.4,31.3],disks:[['root',13,913],['nas',991,5900]]},
+   {n:'krgate',os:'Debian 13',up:'11d 2h',cpu:1,core:3,ram:[0.6,3.8],disks:[['root',6.1,58]]},
+   {n:'komarchy',os:'Omarchy',up:'3h 12m',cpu:4,core:22,ram:[5.1,15.5],disks:[['root',88,476]]},
+   {n:'thrall',os:'Arch',up:'asleep 2d',asleep:1,cpu:0,core:0,ram:[0,62.7],disks:[['root',212,931]]},
+   {n:'kit',os:'Win 11 Arm',up:'asleep 6h',asleep:1,cpu:0,core:0,ram:[0,31.6],disks:[['C',141,476]]},
+  ];
+  if(STATE==='alert'){
+    H[1].disks[2]=['src',1660,1800];
+    H[0].ram=[112.8,123.5];
+    H[3].stale='no data 4 m';
+  }
+  H.forEach((h,i)=>{
+    const r=rng(100+i);
+    h.hist=Array.from({length:60},()=>{const v=h.asleep?0:Math.max(0,h.cpu+ (r()<.08?20+r()*50:r()*6-2));return Math.min(100,v)});
+    h.ghist=h.vram?Array.from({length:60},(_,k)=>(i===0&&k>38&&k<47)?70+r()*25:(r()<.05?10+r()*20:h.gpu+r()*2)):null;
+    const worst=h.disks.reduce((m,d)=>pct(d[1],d[2])>pct(m[1],m[2])?d:m);
+    h.worst=worst; h.wp=pct(worst[1],worst[2]); h.rp=pct(h.ram[0],h.ram[1]);
+    h.att=null;h.why='';
+    if(h.stale){h.att='crit';h.why=h.stale}
+    else if(lvl(h.wp)){h.att=lvl(h.wp);h.why=`${worst[0]} ${h.wp}% full`}
+    else if(lvl(h.rp)){h.att=lvl(h.rp);h.why=`RAM ${h.rp}%`}
+  });
+  return H;
+}
+function devSeries(i,h){
+  const r=rng(900+i),n=300;
+  const cpu=[],core=[],gpu=[],vram=[],ram=[];
+  const vp=h.vram?pct(h.vram[0],h.vram[1]):0, rp=pct(h.ram[0],h.ram[1]);
+  let burst=0;
+  for(let k=0;k<n;k++){
+    const sp=r()<.03?15+r()*45:0;
+    const c=Math.max(0,h.cpu+2+r()*4+sp*.4+(i===3?r()*4:0)); cpu.push(c); core.push(Math.min(100,c+4+r()*8+sp));
+    if(h.vram){ if(i===0&&k===150)burst=70; if(i===1&&k===60)burst=25; if(i===1&&k===210)burst=40;
+      gpu.push(burst>0?60+r()*35:r()*.5); burst--; vram.push(vp-(i===0&&k<150?22:0)); } else {gpu.push(0);vram.push(0)}
+    ram.push(rp+r()*.6);
+  }
+  return {cpu,core,gpu,vram,ram};
+}
+
+/* ---------- host variants ---------- */
+function hostSlim(h){
+  const W=632,HH=314; let s=card(0,0,W,HH,h.att);
+  if(h.att) s+=R(4,4,W-8,10,attC(h.att),{rx:5});
+  const dim=h.asleep?.45:1; s+=`<g opacity="${dim}">`;
+  const dot=h.asleep?C.s1:h.stale?C.red:C.green;
+  s+=`<circle cx="32" cy="46" r="7" fill="${dot}"/>`+T(50,56,h.n,{s:28,w:700})+T(608,44,h.stale||('up '+h.up).replace('up asleep','asleep'),{s:14,f:h.stale?C.red:C.muted,a:'end',w:h.stale?700:400})+T(608,64,h.os,{s:14,f:C.muted,a:'end'});
+  const rows=[['CPU',h.asleep?'—':`${h.cpu}%  ·  core ${h.core}%`,h.cpu,C.blue,h.core],
+              ['RAM',`${h.ram[0]} / ${h.ram[1]} GB`,h.rp,lvl(h.rp)?attC(lvl(h.rp)):C.mauve]];
+  if(h.vram) rows.push(['GPU',`${h.vram[0]} / ${h.vram[1]} GB  ·  ${h.gpu}%`,pct(h.vram[0],h.vram[1]),C.peach]);
+  rows.forEach((r,i)=>{const y=108+i*64;
+    s+=T(24,y,r[0],{s:14,f:C.muted,ls:1})+T(300,y,r[1],{s:16,a:'end'})+bar(24,y+12,276,10,r[2],r[3]);
+    if(r[4]) s+=R(24+276*r[4]/100-2,y+8,4,18,C.blue,{rx:2});
+  });
+  s+=T(332,108,'DISKS',{s:14,f:C.muted,ls:1});
+  h.disks.slice(0,4).forEach((d,i)=>{const y=138+i*46,p=pct(d[1],d[2]),a=lvl(p);
+    s+=T(332,y,d[0],{s:16,w:a?700:400,f:a?attC(a):C.fg})+T(608,y,`${fG(d[1])} / ${fG(d[2])}`,{s:14,f:a?attC(a):C.muted,a:'end'})+bar(332,y+10,276,8,p,a?attC(a):C.lav);
+  });
+  return svg(W,HH,s+'</g>',`Slim host card for ${h.n}`);
+}
+
+function hostRoster(H){
+  const W=1896,HH=628; let s=card(0,0,W,HH);
+  const bad=H.filter(h=>h.att), up=H.filter(h=>!h.asleep&&!h.stale).length;
+  const vc=bad.some(h=>h.att==='crit')?C.red:bad.length?C.yellow:C.green;
+  const verdict=bad.length?(bad[0].n+' '+(bad[0].stale?'STALE':bad[0].why.toUpperCase())):'ALL UP';
+  s+=T(28,58,verdict,{s:36,w:700,f:vc})+T(1868,40,`${up} up  ·  ${H.length-up} away`,{s:16,f:C.sub,a:'end'});
+  const fullest=H.slice().sort((a,b)=>b.wp-a.wp)[0];
+  s+=T(1868,62,`fullest ${fullest.n}/${fullest.worst[0]} ${fullest.wp}%`,{s:14,f:C.muted,a:'end'});
+  const X={host:56,os:250,up:420,cpu:560,ram:840,gpu:1150,disk:1420};
+  [['HOST',X.host],['OS',X.os],['UP',X.up],['CPU · 60 MIN',X.cpu],['RAM',X.ram],['GPU · VRAM',X.gpu],['DISKS',X.disk]].forEach(c=>s+=T(c[1],96,c[0],{s:14,f:C.muted,ls:1}));
+  H.forEach((h,i)=>{const y=108+i*46, m=y+30;
+    s+=`<line x1="20" x2="${W-20}" y1="${y}" y2="${y}" stroke="${C.s0}"/>`;
+    if(h.att) s+=R(12,y+3,W-24,40,attC(h.att),{rx:6,op:.12})+R(12,y+3,8,40,attC(h.att),{rx:4});
+    s+=`<g opacity="${h.asleep?.45:1}">`;
+    s+=`<circle cx="36" cy="${m-7}" r="6" fill="${h.asleep?C.s1:h.stale?C.red:C.green}"/>`+T(X.host,m,h.n,{s:20,w:700})+T(X.os,m,h.os,{s:14,f:C.muted})+
+       T(X.up,m,h.stale||h.up,{s:16,f:h.stale?C.red:C.sub,w:h.stale?700:400});
+    if(!h.asleep){
+      s+=line(h.hist,X.cpu,y+10,150,26,C.blue,{sw:2,fill:.18})+T(X.cpu+164,m,h.cpu+'%',{s:16,w:700})+T(X.cpu+214,m,'core '+h.core,{s:14,f:C.muted});
+      const ra=lvl(h.rp);
+      s+=bar(X.ram,m-14,150,10,h.rp,ra?attC(ra):C.mauve)+T(X.ram+164,m,`${h.ram[0]} / ${h.ram[1]}`,{s:14,f:ra?attC(ra):C.sub,w:ra?700:400});
+      if(h.vram) s+=bar(X.gpu,m-14,120,10,pct(h.vram[0],h.vram[1]),C.peach)+T(X.gpu+134,m,`${h.vram[0]} / ${h.vram[1]}`,{s:14,f:C.sub})+T(X.gpu+250,m,h.gpu+'%',{s:14,w:700,f:C.green,a:'end'});
+    }
+    h.disks.slice(0,3).forEach((d,k)=>{const x=X.disk+k*152,p=pct(d[1],d[2]),a=lvl(p);
+      s+=T(x,m-12,d[0],{s:14,f:a?attC(a):C.sub,w:a?700:400})+T(x+136,m-12,p+'%',{s:14,f:a?attC(a):C.muted,a:'end',w:a?700:400})+bar(x,m-4,136,6,p,a?attC(a):C.lav)});
+    s+='</g>';
+  });
+  return svg(W,HH,s,'Fleet roster table');
+}
+
+function hostColumns(H){
+  const W=1896,HH=628; H=H.slice(0,10); let s=card(0,0,W,HH);
+  const bad=H.filter(h=>h.att), vc=bad.some(h=>h.att==='crit')?C.red:bad.length?C.yellow:C.green;
+  s+=T(28,72,bad.length?(bad[0].n+' '+(bad[0].stale?'STALE':bad[0].why.toUpperCase())):'ALL UP',{s:48,w:700,f:vc});
+  const up=H.filter(h=>!h.asleep&&!h.stale).length;
+  s+=T(30,102,`${up} of ${H.length} hosts reporting  ·  CPU and GPU traces are the last 60 min`,{s:16,f:C.sub});
+  const cw=175,gap=10,x0=28,y0=128,ch=480;
+  H.forEach((h,i)=>{const x=x0+i*(cw+gap), a=h.att, L=x+14, Rr=x+cw-14, w=cw-28;
+    s+=R(x,y0,cw,ch,C.raise,{rx:8,st:a?attC(a):C.s1,sw:a?3:1});
+    s+=R(x,y0,cw,a?10:6,a?attC(a):(h.asleep?C.s1:C.green),{rx:3});
+    s+=`<g opacity="${h.asleep?.45:1}">`;
+    s+=T(L,y0+38,h.n,{s:20,w:700})+T(L,y0+58,h.os,{s:14,f:C.muted})+T(L,y0+78,h.stale||(h.asleep?h.up:'up '+h.up),{s:14,f:h.stale?C.red:C.muted,w:h.stale?700:400});
+    if(!h.asleep){
+      s+=T(L,y0+116,'CPU',{s:14,f:C.muted,ls:1})+T(Rr,y0+118,h.cpu+'%',{s:24,w:700,f:C.blue,a:'end'});
+      s+=line(h.hist,L,y0+128,w,48,C.blue,{sw:2,fill:.18});
+      const ra=lvl(h.rp);
+      s+=T(L,y0+206,'RAM',{s:14,f:C.muted,ls:1})+T(Rr,y0+206,h.rp+'%',{s:16,w:700,f:ra?attC(ra):C.fg,a:'end'})+bar(L,y0+216,w,8,h.rp,ra?attC(ra):C.mauve);
+      if(h.vram){
+        s+=T(L,y0+258,'GPU',{s:14,f:C.muted,ls:1})+T(Rr,y0+260,h.gpu+'%',{s:24,w:700,f:C.green,a:'end'});
+        s+=line(h.ghist,L,y0+268,w,40,C.green,{sw:3,fill:.15});
+        s+=T(L,y0+334,'VRAM',{s:14,f:C.muted,ls:1})+T(Rr,y0+334,`${h.vram[0]} / ${h.vram[1]}`,{s:14,f:C.sub,a:'end'})+bar(L,y0+344,w,8,pct(h.vram[0],h.vram[1]),C.peach);
+      }
+    }
+    h.disks.slice(0,3).forEach((d,k)=>{const y=y0+386+k*32,p=pct(d[1],d[2]),da=lvl(p);
+      s+=T(L,y,d[0],{s:14,f:da?attC(da):C.sub,w:da?700:400})+T(Rr,y,p+'%',{s:14,f:da?attC(da):C.muted,a:'end',w:da?700:400})+bar(L,y+7,w,6,p,da?attC(da):C.lav)});
+    s+='</g>';
+  });
+  return svg(W,HH,s,'Host columns in the style of the 10G card');
+}
+
+function hostMatrix(H){
+  const W=1264,HH=628; let s=card(0,0,W,HH);
+  const bad=H.filter(h=>h.att);
+  s+=T(28,54,'FLEET LOAD',{s:28,w:700,f:bad.length?attC(bad[0].att):C.teal})+T(1236,52,bad.length?bad.map(h=>h.n+' '+h.why).join('  ·  '):'nothing hot',{s:16,f:C.sub,a:'end'});
+  const cols=['CPU','CORE','RAM','GPU','VRAM','DISK'],cx=196,cp=92;
+  cols.forEach((c,i)=>s+=T(cx+i*cp+42,92,c,{s:14,f:C.muted,a:'middle',ls:1}));
+  s+=T(770,92,'CPU · LAST 60 MIN',{s:14,f:C.muted,ls:1});
+  H.forEach((h,i)=>{const y=104+i*46;
+    s+=`<g opacity="${h.asleep?.4:1}">`+`<circle cx="34" cy="${y+19}" r="6" fill="${h.asleep?C.s1:h.stale?C.red:C.green}"/>`+T(52,y+26,h.n,{s:20,w:700,f:h.att?attC(h.att):C.fg});
+    const vals=[h.cpu,h.core,h.rp,h.vram?h.gpu:null,h.vram?pct(h.vram[0],h.vram[1]):null,h.wp];
+    vals.forEach((v,k)=>{const x=cx+k*cp;
+      if(v==null||h.asleep&&k<5){s+=R(x,y,84,38,C.base,{rx:6,st:C.s0});return}
+      const a=(k===2||k===5)?lvl(v):null;
+      const f=a?attC(a):mix(C.s0,k===4?C.peach:C.teal,Math.min(1,v/100)*.9+.05);
+      s+=R(x,y,84,38,f,{rx:6})+T(x+42,y+25,v+'%',{s:16,w:700,f:(a||v>50)?C.crust:C.fg,a:'middle'})});
+    h.hist.forEach((v,k)=>s+=R(770+k*7.8,y+4,6.8,30,mix(C.s0,C.teal,Math.min(1,v/70)),{rx:1}));
+    s+='</g>';
+  });
+  return svg(W,HH,s,'Heat matrix of hosts by metric');
+}
+
+function hostQuiet(H){
+  const W=1896,HH=160; let s='';
+  const bad=H.filter(h=>h.att), n=H.length, big=440, gap=8;
+  const small=(W-8-(n-1)*gap-bad.length*big)/(n-bad.length);
+  let x=4;
+  H.forEach(h=>{const w=h.att?big:small, a=h.att;
+    s+=R(x,4,w,HH-8,C.base,{rx:8,st:a?attC(a):C.s1,sw:a?4:2});
+    s+=`<g opacity="${h.asleep?.45:1}">`;
+    if(a){
+      s+=T(x+20,48,h.n,{s:28,w:700})+T(x+w-20,46,h.os,{s:14,f:C.muted,a:'end'});
+      s+=T(x+20,92,h.why.toUpperCase(),{s:28,w:700,f:attC(a)});
+      if(!h.stale){const d=h.worst; const isDisk=lvl(h.wp);
+        s+=bar(x+20,112,w-40,12,isDisk?h.wp:h.rp,attC(a))+T(x+20,144,isDisk?`${fG(d[1])} of ${fG(d[2])}`:`${h.ram[0]} of ${h.ram[1]} GB`,{s:14,f:C.sub});}
+      else s+=T(x+20,128,'last telemetry 11:02  ·  was up 1h 41m',{s:14,f:C.sub});
+    } else {
+      s+=`<circle cx="${x+18}" cy="34" r="6" fill="${h.asleep?C.s1:C.green}"/>`+T(x+32,41,h.n,{s:20,w:700})+T(x+12,66,h.asleep?h.up:'up '+h.up,{s:14,f:C.muted});
+      [['cpu',h.core,C.blue],['ram',h.rp,C.mauve],['disk',h.wp,C.lav]].forEach((m,k)=>{const y=88+k*20;
+        s+=T(x+12,y+5,m[0],{s:14,f:C.muted})+bar(x+52,y-4,w-66,6,h.asleep&&k<2?0:m[1],m[2])});
+    }
+    s+='</g>'; x+=w+gap;
+  });
+  return svg(W,HH,s,'Quiet fleet strip');
+}
+
+/* ---------- graph variants ---------- */
+function vals(h,d){const l=a=>Math.round(a[a.length-1]);return {gpu:l(d.gpu),cpu:l(d.cpu),core:l(d.core),vram:Math.round(d.vram[299]),ram:Math.round(d.ram[299])}}
+function gThick(h,d){
+  const W=632,HH=628,v=vals(h,d); let s=card(0,0,W,HH);
+  s+=T(24,50,h.n,{s:28,w:700})+T(608,48,'5 min',{s:14,f:C.muted,a:'end'});
+  const leg=[['GPU',v.gpu+'%',C.green,5],['VRAM',h.vram?`${h.vram[0]} / ${h.vram[1]} G`:'—',C.peach,5],['CPU',`${v.cpu}% / ${v.core}%`,C.blue,2],['RAM',`${h.ram[0]} G`,C.mauve,2]];
+  leg.forEach((l,i)=>{const x=24+i*150;
+    s+=`<line x1="${x}" x2="${x+22}" y1="82" y2="82" stroke="${l[2]}" stroke-width="${l[3]}" stroke-linecap="round"/>`+T(x+30,87,l[0],{s:14,f:C.muted})+T(x,110,l[1],{s:16,w:700,f:l[2]})});
+  const x=24,y=130,w=584,hh=470;
+  s+=R(x,y,w,hh,C.raise,{rx:6})+grid(x,y,w,hh);
+  s+=line(d.core,x,y,w,hh,C.blue,{sw:1,op:.5})+line(d.cpu,x,y,w,hh,C.blue,{sw:2})+line(d.ram,x,y,w,hh,C.mauve,{sw:2});
+  if(h.vram) s+=line(d.vram,x,y,w,hh,C.peach,{sw:5})+line(d.gpu,x,y,w,hh,C.green,{sw:5,fill:.12});
+  return svg(W,HH,s,`Thick-line graph for ${h.n}`);
+}
+function gauge(x,y,h,p,col,label,txt){return R(x,y,26,h,C.s0,{rx:6})+(p>0?R(x,y+h-h*p/100,26,h*p/100,col,{rx:6}):'')+T(x+13,y-10,txt,{s:16,w:700,f:p>0?col:C.muted,a:'middle'})+T(x+13,y+h+20,label,{s:14,f:C.muted,a:'middle'})}
+function gLevels(h,d){
+  const W=632,HH=314,v=vals(h,d); let s=card(0,0,W,HH);
+  s+=T(24,44,h.n,{s:24,w:700});
+  s+=T(500,42,(h.vram?`GPU ${v.gpu}% · `:'')+`CPU ${v.cpu}% / ${v.core}%`,{s:16,f:C.sub,a:'end'});
+  const x=24,y=62,w=476,hh=228;
+  s+=R(x,y,w,hh,C.raise,{rx:6})+grid(x,y,w,hh);
+  s+=line(d.core,x,y,w,hh,C.blue,{sw:1,op:.5})+line(d.cpu,x,y,w,hh,C.blue,{sw:2,fill:.2});
+  if(h.vram) s+=line(d.gpu,x,y,w,hh,C.green,{sw:4,fill:.14});
+  s+=gauge(526,74,196,h.vram?v.vram:0,C.peach,'VRAM',h.vram?v.vram+'%':'—')+gauge(578,74,196,v.ram,C.mauve,'RAM',v.ram+'%');
+  return svg(W,HH,s,`Levels and traces graph for ${h.n}`);
+}
+function gLanes(h,d){
+  const W=632,HH=314,v=vals(h,d); let s=card(0,0,W,HH);
+  s+=T(24,42,h.n,{s:24,w:700})+T(608,40,'5 min',{s:14,f:C.muted,a:'end'});
+  const lane=(y,label,txt,body)=>R(20,y,592,118,C.raise,{rx:6})+body+T(32,y+22,label,{s:14,f:C.muted,ls:1})+T(600,y+22,txt,{s:14,w:700,f:C.sub,a:'end'});
+  const x=20,w=592;
+  if(h.vram) s+=lane(56,'GPU',`${v.gpu}%  ·  VRAM ${h.vram[0]} / ${h.vram[1]} GB`,line(d.gpu,x,86,w,88,C.green,{sw:2,fill:.3})+line(d.vram,x,86,w,88,C.peach,{sw:3}));
+  else s+=R(20,56,592,118,C.base,{rx:6,st:C.s0})+T(316,122,'no GPU',{s:16,f:C.muted,a:'middle'});
+  s+=lane(182,'SYSTEM',`CPU ${v.cpu}% / ${v.core}%  ·  RAM ${h.ram[0]} GB`,line(d.core,x,212,w,88,C.blue,{sw:1,op:.5})+line(d.cpu,x,212,w,88,C.blue,{sw:2,fill:.3})+line(d.ram,x,212,w,88,C.mauve,{sw:3}));
+  return svg(W,HH,s,`Two-lane graph for ${h.n}`);
+}
+function gStack(D){
+  const W=1264,HH=628; let s=card(0,0,W,HH);
+  s+=T(28,52,'COMPUTE',{s:28,w:700,f:C.teal})+T(1236,50,'5 min  ·  1 s samples',{s:14,f:C.muted,a:'end'});
+  D.forEach(([h,d],i)=>{const y=72+i*136,v=vals(h,d);
+    s+=R(20,y,1224,128,C.raise,{rx:8,st:C.s1});
+    s+=T(40,y+42,h.n,{s:24,w:700});
+    if(h.vram) s+=T(40,y+74,`GPU ${v.gpu}%`,{s:16,w:700,f:C.green})+T(130,y+74,`VRAM ${h.vram[0]} / ${h.vram[1]}`,{s:16,f:C.peach});
+    s+=T(40,y+102,`CPU ${v.cpu}% / ${v.core}%`,{s:16,w:700,f:C.blue})+T(190,y+102,`RAM ${v.ram}%`,{s:16,f:C.mauve});
+    const cy=y+14,ch=100, sys=(x,w)=>R(x,cy,w,ch,C.base,{rx:6})+line(d.core,x,cy,w,ch,C.blue,{sw:1,op:.5})+line(d.cpu,x,cy,w,ch,C.blue,{sw:2,fill:.25})+line(d.ram,x,cy,w,ch,C.mauve,{sw:2})+T(x+10,cy+18,'SYSTEM',{s:14,f:C.muted,ls:1});
+    if(h.vram){ s+=R(310,cy,452,ch,C.base,{rx:6})+line(d.gpu,310,cy,452,ch,C.green,{sw:3,fill:.25})+line(d.vram,310,cy,452,ch,C.peach,{sw:3})+R(314,cy+4,46,20,C.base,{rx:4})+T(320,cy+18,'GPU',{s:14,f:C.muted,ls:1})+sys(774,456);}
+    else s+=sys(310,920);
+  });
+  return svg(W,HH,s,'Stacked compute widget for all dev hosts');
+}
+function gRibbons(D){
+  const W=632,HH=628; let s=card(0,0,W,HH);
+  s+=T(24,46,'COMPUTE',{s:24,w:700,f:C.teal})+T(608,44,'last 60 min, newest right',{s:14,f:C.muted,a:'end'});
+  D.forEach(([h,d],i)=>{const y=64+i*138,v=vals(h,d);
+    s+=T(24,y+22,h.n,{s:20,w:700})+T(608,y+22,(h.vram?`GPU ${v.gpu}%  ·  `:'')+`CPU ${v.cpu}%`,{s:14,f:C.sub,a:'end'});
+    [['GPU',d.gpu,C.green],['VRAM',d.vram,C.peach],['CPU',d.core,C.blue],['RAM',d.ram,C.mauve]].forEach((m,k)=>{const yy=y+34+k*24;
+      s+=T(24,yy+15,m[0],{s:14,f:C.muted});
+      for(let c=0;c<60;c++){const seg=m[1].slice(c*5,c*5+5),val=Math.max(...seg);
+        s+=R(84+c*8.75,yy,7.75,20,(!h.vram&&k<2)?C.base:mix(C.s0,m[2],Math.min(1,val/100)),{rx:1.5})}
+    });
+  });
+  return svg(W,HH,s,'Heat ribbon compute card');
+}
+
+/* ---------- layouts ---------- */
+function layout(blocks,label){
+  const W=3840,HH=2160,U=632,V=628; let s=R(0,0,W,HH,C.crust);
+  blocks.forEach(b=>{const x=24+b.c*U+6,y=b.r*V+6,w=b.w*U-12,h=b.h*V-12;
+    const k=b.k||'keep', st=k==='new'?C.teal:k==='re'?C.lav:C.s1, f=k==='new'?mix(C.base,C.teal,.12):k==='re'?mix(C.base,C.lav,.10):C.base;
+    s+=`<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="16" fill="${f}" stroke="${st}" stroke-width="5"${k==='new'?' stroke-dasharray="26 16"':''}/>`;
+    const fs=b.fs||(h<200?44:64);
+    s+=T(x+w/2,y+h/2+(b.sub?-6:fs*.35),b.t,{s:fs,w:700,a:'middle',f:k==='new'?C.teal:k==='re'?C.lav:C.sub});
+    if(b.sub) s+=T(x+w/2,y+h/2+fs*.9,b.sub,{s:44,a:'middle',f:C.muted});
+  });
+  s+=`<rect x="30" y="1890" width="3780" height="264" rx="16" fill="${C.base}" stroke="${C.s1}" stroke-width="5"/>`+T(1920,2040,'status cards and room temps, unchanged',{s:56,a:'middle',f:C.muted,w:700});
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 ${W} ${HH}" font-family="Montserrat, system-ui, sans-serif" role="img" aria-label="${esc(label)}">${s}</svg>`;
+}
+const names=['kai','kubs0','cleo','rpi53','kubsdb','kimac','gratch','krgate','komarchy','thrall','kit','spare'];
+const L1=[...names.map((n,i)=>({c:i%6,r:Math.floor(i/6)*.5,w:1,h:.5,k:'re',t:n,fs:56})),
+  ...['kai','kubs0','kimac','kubsdb'].map((n,i)=>({c:i%2,r:1+Math.floor(i/2)*.5,w:1,h:.5,k:'re',t:n+' graph',fs:48})),
+  {c:2,r:1,w:2,h:1,k:'new',t:'Fortune',sub:'back, 2×1'},{c:4,r:1,w:2,h:1,k:'new',t:'Agents · SITREP',sub:'who is waiting on you'},
+  {c:0,r:2,w:1,h:1,k:'new',t:'Claude limits',fs:52},{c:1,r:2,w:1,h:1,k:'new',t:'korg pulse',fs:52},
+  {c:2,r:2,w:2,h:1,t:'gratch · NAS'},{c:4,r:2,w:2,h:1,t:'10G'}];
+const L2=[{c:0,r:0,w:3,h:1,k:'re',t:'Roster',sub:'11 hosts, room for 12'},{c:3,r:0,w:2,h:1,k:'re',t:'Compute stack',sub:'all four dev hosts'},{c:5,r:0,w:1,h:1,k:'new',t:'Claude limits',fs:52},
+  {c:0,r:1,w:3,h:1,k:'new',t:'Fortune',sub:'bigger than before, 3×1'},{c:3,r:1,w:3,h:1,k:'new',t:'Agents · SITREP',sub:'sessions, legs, Awaiting Ken'},
+  {c:0,r:2,w:2,h:1,k:'new',t:'klams',sub:'korg 826, already on the roadmap'},{c:2,r:2,w:2,h:1,t:'gratch · NAS'},{c:4,r:2,w:2,h:1,t:'10G'}];
+const L3=[{c:0,r:0,w:6,h:.25,k:'re',t:'Quiet fleet strip: every host, a quarter row tall',fs:56},
+  {c:0,r:.25,w:3,h:1,k:'re',t:'Host columns',sub:'hosts and graphs fused'},{c:3,r:.25,w:2,h:1,t:'10G'},{c:5,r:.25,w:1,h:1,k:'new',t:'Claude limits',fs:52},
+  {c:0,r:1.25,w:2,h:1,t:'gratch · NAS'},{c:2,r:1.25,w:2,h:1,k:'new',t:'Agents · SITREP'},{c:4,r:1.25,w:2,h:1,k:'new',t:'klams'},
+  {c:0,r:2.25,w:4,h:.75,k:'new',t:'Fortune',sub:'wide and short'},{c:4,r:2.25,w:2,h:.75,k:'new',t:'Room temps · 24 h',sub:'frees three footer slots'}];
+
+/* ---------- page assembly ---------- */
+function variant(tag,wild,name,size,html,text){return `<div class="variant"><div class="vhead"><span class="tag${wild?' wild':''}">${tag}</span><h3>${name}</h3><span class="size">${size}</span></div><div class="canvas">${html}</div><p>${text}</p></div>`}
+function render(){
+  const H=hostsData(), dev=[0,1,5,4].map((i,k)=>[H[i],devSeries(k,H[i])]);
+  const slim=[H[0],H[1],H[2],H[9]].map(h=>hostSlim(h)).join('');
+  document.getElementById('hosts').innerHTML=`<div style="display:flex;flex-direction:column;gap:40px">`+
+   variant('A',0,'Slim','632×314 each, half a cell. 12 hosts in today\'s top row.',`<div class="row">${slim}</div>`,
+     '<b>The safe one.</b> Same card, same grid, half the height. Meters replace the ring, drives become thin bars. Twelve hosts fit where six do now, and nothing else on the panel has to move. Frees no space by itself unless you stay at six hosts.')+
+   variant('B',0,'Roster','1896×628, three cells. 11 hosts shown, 12 fit.',hostRoster(H),
+     '<b>The dense one.</b> One row per host with a verdict word on top, like the 10G card. Adding a host costs 46 px, not a cell. Asleep hosts dim in place, so thrall and kit can live here without looking broken. Needs a 60-point CPU history kept on the panel. Weakest at a distance: rows are 20 px type.')+
+   variant('C',0,'Columns','1896×628, three cells. 10 hosts.',hostColumns(H),
+     '<b>The matching one.</b> The 10G card\'s grammar applied to hosts: verdict, one column each, attention takes the whole column. CPU and GPU get sparklines, which could replace the dev graphs entirely. Ten is the ceiling at this width; an eleventh host means narrower columns or dropping the OS line.')+
+   variant('D',1,'Heat matrix','1264×628, two cells. 11 hosts.',hostMatrix(H),
+     '<b>Off the wall.</b> Hosts down, metrics across, colour is load. You stop reading numbers and look for the bright cell. RAM and disk cells jump to yellow and red at 80 and 90 percent; the others just get brighter. Loses per-drive detail: only the fullest volume shows.')+
+   variant('E',1,'Quiet fleet','1896×160 here; a quarter row at full width.',hostQuiet(H),
+     '<b>Off the wall, and my favourite idea.</b> The status-card behaviour applied to hosts. A healthy host is a chip. A host that needs you grows and says why in plain words. Flip the state switch above to see it. Costs almost nothing in space, but you give up seeing normal numbers at a glance, so it pairs well with D or with the compute stack below.')+`</div>`;
+  document.getElementById('graphs').innerHTML=`<div style="display:flex;flex-direction:column;gap:40px">`+
+   variant('A',0,'Thick, done properly','632×628, one cell (half today\'s width).',`<div class="row">${gThick(dev[0][0],dev[0][1])}${gThick(dev[1][0],dev[1][1])}</div>`,
+     '<b>Smallest change.</b> Same single chart at half the width, with GPU compute and VRAM as real 5 px lines and top-core demoted to a faint hairline. Header shrinks to a one-line legend. Four graphs then fit in four cells where they take eight today.')+
+   variant('B',0,'Levels and traces','632×314, half a cell.',`<div class="row">${dev.map(d=>gLevels(d[0],d[1])).join('')}</div>`,
+     '<b>My pick for the graphs.</b> VRAM and RAM are levels, so they become two gauges at the right edge. The chart only plots what moves: CPU as an area, GPU compute as the one thick line. All four dev hosts fit in two cells.')+
+   variant('C',0,'Lanes','632×314, half a cell.',`<div class="row">${dev.map(d=>gLanes(d[0],d[1])).join('')}</div>`,
+     '<b>No thick line needed.</b> GPU gets its own lane, so it never has to fight CPU for attention. Each lane is only 88 px tall, so small CPU wiggles flatten out. Hosts without a GPU waste their top lane.')+
+   variant('D',0,'Compute stack','1264×628, two cells for all four hosts.',gStack(dev),
+     '<b>One widget for all dev hosts.</b> Wide, short charts read well for time series, and the current numbers sit at the left in the same place for every host. GPU-less hosts get one long system chart. A fifth host means shorter rows.')+
+   variant('E',1,'Heat ribbons','632×628, one cell for all four hosts.',gRibbons(dev),
+     '<b>Off the wall.</b> No lines at all. Each metric is a ribbon whose brightness is the load, and the window stretches from 5 minutes to an hour. A GPU run shows as a bright bar you can see from across the room. You cannot read an exact value off it.')+`</div>`;
+  document.getElementById('layouts').innerHTML=`<div style="display:flex;flex-direction:column;gap:40px">`+
+   variant('1',0,'Same shape, half the size','Slim cards + half-cell graphs. Opens 6 cells.',layout(L1,'Layout 1'),
+     'Lowest risk. The top row holds twelve hosts, the four graphs fold into two cells, and six cells open up. Could ship as two small sprints: cards, then graphs.')+
+   variant('2',0,'Roster and stack','Roster + compute stack. Opens 9 cells.',layout(L2,'Layout 2'),
+     'Everything about machines is in the top row, and the middle of the panel goes to things you read rather than monitor. This is the one I would build.')+
+   variant('3',1,'Quiet fleet','Strip + host columns, no separate graphs. Opens about 9 cells.',layout(L3,'Layout 3'),
+     'Breaks the three-row grid: a thin strip on top pushes everything down a quarter row. Hosts and graphs become one widget beside the 10G card, so the top of the panel is one continuous band about machines.')+`</div>`;
+}
+const IDEAS=[
+ ['Fortune','2×1 or bigger','Compiled out, not deleted','Already built. The space was the only blocker.',1],
+ ['Claude limits','1×1','claude:limits on rpi53 Redis','5-hour and weekly gauges with time to reset. The data is already on the same Redis the panel reads.',1],
+ ['Agents · SITREP','2×1','ksitrep on kai','Sessions and karc legs, and which ones owe you an okay or a decision. Same feed as the kctrldeck Agents tile.',1],
+ ['klams','2×1','korg 826','Corpus size, scanner state, recent writes. Already on the kpidash roadmap.',1],
+ ['korg pulse','1×1','korg','Open work items, Awaiting Ken count, active sprints. One number each, with a 30-day sparkline of the open count.',0],
+ ['Room temps · 24 h','2×1','existing temp feed','Three lines over a day in place of three footer cards. Shows the furnace cycling and frees footer slots for status cards.',0],
+ ['Updates and reboots','1×1','kdash:update:*','Held packages and pending reboots as one list, so they stop taking a footer card per host.',1],
+ ['kvllm','1×1','kvllm on kubs0','Served model, tokens per second, queue depth. Pairs with the GPU trace: it says what the GPU is busy with.',0],
+ ['Backup and snapshot age','1×1','gratch ZFS','Hours since the last snapshot and last backup per host. Silent failures are what this catches.',0],
+ ['WAN history','add to 10G card','kdash:net','A 24-hour latency strip under the WAN tile. Extends the net card rather than adding a new one.',1],
+ ['Repo muster','1×1','kmuster','Count of dirty and unpushed repos across the fleet, and the oldest one.',0],
+];
+document.getElementById('ideas').innerHTML=IDEAS.map(i=>`<div class="idea"><h3>${i[0]}</h3><div class="meta">${i[1]} · ${i[4]?'<span class="live">data already flowing</span> · ':''}${i[2]}</div><p>${i[3]}</p></div>`).join('');
+
+function press(a,b){a.setAttribute('aria-pressed','true');b.setAttribute('aria-pressed','false')}
+const $=id=>document.getElementById(id);
+$('st-normal').onclick=()=>{STATE='normal';press($('st-normal'),$('st-alert'));render()};
+$('st-alert').onclick=()=>{STATE='alert';press($('st-alert'),$('st-normal'));render()};
+$('sc-fit').onclick=()=>{document.body.classList.remove('actual');press($('sc-fit'),$('sc-actual'))};
+$('sc-actual').onclick=()=>{document.body.classList.add('actual');press($('sc-actual'),$('sc-fit'))};
+render();
+</script>

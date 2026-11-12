@@ -12,10 +12,10 @@
 #define MSG_BUF_SIZE 4096
 
 /* ---- Capacity limits ---- */
-#define MAX_CLIENTS 16
+#define MAX_CLIENTS 32
 #define MAX_DISKS 8
 #define ACTIVITY_MAX_DISPLAY 10
-#define PRIORITY_CLIENTS_MAX 16
+#define PRIORITY_CLIENTS_MAX 32
 /* WI #4062: hosts the network card can be configured with (it draws the
  * first five), and the default list — the fabric as of 2026-10-26. */
 #define NET_HOSTS_CONFIG_MAX 8

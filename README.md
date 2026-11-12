@@ -15,14 +15,22 @@ client machines — Linux and Windows.
 ## Dashboard layout
 
 ```
-┌─────────────────────────────────────────────┐
-│  Client cards (health LED, CPU/RAM/disk)    │
-├────────────────────┬────────────────────────┤
-│  Activities        │  Repo Status           │
-├────────────────────┴────────────────────────┤
-│  Fortune                                    │
-└─────────────────────────────────────────────┘
+┌──────────────────────────────┬──────────────────────┐
+│  Host columns (one column    │  (empty for now)     │
+│  per host, tiles past ten)   │                      │
+├──────────────────────────────┴──────────────────────┤
+│  Rows 1-2: per-host dev graphs, NAS panel, network  │
+│  card (placed by the layout pool)                   │
+├─────────────────────────────────────────────────────┤
+│  Footer: service, staleness, update, apt-temp cards │
+└─────────────────────────────────────────────────────┘
 ```
+
+The host columns (sprint 029) show each host's CPU average with its busiest
+core, RAM, GPU and drives, with ten-minute sparklines. Past ten hosts the
+lowest priorities drop to compact tiles, three to a column, up to thirty.
+Attention is a yellow or red border, never a bigger card. See
+`docs/ARCHITECTURE.md` § Host Columns.
 
 ## Quick start
 
@@ -146,7 +154,7 @@ kpidash/
 │   ├── ui.{h,c}                # Screen layout + Redis error overlay
 │   ├── protocol.h              # Redis key macros + compile-time constants
 │   └── widgets/
-│       ├── client_card.{h,c}   # Per-client arc gauge card (CPU/RAM/GPU/disks)
+│       ├── host_columns.{h,c}  # Row 0 host columns / compact tiles
 │       ├── activities.{h,c}    # Activity table with live elapsed timers
 │       ├── repo_status.{h,c}   # Repo card grid (branch/dirty/age indicators)
 │       ├── fortune.{h,c}       # Fortune text label

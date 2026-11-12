@@ -12,7 +12,8 @@ LVGL/DRM/KMS with no mouse or keyboard interaction.
 
 - **Redis as message bus**: decouples dashboard from clients; clients can be
   written in any language.
-- **Multi-tenant**: up to 16 client machines tracked simultaneously.
+- **Multi-tenant**: up to 32 client machines tracked, 30 of them on screen at
+  once (sprint 029).
 - **AI-native**: an MCP server exposes `start_activity`/`end_activity` tools
   so AI agents can self-report their work on the dashboard.
 - **Extensible**: new widgets and metrics are added by extending the Redis
@@ -67,7 +68,7 @@ LVGL/DRM/KMS with no mouse or keyboard interaction.
 │  │                                     │                 │  │
 │  │  ┌──────────────────────────────────▼──────────────┐  │  │
 │  │  │ ui.c + widgets/ (LVGL screen composition)       │  │  │
-│  │  │  client_card · activities · repo_status         │  │  │
+│  │  │  host_columns · activities · repo_status        │  │  │
 │  │  │  fortune · status_bar · dev_grid · dev_textsize │  │  │
 │  │  │  dev_graph · redis_error_overlay                │  │  │
 │  │  └──────────────────────────────────┬──────────────┘  │  │
@@ -109,17 +110,22 @@ LVGL/DRM/KMS with no mouse or keyboard interaction.
 
 1. **Health**: client writes `kpidash:client:{h}:health` (JSON, EX 5 s).
    Dashboard SMEMBERS the registry set then GETs each health key. Key
-   absence = TTL expired = client offline → LED turns red. Since sprint 022
-   a member only gets a card once it has actually published — the set is
-   append-only, so membership alone proves nothing — but once admitted it
-   keeps its card, which is what makes the red LED an outage report rather
-   than a host quietly disappearing. The admitted set is persisted to
+   absence = TTL expired = client offline → its host column turns red and
+   reads `NO DATA <age>` (a host that declared itself intermittent is asleep
+   instead, and takes no slot). Since sprint 022 a member only gets a slot
+   once it has actually published — the set is append-only, so membership
+   alone proves nothing — but once admitted it keeps its slot, which is what
+   makes the red border an outage report rather than a host quietly
+   disappearing. The admitted set is persisted to
    `/var/lib/kpidash/admitted` (`KPIDASH_STATE_FILE`) and loaded at startup,
    so the admission outlives the process and a host that is down across a
    restart still shows red rather than vanishing. Dashboard-local state, not
    part of the Redis contract. See CLIENT-PROTOCOL §1.
 2. **Telemetry**: client writes `kpidash:client:{h}:telemetry` (JSON, EX 15 s)
-   with CPU, RAM, GPU, disk data. Dashboard parses and updates client cards.
+   with CPU, RAM, GPU, disk data. Dashboard parses it into the registry and,
+   while the key is present, records CPU average, busiest core and GPU
+   compute into a 10-minute in-memory ring per host (`hosthist.c`, sprint
+   029) for the host columns' sparklines.
 3. **Dev Telemetry**: client writes `kpidash:client:{h}:dev_telemetry` (JSON,
    EX 5 s) at 1 s intervals with GPU compute, CPU avg/top, VRAM, RAM for the
    dev graph. Only read when graph is enabled.
@@ -189,6 +195,8 @@ kpidash/
 │   ├── main.c                  # Entry: config, LVGL init, DRM, poll timers
 │   ├── config.{h,c}            # Environment variable parsing
 │   ├── registry.{h,c}          # In-memory client state (mutex-protected)
+│   ├── hosthist.{h,c}          # Per-host 10-min CPU/top-core/GPU ring (sprint 029)
+│   ├── hostcols.{h,c}          # Host columns fill rule, order, attention (pure)
 │   ├── redis.{h,c}             # hiredis poll cycle + JSON parsing (cJSON)
 │   ├── status.{h,c}            # In-memory status message FIFO queue
 │   ├── fortune.{h,c}           # fortune popen + pushed-fortune override
@@ -197,7 +205,7 @@ kpidash/
 │   ├── protocol.h              # Key macros, TTLs, capacity limits
 │   └── widgets/
 │       ├── common.h            # Shared color palette and font constants (WS_*)
-│       ├── client_card.{h,c}   # Per-client arc gauge card (CPU/RAM/GPU/disks)
+│       ├── host_columns.{h,c}  # Row 0 host columns / compact tiles (sprint 029)
 │       ├── activities.{h,c}    # Activity table (disabled — WI #365)
 │       ├── repo_status.{h,c}   # Repo card grid (disabled — WI #365)
 │       ├── service_card.{h,c}  # Service status card + host staleness card
@@ -217,7 +225,10 @@ kpidash/
 │   ├── test_apttemps_band.c    # Apt-temp band edges via libkdash (sprint 018)
 │   ├── test_service_card.c     # Service state/colour, payload parsing, freshness windows
 │   ├── test_stale_card.c       # Host staleness feed reader (sprint 017)
-│   └── test_widget_leak.c      # Widget leak regression (needs LVGL)
+│   ├── test_hosthist.c         # History ring: wrap, gaps, eviction (sprint 029)
+│   ├── test_hostcols.c         # Fill-rule table, host order, attention levels
+│   ├── test_widget_leak.c      # Widget leak regression (needs LVGL)
+│   └── render_host_columns.c   # Offline render of the host columns to BMP (tool)
 ├── clients/
 │   ├── kpidash-client/         # Python 3.13+ daemon + CLI (psutil, pynvml)
 │   └── kpidash-mcp/            # Python 3.13+ MCP server (mcp>=1)
@@ -270,7 +281,7 @@ Widget content (1×1): UNIT_W - 2×CELL_PAD = 624, UNIT_H - 2×CELL_PAD = 620
 
 ```
 ┌──────────────────────────────────────────────────────────────┐
-│  Row 0: [card] [card] [card] [card] [card] [card]  (6×1)    │
+│  Row 0: [ host columns (3×1) ]   [ empty, cols 3-5 ]         │
 ├──────────────┬──────────────┬────────────────────────────────┤
 │  Row 1:      │  Activities  │  Repo Status                   │
 │  dev_graph   │  (2×1)       │  (2×1)                         │
@@ -290,14 +301,14 @@ Widget content (1×1): UNIT_W - 2×CELL_PAD = 624, UNIT_H - 2×CELL_PAD = 620
 | Crust | `#11111B` | Screen background |
 | Text | `#CDD6F4` | Primary text (white) |
 | Overlay0 | `#6C7086` | Muted text (hosts, secondary) |
-| Surface0 | `#313244` | Arc backgrounds |
+| Surface0 | `#313244` | Bar tracks; host column fill at 26 % |
 | Surface1 | `#45475A` | Widget borders |
 | Pink | `#F5C2E7` | Widget headers |
 | Green | `#A6E3A1` | Active, disk OK, default branch |
 | Blue | `#89B4FA` | Done, CPU avg |
-| Peach | `#FAB387` | Hostname, GPU VRAM, warnings |
-| Red | `#F38BA8` | Offline, disk critical, non-default branch, RAM |
-| Mauve | `#CBA6F7` | GPU compute, non-default branch alt |
+| Peach | `#FAB387` | GPU VRAM, warnings |
+| Red | `#F38BA8` | Offline, critical attention, non-default branch |
+| Mauve | `#CBA6F7` | RAM bar, non-default branch alt |
 | Teal | `#94E2D5` | CPU top core |
 | Yellow | `#F9E2AF` | Disk warning tier, commit age warning |
 
@@ -378,6 +389,34 @@ is registered as LVGL's print callback in `main.c`; `lv_conf.h` therefore has
   row whose child order is *creation* order, each of the two trailing groups
   walks its sorted snapshot moving every card to last — otherwise a host going
   stale long after boot would append at the end of the row.
+
+## Host Columns (sprint 029)
+
+Row 0, columns 0-2: one 1896×628 widget (`src/widgets/host_columns.c`) that
+replaced the six 1×1 client cards. Columns 3-5 of row 0 are deliberately
+empty until Ken decides what fills them. Spec:
+`sprints/planning/hosts-columns-mockups.html` (`plan`, `colFull`, `tile`,
+`widget`), with two colour changes from korg WI 4524/4525.
+
+- **Full column** (175×596): band, hostname, OS, uptime; CPU average as a
+  filled blue sparkline with the busiest core as a thin white line over it;
+  RAM bar; GPU sparkline and VRAM bar when the host has a GPU; up to five
+  drive bars (the five fullest when there are more), always at the same y.
+- **Compact tile** (175×192, three to a column): dot, hostname, uptime, and
+  one bar each for cpu (with a top-core tick), ram, gpu and the fullest drive.
+- **Fill rule** (`hostcols_plan`): n ≤ 10 → all full; otherwise
+  `full = (30 − n) / 2` and the rest are tiles. At most 30 hosts; past that
+  the lowest priorities are dropped and the count is logged.
+- **Order** = demotion order: `KPIDASH_PRIORITY_CLIENTS`, then hostname.
+- **Attention is colour only** — nothing grows. Yellow (warn) or red (crit)
+  3 px border and band, the offending row in the same colour. RAM ≥ 80 / ≥ 90;
+  drives > 60 / > 75 (the retired card's thresholds). CPU, GPU and VRAM never
+  raise attention. A non-intermittent host that stops reporting is red with
+  `NO DATA <age>`, its metrics dimmed at their last values; an intermittent
+  host that is asleep takes no slot.
+- Each column/tile is one style-less `lv_obj` drawn in `LV_EVENT_DRAW_MAIN`
+  from a pre-formatted model; 30 are created once, and an update only moves,
+  resizes, hides, and invalidates the slots whose content changed.
 
 ## Memory Telemetry
 
