@@ -107,12 +107,11 @@ static void host_columns_round(lv_obj_t *w, hc_host_t *m, int n, int iter) {
         m[i].gpu = (i % 3 == 0);
         m[i].gpu_pct = (iter * 5) % 100;
         snprintf(m[i].vram, sizeof(m[i].vram), "%d.0 / 24.0", iter % 24);
-        m[i].ndisks = 1 + (iter + i) % HOSTCOLS_DISKS;
-        for (int k = 0; k < m[i].ndisks; k++) {
-            snprintf(m[i].disks[k].name, LABEL_LEN, "disk%d", k);
-            m[i].disks[k].pct = (iter + k * 13) % 100;
-        }
-        m[i].worst = 0;
+        m[i].has_disk = (iter + i) % 5 != 0;
+        snprintf(m[i].disk.name, LABEL_LEN, "disk%d", (iter + i) % 7);
+        m[i].disk.pct = (iter * 13 + i) % 100;
+        m[i].disk.att = hostcols_disk_att(m[i].disk.pct);
+        m[i].disk_more = (iter + i) % 3;
         hosthist_record(m[i].host, 1700000000.0 + iter * HOSTHIST_PERIOD_S, (float)m[i].cpu,
                         (float)m[i].core, (float)m[i].gpu_pct);
     }
@@ -129,10 +128,15 @@ static void test_host_columns_churn(void) {
     lv_obj_t *w = host_columns_create(lv_screen_active(), 0, 0);
     CHECK(w != NULL, "host_columns_create");
 
-    /* Warm-up: one pass over every layout, so LVGL's own caches (glyphs,
-     * draw buffers) are populated before the baseline is taken. */
+    /* Warm-up: one pass over every layout, then one round of the churn
+     * pattern itself, so LVGL's own caches (glyphs, draw buffers) are
+     * populated before the baseline is taken. Sprint 030's 28/36 px figures
+     * filled ~17 KB more cache than one layout pass reaches — the same
+     * amount after 400 rounds as after 1600, so a fill, not a leak. */
     for (int n = 0; n <= HOSTCOLS_MAX; n++)
         host_columns_round(w, m, n, n);
+    for (int iter = 0; iter < 100; iter++)
+        host_columns_round(w, m, (iter * 7) % (HOSTCOLS_MAX + 1), iter);
     size_t baseline = heap_in_use();
 
     for (int iter = 0; iter < 400; iter++)
@@ -151,8 +155,8 @@ static void test_host_columns_churn(void) {
 
 int main(void) {
     lv_init();
-    lv_display_t *disp = lv_display_create(1896, 628);
-    static uint8_t buf[1896 * 64 * 4];
+    lv_display_t *disp = lv_display_create(3792, 628);
+    static uint8_t buf[3792 * 64 * 4];
     lv_display_set_buffers(disp, buf, NULL, sizeof(buf), LV_DISPLAY_RENDER_MODE_PARTIAL);
     lv_display_set_flush_cb(disp, flush_cb);
 

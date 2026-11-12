@@ -3,10 +3,10 @@
  *
  * Layout (no title bar, FR-002a; no scroll anywhere, FR-008):
  *
- *   ┌──────────────────────────┬──────────────────┐
- *   │  Host columns — Row 0,   │  (empty, row 0   │
- *   │  cols 0-2, 3×1 units     │   cols 3-5)      │
- *   ├──────────┬──────────┬────┴──────────────────┤
+ *   ┌─────────────────────────────────────────────┐
+ *   │  Host columns — Row 0, cols 0-5, 6×1 units  │
+ *   │  (the whole row; sprint 030, WI #4543)      │
+ *   ├──────────┬──────────┬───────────────────────┤
  *   │ DevGraph │Activities│  Repo Status           │
  *   │  (opt)   │  2×1     │  2×1                   │
  *   ├──────────┴──────────┴───────────────────────┤
@@ -117,8 +117,9 @@ void ui_init(void) {
     /* Footer sub-layout constants (status bar pinned at very bottom). */
     static const int32_t status_bar_h = 40;
 
-    /* ---- Host columns (WI #4526): row 0, columns 0-2. Row 0 columns 3-5
-     * are deliberately left empty — what fills them is Ken's later call. ---- */
+    /* ---- Host columns (WI #4526, widened by WI #4543): the whole of row 0.
+     * Columns to the right of the last host stay empty — what fills them is
+     * Ken's later call. ---- */
     g_host_columns = host_columns_create(g_screen, COL_X(0), ROW_Y(0));
 
     /* ---- Rows 2-3 (FR-002): pool widgets created here, positioned by

@@ -15,10 +15,10 @@ client machines — Linux and Windows.
 ## Dashboard layout
 
 ```
-┌──────────────────────────────┬──────────────────────┐
-│  Host columns (one column    │  (empty for now)     │
-│  per host, tiles past ten)   │                      │
-├──────────────────────────────┴──────────────────────┤
+┌─────────────────────────────────────────────────────┐
+│  Host columns: the whole top row (one column per    │
+│  host, tiles past ten; free columns empty for now)  │
+├─────────────────────────────────────────────────────┤
 │  Rows 1-2: per-host dev graphs, NAS panel, network  │
 │  card (placed by the layout pool)                   │
 ├─────────────────────────────────────────────────────┤
@@ -26,8 +26,8 @@ client machines — Linux and Windows.
 └─────────────────────────────────────────────────────┘
 ```
 
-The host columns (sprint 029) show each host's CPU average with its busiest
-core, RAM, GPU and drives, with ten-minute sparklines. Past ten hosts the
+The host columns (sprints 029-030) show each host's CPU average with its
+busiest core, RAM, GPU and its fullest drive, with ten-minute sparklines. Past ten hosts the
 lowest priorities drop to compact tiles, three to a column, up to thirty.
 Attention is a yellow or red border, never a bigger card. See
 `docs/ARCHITECTURE.md` § Host Columns.

@@ -31,6 +31,10 @@
 #define WS_COLOR_TEAL lv_color_hex(0x94E2D5)     /* Teal: 10G */
 #define WS_COLOR_SAPPHIRE lv_color_hex(0x74C7EC) /* Sapphire: 5G */
 #define WS_COLOR_LAVENDER lv_color_hex(0xB4BEFE) /* Lavender: structure */
+/* WI #4543: Ken's pick for the host columns' top core (line, figure, tile
+ * tick), 2026-11-12. Not a Mocha accent: a purple that reads apart from both
+ * the CPU average's blue and the RAM bar's mauve. */
+#define WS_COLOR_TOP_CORE lv_color_hex(0xAB47BC)
 
 /* ---- Shared font pointers ---- */
 #define WS_FONT_HDR (&lv_font_montserrat_bold_20)

@@ -281,7 +281,7 @@ Widget content (1×1): UNIT_W - 2×CELL_PAD = 624, UNIT_H - 2×CELL_PAD = 620
 
 ```
 ┌──────────────────────────────────────────────────────────────┐
-│  Row 0: [ host columns (3×1) ]   [ empty, cols 3-5 ]         │
+│  Row 0: [ host columns (6×1, the whole row) ]                │
 ├──────────────┬──────────────┬────────────────────────────────┤
 │  Row 1:      │  Activities  │  Repo Status                   │
 │  dev_graph   │  (2×1)       │  (2×1)                         │
@@ -306,10 +306,11 @@ Widget content (1×1): UNIT_W - 2×CELL_PAD = 624, UNIT_H - 2×CELL_PAD = 620
 | Pink | `#F5C2E7` | Widget headers |
 | Green | `#A6E3A1` | Active, disk OK, default branch |
 | Blue | `#89B4FA` | Done, CPU avg |
-| Peach | `#FAB387` | GPU VRAM, warnings |
+| Peach | `#FAB387` | GPU VRAM bar and figures, warnings |
 | Red | `#F38BA8` | Offline, critical attention, non-default branch |
-| Mauve | `#CBA6F7` | RAM bar, non-default branch alt |
-| Teal | `#94E2D5` | CPU top core |
+| Mauve | `#CBA6F7` | RAM bar and figure, non-default branch alt |
+| Teal | `#94E2D5` | 10G network fabric |
+| Top core | `#AB47BC` | Host columns' top core (Ken's pick, not Mocha) |
 | Yellow | `#F9E2AF` | Disk warning tier, commit age warning |
 
 ## Custom Font Pipeline
@@ -390,27 +391,34 @@ is registered as LVGL's print callback in `main.c`; `lv_conf.h` therefore has
   walks its sorted snapshot moving every card to last — otherwise a host going
   stale long after boot would append at the end of the row.
 
-## Host Columns (sprint 029)
+## Host Columns (sprints 029, 030)
 
-Row 0, columns 0-2: one 1896×628 widget (`src/widgets/host_columns.c`) that
-replaced the six 1×1 client cards. Columns 3-5 of row 0 are deliberately
-empty until Ken decides what fills them. Spec:
-`sprints/planning/hosts-columns-mockups.html` (`plan`, `colFull`, `tile`,
-`widget`), with two colour changes from korg WI 4524/4525.
+Row 0, all six cells: one 3792×628 widget (`src/widgets/host_columns.c`) that
+replaced the six 1×1 client cards (029) and was widened to the whole row with
+the text roughly doubled in 030, because 14 px was unreadable from Ken's chair.
+Columns to the right of the last host stay empty until Ken decides what fills
+them. Spec: `sprints/planning/hosts-wide-mockups.html` (`plan`, `colFull`,
+`tile`, `widget`); the 029 spec was `hosts-columns-mockups.html`. Nothing on
+the widget is smaller than 20 px.
 
-- **Full column** (175×596): band, hostname, OS, uptime; CPU average as a
-  filled blue sparkline with the busiest core as a thin white line over it;
-  RAM bar; GPU sparkline and VRAM bar when the host has a GPU; up to five
-  drive bars (the five fullest when there are more), always at the same y.
-- **Compact tile** (175×192, three to a column): dot, hostname, uptime, and
-  one bar each for cpu (with a top-core tick), ram, gpu and the fullest drive.
+- **Full column** (361×596): band; hostname (28 bold); uptime with the OS name
+  muted on the same line; CPU on one line — average (36 bold, blue) / top core
+  (28 bold, `WS_COLOR_TOP_CORE` #AB47BC); a 321×130 sparkline with the average
+  filled blue and the busiest core as a purple line over it; RAM figure and bar
+  in mauve; GPU figure, 321×70 sparkline, and VRAM figures and bar in peach when
+  the host has a GPU; one row for the **fullest drive**, with `+N` when N other
+  drives are also over the warn line, pinned to the bottom. Every row sits at
+  the same y in every column, so a host without a GPU leaves a gap.
+- **Compact tile** (361×189, three to a column): dot, hostname, uptime on the
+  same line, and one bar each for cpu (with a purple top-core tick), ram, gpu
+  and the fullest drive.
 - **Fill rule** (`hostcols_plan`): n ≤ 10 → all full; otherwise
   `full = (30 − n) / 2` and the rest are tiles. At most 30 hosts; past that
   the lowest priorities are dropped and the count is logged.
 - **Order** = demotion order: `KPIDASH_PRIORITY_CLIENTS`, then hostname.
 - **Attention is colour only** — nothing grows. Yellow (warn) or red (crit)
   3 px border and band, the offending row in the same colour. RAM and every
-  drive warn at ≥ 80 % and are critical at ≥ 90 %. CPU, GPU and VRAM never
+  drive (all of them, not only the one drawn) warn at ≥ 80 % and are critical at ≥ 90 %. CPU, GPU and VRAM never
   raise attention. A non-intermittent host that stops reporting is red with
   `NO DATA <age>`, its metrics dimmed at their last values; an intermittent
   host that is asleep takes no slot.

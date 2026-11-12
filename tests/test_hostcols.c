@@ -1,6 +1,7 @@
 /* test_hostcols.c — the host columns widget's pure half (WI #4524, #4525):
  * the fill rule as a table, priority-then-hostname order, who gets a slot,
- * and the attention levels a column's border and rows are drawn in. */
+ * the attention levels a column's border and rows are drawn in, and the
+ * single fullest-drive row (WI #4544). */
 #include "hostcols.h"
 
 #include <stdio.h>
@@ -148,8 +149,8 @@ static void test_build(void) {
     CHECK(h.gpu && h.gpu_pct == 0);
     CHECK(strcmp(h.vram, "30.3 / 31.8") == 0);
     CHECK(h.vram_pct == 95);
-    CHECK(h.ndisks == 2 && strcmp(h.disks[0].name, "root") == 0); /* original order kept */
-    CHECK(h.worst == 1);
+    CHECK(h.has_disk && strcmp(h.disk.name, "ai") == 0 && h.disk.pct == 35);
+    CHECK(h.disk_more == 0);
 
     /* VRAM at 95 % raises nothing; RAM at 92 % is critical. */
     c.ram_used_mb = 116000;
@@ -161,30 +162,72 @@ static void test_build(void) {
     add_disk(&c, "src", 85.0f);
     hostcols_build(&c, now, &h);
     CHECK(h.att == HC_ATT_WARN);
-    CHECK(h.disks[2].att == HC_ATT_WARN && h.worst == 2);
-
-    /* More than five drives: the five fullest, fullest first. */
-    client_info_t d = mk("kubsdb");
-    float p[7] = {10, 50, 20, 70, 30, 60, 40};
-    for (int i = 0; i < 7; i++) {
-        char nm[8];
-        snprintf(nm, sizeof(nm), "d%d", i);
-        add_disk(&d, nm, p[i]);
-    }
-    hostcols_build(&d, now, &h);
-    CHECK(h.ndisks == 5);
-    CHECK(h.disks[0].pct == 70 && h.disks[4].pct == 30);
-    CHECK(h.worst == 0);
+    CHECK(strcmp(h.disk.name, "src") == 0 && h.disk.att == HC_ATT_WARN && h.disk_more == 0);
 
     /* No GPU, no drives. */
     client_info_t e = mk("krgate");
     e.uptime_seconds = 3 * 3600 + 12 * 60;
     hostcols_build(&e, now, &h);
-    CHECK(!h.gpu && h.ndisks == 0 && h.worst == -1);
+    CHECK(!h.gpu && !h.has_disk && h.disk_more == 0);
     CHECK(strcmp(h.status, "up 3h 12m") == 0);
     e.uptime_seconds = 47 * 60;
     hostcols_build(&e, now, &h);
     CHECK(strcmp(h.status, "up 47m") == 0);
+}
+
+/* WI #4544: one row for the fullest drive, "+N" for the others over the line. */
+static void test_fullest_drive(void) {
+    const double now = 1700000000.0;
+    hc_host_t h;
+
+    /* One drive. */
+    client_info_t a = mk("kimac");
+    add_disk(&a, "data", 9.8f);
+    hostcols_build(&a, now, &h);
+    CHECK(h.has_disk && strcmp(h.disk.name, "data") == 0 && h.disk.pct == 10);
+    CHECK(h.disk.att == HC_ATT_NONE && h.disk_more == 0 && h.att == HC_ATT_NONE);
+
+    /* Several, none over: the fullest, wherever it was reported. */
+    client_info_t b = mk("kubsdb");
+    add_disk(&b, "root", 6.7f);
+    add_disk(&b, "datastore", 1.0f);
+    add_disk(&b, "gratch", 15.4f);
+    hostcols_build(&b, now, &h);
+    CHECK(strcmp(h.disk.name, "gratch") == 0 && h.disk.pct == 15);
+    CHECK(h.disk_more == 0 && h.att == HC_ATT_NONE);
+
+    /* Two over the line: the fullest drawn, "+1" for the other. */
+    client_info_t c = mk("kubs0");
+    add_disk(&c, "root", 7.2f);
+    add_disk(&c, "ai", 82.0f);
+    add_disk(&c, "src", 86.0f);
+    hostcols_build(&c, now, &h);
+    CHECK(strcmp(h.disk.name, "src") == 0 && h.disk.pct == 86 && h.disk.att == HC_ATT_WARN);
+    CHECK(h.disk_more == 1 && h.att == HC_ATT_WARN);
+
+    /* The border comes from every drive: a critical one is the one drawn. */
+    add_disk(&c, "scratch", 93.0f);
+    hostcols_build(&c, now, &h);
+    CHECK(strcmp(h.disk.name, "scratch") == 0 && h.disk.att == HC_ATT_CRIT);
+    CHECK(h.disk_more == 2 && h.att == HC_ATT_CRIT);
+
+    /* A tie: the first reported wins, and the other still counts. */
+    client_info_t d = mk("cleo");
+    add_disk(&d, "C", 85.0f);
+    add_disk(&d, "D", 85.0f);
+    hostcols_build(&d, now, &h);
+    CHECK(strcmp(h.disk.name, "C") == 0 && h.disk_more == 1);
+
+    /* More drives than the old five-row list held: none of them is cut. */
+    client_info_t e = mk("gratch");
+    float p[7] = {10, 50, 20, 30, 40, 60, 81};
+    for (int i = 0; i < 7; i++) {
+        char nm[8];
+        snprintf(nm, sizeof(nm), "d%d", i);
+        add_disk(&e, nm, p[i]);
+    }
+    hostcols_build(&e, now, &h);
+    CHECK(strcmp(h.disk.name, "d6") == 0 && h.disk.att == HC_ATT_WARN && h.disk_more == 0);
 }
 
 static void test_nodata(void) {
@@ -218,6 +261,7 @@ int main(void) {
     test_asleep_takes_no_slot();
     test_thresholds();
     test_build();
+    test_fullest_drive();
     test_nodata();
     printf("test_hostcols: %d passed, %d failed\n", passed, failed);
     return failed ? 1 : 0;

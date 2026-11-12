@@ -115,6 +115,14 @@ that feed it: `kpidash-client` (the telemetry daemon + CLI) and `kpidash-mcp`
   legible at a glance from across the room.
 - **The Redis poll runs on the LVGL thread** as a synchronous 1s cycle. Anything
   slow added there stalls the render loop.
+- **On the Pi, a translucent fill is expensive; an opaque one is cheap.** LVGL
+  renders `LV_DISPLAY_RENDER_MODE_DIRECT` straight into the DRM framebuffer, so
+  blending anything below `LV_OPA_COVER` reads back every pixel it covers from
+  slow memory. In sprint 030 one 361×596 frame at 26 % opacity cost ~530 ms of
+  every second. Mixing the colour once (`lv_color_mix`) and drawing it opaque
+  gave the same pixels and took kpidash from 65 % to 10.6 % of a core. Benches
+  that render into ordinary RAM (kai, the render tool) **cannot** show this, so
+  measure render cost on rpi53 itself.
 - **Redis auth is `REDISCLI_AUTH` in the environment only** — never in code, never
   in a config file. DRM needs root, and `sudo -E` is what preserves the variable.
   Since sprint 020 the value has **one copy per host**, `/etc/khomelab/secrets.env`

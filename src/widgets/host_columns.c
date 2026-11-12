@@ -1,8 +1,8 @@
 /**
  * host_columns.c — The host columns widget (WI #4524, #4525). See the header.
  *
- * Coordinates below are the mock-up's (sprints/planning/hosts-columns-
- * mockups.html), which measures from the 1896 x 628 cell block. The card this
+ * Coordinates below are the mock-up's (sprints/planning/hosts-wide-
+ * mockups.html, sprint 030), which measures from the 3792 x 628 cell block. The card this
  * widget's root draws is inset CELL_PAD from that block, so child positions
  * subtract it once, in SLOT_X/SLOT_Y; everything inside a slot is relative to
  * the slot and copied from `colFull` / `tile` unchanged. Text y values are the
@@ -18,24 +18,33 @@
 #include "layout.h"
 
 /* ---- Geometry (mock-up `widget`) ---- */
-#define HC_W UNIT_W_N(3) /* 1896 */
+#define HC_W UNIT_W_N(6) /* 3792: the whole top row (WI #4543) */
 #define HC_H UNIT_H      /* 628 */
-#define HC_CW 175        /* column width */
-#define HC_GAP 10
+#define HC_CW 361        /* column width */
+#define HC_GAP 14
 #define HC_X0 28
 #define HC_Y0 16
 #define HC_CH 596                                   /* column height */
-#define HC_TH ((HC_CH - 2 * HC_GAP) / HOSTCOLS_PER) /* tile height, 192 */
+#define HC_TH ((HC_CH - 2 * HC_GAP) / HOSTCOLS_PER) /* tile height, 189 */
 #define SLOT_X(col) (HC_X0 - CELL_PAD + (col) * (HC_CW + HC_GAP))
 #define SLOT_Y(row) (HC_Y0 - CELL_PAD + (row) * (HC_TH + HC_GAP))
 
 /* Column fill: Catppuccin's raised surface (#232336) without a new colour —
- * Surface0 at 26 % over the card's Base lands on #232335. */
+ * Surface0 at 26 % over the card's Base lands on #232335. Mixed once and
+ * drawn OPAQUE (sprint 030): a translucent fill makes LVGL read back every
+ * pixel it covers, and on the Pi that read is from the DRM framebuffer. The
+ * translucent 361x596 frame cost ~530 ms of every second on rpi53; the
+ * opaque one draws the same pixels without reading any. */
 #define HC_RAISE_OPA 66
+#define HC_RAISE_COLOR lv_color_mix(WS_COLOR_SURFACE0, WS_COLOR_BG, HC_RAISE_OPA)
 #define HC_DIM_OPA LV_OPA_40 /* metrics of a host that stopped reporting */
 
-#define FONT_LABEL (&lv_font_montserrat_14)
-#define FONT_LABEL_B (&lv_font_montserrat_bold_14)
+/* Nothing on the widget is smaller than 20 px (WI #4543). */
+#define FONT_LABEL (&lv_font_montserrat_20)
+#define FONT_LABEL_B (&lv_font_montserrat_bold_20)
+#define FONT_NAME (&lv_font_montserrat_bold_28)
+#define FONT_MID_B (&lv_font_montserrat_bold_28)
+#define FONT_BIG_B (&lv_font_montserrat_bold_36)
 
 typedef struct {
     hc_host_t m;
@@ -81,7 +90,7 @@ static void rect(lv_layer_t *layer, int32_t x, int32_t y, int32_t w, int32_t h, 
 static void text_at(lv_layer_t *layer, const lv_font_t *font, int32_t x1, int32_t x2,
                     int32_t baseline, const char *s, lv_color_t c, lv_opa_t opa,
                     lv_text_align_t align, int32_t letter_space) {
-    if (!s || !s[0])
+    if (!s || !s[0] || x2 <= x1)
         return;
     char buf[OS_NAME_LEN];
     size_t len = strnlen(s, sizeof(buf) - 3);
@@ -109,6 +118,10 @@ static void text_at(lv_layer_t *layer, const lv_font_t *font, int32_t x1, int32_
     int32_t top = baseline - (font->line_height - font->base_line);
     lv_area_t a = {x1, top, x2, top + font->line_height - 1};
     lv_draw_label(layer, &d, &a);
+}
+
+static int32_t text_w(const lv_font_t *font, const char *s, int32_t letter_space) {
+    return lv_text_get_width(s, (uint32_t)strlen(s), font, letter_space);
 }
 
 /* The mock-up's `bar`: a rounded track with a fill at least as wide as tall. */
@@ -170,9 +183,9 @@ static void spark(lv_layer_t *layer, int32_t x, int32_t y, int32_t w, int32_t h,
 static void frame(lv_layer_t *layer, const lv_area_t *a, hc_att_t att) {
     lv_draw_rect_dsc_t d;
     lv_draw_rect_dsc_init(&d);
-    d.radius = 8;
-    d.bg_color = WS_COLOR_SURFACE0;
-    d.bg_opa = HC_RAISE_OPA;
+    d.radius = 10;
+    d.bg_color = HC_RAISE_COLOR;
+    d.bg_opa = LV_OPA_COVER;
     d.border_color = att ? att_color(att) : WS_COLOR_SURFACE1;
     d.border_width = att ? 3 : 1;
     d.border_opa = LV_OPA_COVER;
@@ -184,70 +197,91 @@ static void frame(lv_layer_t *layer, const lv_area_t *a, hc_att_t att) {
 static void draw_full(lv_layer_t *layer, const lv_area_t *a, const slot_t *s) {
     const hc_host_t *h = &s->m;
     const int32_t x = a->x1, y0 = a->y1;
-    const int32_t L = x + 14, R = x + HC_CW - 14, w = HC_CW - 28;
-    char buf[32];
+    const int32_t L = x + 20, R = x + HC_CW - 20, w = HC_CW - 40;
+    char buf[LABEL_LEN + 16];
 
     frame(layer, a, h->att);
-    rect(layer, x, y0, HC_CW, h->att ? 10 : 6, h->att ? att_color(h->att) : WS_COLOR_GREEN,
+    rect(layer, x, y0, HC_CW, h->att ? 12 : 6, h->att ? att_color(h->att) : WS_COLOR_GREEN,
          LV_OPA_COVER, 3);
 
-    text_at(layer, WS_FONT_HDR, L, R, y0 + 40, h->host, WS_COLOR_FG, LV_OPA_COVER,
+    text_at(layer, FONT_NAME, L, R, y0 + 50, h->host, WS_COLOR_FG, LV_OPA_COVER,
             LV_TEXT_ALIGN_LEFT, 0);
-    text_at(layer, FONT_LABEL, L, R, y0 + 60, h->os, WS_COLOR_MUTED, LV_OPA_COVER,
-            LV_TEXT_ALIGN_LEFT, 0);
-    text_at(layer, h->nodata ? FONT_LABEL_B : FONT_LABEL, L, R, y0 + 80, h->status,
-            h->nodata ? WS_COLOR_RED : WS_COLOR_FG, LV_OPA_COVER, LV_TEXT_ALIGN_LEFT, 0);
+    /* Uptime (or NO DATA) left, the OS name muted on the right of the same
+     * line; the OS gives way, never the uptime. */
+    const lv_font_t *sf = h->nodata ? FONT_LABEL_B : FONT_LABEL;
+    text_at(layer, sf, L, R, y0 + 82, h->status, h->nodata ? WS_COLOR_RED : WS_COLOR_FG,
+            LV_OPA_COVER, LV_TEXT_ALIGN_LEFT, 0);
+    text_at(layer, FONT_LABEL, L + text_w(sf, h->status, 0) + 16, R, y0 + 82, h->os,
+            WS_COLOR_MUTED, LV_OPA_COVER, LV_TEXT_ALIGN_RIGHT, 0);
 
     const lv_opa_t o = h->nodata ? HC_DIM_OPA : LV_OPA_COVER;
 
-    /* CPU: the average filled, the busiest core a thin fg line over it. */
-    text_at(layer, FONT_LABEL, L, R, y0 + 122, "CPU", WS_COLOR_MUTED, o, LV_TEXT_ALIGN_LEFT, 1);
-    lv_snprintf(buf, sizeof(buf), "%d%%", h->cpu);
-    text_at(layer, WS_FONT_LARGE, L, R, y0 + 124, buf, WS_COLOR_BLUE, o, LV_TEXT_ALIGN_RIGHT, 0);
-    spark(layer, L, y0 + 136, w, 60, s->cpu, s->nhist, WS_COLOR_BLUE, 2, 56, o);
-    spark(layer, L, y0 + 136, w, 60, s->core, s->nhist, WS_COLOR_FG, 1, 0, o);
-    text_at(layer, FONT_LABEL, L, R, y0 + 216, "top core", WS_COLOR_MUTED, o, LV_TEXT_ALIGN_LEFT,
-            0);
-    lv_snprintf(buf, sizeof(buf), "%d%%", h->core);
-    text_at(layer, FONT_LABEL_B, L, R, y0 + 216, buf, WS_COLOR_FG, o, LV_TEXT_ALIGN_RIGHT, 0);
+    /* CPU on one line: the average in blue, a muted "/", the top core in its
+     * own colour — the same two colours as the graph's two lines. Drawn right
+     * to left, so the run ends at R. */
+    text_at(layer, FONT_LABEL, L, R, y0 + 134, "CPU", WS_COLOR_MUTED, o, LV_TEXT_ALIGN_LEFT, 1);
+    {
+        int32_t r = R;
+        lv_snprintf(buf, sizeof(buf), "%d%%", h->core);
+        text_at(layer, FONT_MID_B, L, r, y0 + 136, buf, WS_COLOR_TOP_CORE, o, LV_TEXT_ALIGN_RIGHT,
+                0);
+        r -= text_w(FONT_MID_B, buf, 0);
+        text_at(layer, FONT_LABEL, L, r, y0 + 136, "  /  ", WS_COLOR_MUTED, o,
+                LV_TEXT_ALIGN_RIGHT, 0);
+        r -= text_w(FONT_LABEL, "  /  ", 0);
+        lv_snprintf(buf, sizeof(buf), "%d%%", h->cpu);
+        text_at(layer, FONT_BIG_B, L, r, y0 + 136, buf, WS_COLOR_BLUE, o, LV_TEXT_ALIGN_RIGHT, 0);
+    }
+    spark(layer, L, y0 + 152, w, 130, s->cpu, s->nhist, WS_COLOR_BLUE, 3, 56, o);
+    spark(layer, L, y0 + 152, w, 130, s->core, s->nhist, WS_COLOR_TOP_CORE, 2, 0, o);
 
-    /* RAM: mauve, or the attention colour with the label bold. */
+    /* RAM: the figure takes the bar's mauve, or the attention colour with the
+     * label bold. */
     {
         bool on = h->ram_att != HC_ATT_NONE;
-        lv_color_t rc = att_color(h->ram_att);
-        text_at(layer, on ? FONT_LABEL_B : FONT_LABEL, L, R, y0 + 256, "RAM",
+        lv_color_t rc = on ? att_color(h->ram_att) : WS_COLOR_MAUVE;
+        text_at(layer, on ? FONT_LABEL_B : FONT_LABEL, L, R, y0 + 328, "RAM",
                 on ? rc : WS_COLOR_MUTED, o, LV_TEXT_ALIGN_LEFT, 1);
         lv_snprintf(buf, sizeof(buf), "%d%%", h->ram_pct);
-        text_at(layer, &lv_font_montserrat_bold_16, L, R, y0 + 256, buf, on ? rc : WS_COLOR_FG, o,
-                LV_TEXT_ALIGN_RIGHT, 0);
-        bar(layer, L, y0 + 266, w, 8, h->ram_pct, on ? rc : WS_COLOR_MAUVE, o);
+        text_at(layer, FONT_MID_B, L, R, y0 + 330, buf, rc, o, LV_TEXT_ALIGN_RIGHT, 0);
+        bar(layer, L, y0 + 342, w, 12, h->ram_pct, rc, o);
     }
 
+    /* GPU and VRAM; a host without a GPU leaves the band empty, so every row
+     * below sits at the same y in every column. */
     if (h->gpu) {
-        text_at(layer, FONT_LABEL, L, R, y0 + 308, "GPU", WS_COLOR_MUTED, o, LV_TEXT_ALIGN_LEFT,
+        text_at(layer, FONT_LABEL, L, R, y0 + 398, "GPU", WS_COLOR_MUTED, o, LV_TEXT_ALIGN_LEFT,
                 1);
         lv_snprintf(buf, sizeof(buf), "%d%%", h->gpu_pct);
-        text_at(layer, WS_FONT_LARGE, L, R, y0 + 310, buf, WS_COLOR_GREEN, o, LV_TEXT_ALIGN_RIGHT,
+        text_at(layer, FONT_BIG_B, L, R, y0 + 400, buf, WS_COLOR_GREEN, o, LV_TEXT_ALIGN_RIGHT,
                 0);
-        spark(layer, L, y0 + 320, w, 40, s->gpu, s->nhist, WS_COLOR_GREEN, 3, 38, o);
-        text_at(layer, FONT_LABEL, L, R, y0 + 386, "VRAM", WS_COLOR_MUTED, o, LV_TEXT_ALIGN_LEFT,
+        spark(layer, L, y0 + 412, w, 70, s->gpu, s->nhist, WS_COLOR_GREEN, 4, 38, o);
+        text_at(layer, FONT_LABEL, L, R, y0 + 516, "VRAM", WS_COLOR_MUTED, o, LV_TEXT_ALIGN_LEFT,
                 1);
-        text_at(layer, FONT_LABEL, L + 50, R, y0 + 386, h->vram, WS_COLOR_FG, o,
+        /* Ken, 2026-11-12: the figures take the VRAM bar's peach. */
+        text_at(layer, FONT_LABEL, L + 80, R, y0 + 516, h->vram, WS_COLOR_ORANGE, o,
                 LV_TEXT_ALIGN_RIGHT, 0);
-        bar(layer, L, y0 + 396, w, 8, h->vram_pct, WS_COLOR_ORANGE, o);
+        bar(layer, L, y0 + 526, w, 10, h->vram_pct, WS_COLOR_ORANGE, o);
     }
 
-    /* Drives sit at the same y in every column, GPU or not. */
-    for (int k = 0; k < h->ndisks; k++) {
-        const hc_disk_t *d = &h->disks[k];
-        int32_t y = y0 + 438 + k * 32;
+    /* One drive row, pinned to the bottom (WI #4544): the fullest drive, and
+     * "+N" when others are over the line too. It never moves. */
+    if (h->has_disk) {
+        const hc_disk_t *d = &h->disk;
         bool on = d->att != HC_ATT_NONE;
         lv_color_t dc = att_color(d->att);
         const lv_font_t *f = on ? FONT_LABEL_B : FONT_LABEL;
-        lv_snprintf(buf, sizeof(buf), "%d%%", d->pct);
-        text_at(layer, f, L, R - 44, y, d->name, on ? dc : WS_COLOR_FG, o, LV_TEXT_ALIGN_LEFT, 0);
-        text_at(layer, f, L, R, y, buf, on ? dc : WS_COLOR_MUTED, o, LV_TEXT_ALIGN_RIGHT, 0);
-        bar(layer, L, y + 7, w, 6, d->pct, on ? dc : WS_COLOR_LAVENDER, o);
+        char fig[8];
+        lv_snprintf(fig, sizeof(fig), "%d%%", d->pct);
+        text_at(layer, FONT_LABEL_B, L, R, y0 + 566, fig, on ? dc : WS_COLOR_FG, o,
+                LV_TEXT_ALIGN_RIGHT, 0);
+        if (h->disk_more > 0)
+            lv_snprintf(buf, sizeof(buf), "%s  +%d", d->name, h->disk_more);
+        else
+            lv_snprintf(buf, sizeof(buf), "%s", d->name);
+        text_at(layer, f, L, R - text_w(FONT_LABEL_B, fig, 0) - 16, y0 + 566, buf,
+                on ? dc : WS_COLOR_FG, o, LV_TEXT_ALIGN_LEFT, 0);
+        bar(layer, L, y0 + 576, w, 8, d->pct, on ? dc : WS_COLOR_LAVENDER, o);
     }
 }
 
@@ -264,17 +298,19 @@ typedef struct {
 static void draw_tile(lv_layer_t *layer, const lv_area_t *a, const slot_t *s) {
     const hc_host_t *h = &s->m;
     const int32_t x = a->x1, y = a->y1;
-    const int32_t L = x + 12, R = x + HC_CW - 12;
-    const int32_t bx = x + 58, bw = HC_CW - 58 - 52;
+    const int32_t L = x + 18, R = x + HC_CW - 18;
+    const int32_t bx = x + 92, bw = HC_CW - 92 - 78;
     char buf[16];
 
     frame(layer, a, h->att);
-    rect(layer, x + 13, y + 23, 12, 12, h->nodata ? WS_COLOR_RED : WS_COLOR_GREEN, LV_OPA_COVER,
+    rect(layer, x + 19, y + 26, 16, 16, h->nodata ? WS_COLOR_RED : WS_COLOR_GREEN, LV_OPA_COVER,
          LV_RADIUS_CIRCLE);
-    text_at(layer, WS_FONT_HDR, x + 33, R, y + 36, h->host, WS_COLOR_FG, LV_OPA_COVER,
-            LV_TEXT_ALIGN_LEFT, 0);
-    text_at(layer, h->nodata ? FONT_LABEL_B : FONT_LABEL, L, R, y + 60, h->status,
-            h->nodata ? WS_COLOR_RED : WS_COLOR_FG, LV_OPA_COVER, LV_TEXT_ALIGN_LEFT, 0);
+    /* Uptime (or NO DATA) right-aligned on the name line; the name gives way. */
+    const lv_font_t *sf = h->nodata ? FONT_LABEL_B : FONT_LABEL;
+    text_at(layer, sf, L, R, y + 44, h->status, h->nodata ? WS_COLOR_RED : WS_COLOR_FG,
+            LV_OPA_COVER, LV_TEXT_ALIGN_RIGHT, 0);
+    text_at(layer, FONT_NAME, x + 46, R - text_w(sf, h->status, 0) - 12, y + 44, h->host,
+            WS_COLOR_FG, LV_OPA_COVER, LV_TEXT_ALIGN_LEFT, 0);
 
     const lv_opa_t o = h->nodata ? HC_DIM_OPA : LV_OPA_COVER;
     tile_row_t rows[4];
@@ -284,26 +320,25 @@ static void draw_tile(lv_layer_t *layer, const lv_area_t *a, const slot_t *s) {
     if (h->gpu)
         rows[nr++] = (tile_row_t){"gpu", h->gpu_pct, WS_COLOR_GREEN, HC_ATT_NONE, -1};
     char dname[6] = "";
-    if (h->worst >= 0) {
-        const hc_disk_t *d = &h->disks[h->worst];
-        memcpy(dname, d->name, strnlen(d->name, sizeof(dname) - 1));
-        rows[nr++] = (tile_row_t){dname, d->pct, WS_COLOR_LAVENDER, d->att, -1};
+    if (h->has_disk) {
+        memcpy(dname, h->disk.name, strnlen(h->disk.name, sizeof(dname) - 1));
+        rows[nr++] = (tile_row_t){dname, h->disk.pct, WS_COLOR_LAVENDER, h->disk.att, -1};
     }
 
     for (int k = 0; k < nr; k++) {
-        int32_t yy = y + 92 + k * 26;
+        int32_t yy = y + 82 + k * 30;
         bool on = rows[k].att != HC_ATT_NONE;
         lv_color_t c = att_color(rows[k].att);
         const lv_font_t *f = on ? FONT_LABEL_B : FONT_LABEL;
-        text_at(layer, f, L, bx - 2, yy + 5, rows[k].label, on ? c : WS_COLOR_MUTED, o,
+        text_at(layer, f, L, bx - 4, yy + 7, rows[k].label, on ? c : WS_COLOR_MUTED, o,
                 LV_TEXT_ALIGN_LEFT, 0);
-        bar(layer, bx, yy - 4, bw, 8, rows[k].pct, on ? c : rows[k].color, o);
+        bar(layer, bx, yy - 5, bw, 10, rows[k].pct, on ? c : rows[k].color, o);
         if (rows[k].tick >= 0) {
             int t = rows[k].tick > 100 ? 100 : rows[k].tick;
-            rect(layer, bx + bw * t / 100 - 1, yy - 7, 3, 14, WS_COLOR_FG, o, 1);
+            rect(layer, bx + bw * t / 100 - 2, yy - 9, 4, 18, WS_COLOR_TOP_CORE, o, 1);
         }
         lv_snprintf(buf, sizeof(buf), "%d%%", rows[k].pct);
-        text_at(layer, f, bx + bw, R, yy + 5, buf, on ? c : WS_COLOR_FG, o, LV_TEXT_ALIGN_RIGHT,
+        text_at(layer, f, bx + bw, R, yy + 7, buf, on ? c : WS_COLOR_FG, o, LV_TEXT_ALIGN_RIGHT,
                 0);
     }
 }

@@ -5,9 +5,10 @@
  *   render_host_columns <out.bmp> <n> [alert]     mock-up fleet, first n hosts
  *   render_host_columns <out.bmp> -f <hosts.txt>  hosts from a file
  *
- * The mock-up fleet mirrors sprints/planning/hosts-columns-mockups.html's
- * `hostsData`: array order is priority order, thrall and kit are asleep (and
- * so take no slot), and `alert` applies the same five faults. The file form is
+ * The mock-up fleet mirrors sprints/planning/hosts-wide-mockups.html's
+ * `hostsData` (sprint 030): array order is priority order, every host is awake
+ * (asleep hosts are test_hostcols' job), and `alert` applies the same five
+ * faults. The file form is
  * one host per line, '|'-separated:
  *
  *   host|os|uptime_s|online|intermittent|age_s|cpu|core|ram_used_mb|
@@ -66,11 +67,6 @@ static void disk(client_info_t *c, const char *label, float used, float total) {
     d->pct = total > 0 ? 100.0f * used / total : 0;
 }
 
-static void asleep(client_info_t *c) {
-    c->online = false;
-    c->intermittent = true;
-}
-
 #define D 86400.0f
 #define H 3600.0f
 
@@ -85,22 +81,22 @@ static void mock_fleet(bool alert) {
     c = add("kubs0", "Ubuntu 24.04", 24 * D + 22 * H, 2, 9, 11.5f, 125.6f);
     gpu(c, 13.4f, 16.0f, 0);
     disk(c, "root", 130, 1800);
-    disk(c, "ai", 60.2f, 1800);
+    disk(c, "ai", alert ? 1476 : 60.2f, 1800);
     disk(c, "src", alert ? 1548 : 378, 1800);
     c = add("cleo", "Win 11 Pro", 5 * D + 20 * H, 18, 69, 21.4f, 31.4f);
     gpu(c, 2.6f, 7.7f, 5);
     disk(c, "C", 623, 1800);
     disk(c, "D", 241, 931);
     disk(c, "F", 0, 120);
-    c = add("kubsdb", "Ubuntu 24.04", 13 * D + 21 * H, 1, 5, 2.5f, 62.7f);
-    disk(c, "root", 30.7f, 455);
-    disk(c, "datastore", 9, 916);
-    disk(c, "gratch", 69.2f, 4500);
     c = add("gratch", "Ubuntu 26.04", 19 * D + 4 * H, 1, 6, 12.4f, 31.3f);
     disk(c, "root", 13, 913);
     disk(c, "nas", 991, 5900);
     c = add("kimac", "macOS 27.0", 35 * D + 14 * H, 2, 4, 3.2f, 8);
     disk(c, "data", 45.3f, 460);
+    c = add("kubsdb", "Ubuntu 24.04", 13 * D + 21 * H, 1, 5, 2.5f, 62.7f);
+    disk(c, "root", 30.7f, 455);
+    disk(c, "datastore", 9, 916);
+    disk(c, "gratch", 69.2f, 4500);
     c = add("rpi53", "Debian 13", 1 * H + 41 * 60, 12, 48, 0.45f, 7.9f);
     disk(c, "root", 8.8f, 468);
     disk(c, "firmware", 0.1f, 0.5f);
@@ -112,18 +108,16 @@ static void mock_fleet(bool alert) {
     disk(c, "root", 6.1f, 58);
     c = add("komarchy", "Omarchy", 3 * H + 12 * 60, 4, 22, 5.1f, 15.5f);
     disk(c, "root", 88, 476);
-    c = add("thrall", "Arch", 0, 0, 0, 0, 62.7f);
-    gpu(c, 0, 24, 0);
+    c = add("thrall", "Arch", 6 * H + 40 * 60, 3, 17, 7.2f, 62.7f);
+    gpu(c, 1.2f, 24, 1);
     disk(c, "root", 212, 931);
-    asleep(c);
-    c = add("kit", "Win 11 Arm", 0, 0, 0, 0, 31.6f);
-    disk(c, "C", 141, 476);
-    asleep(c);
     c = add("ksandbox", "Ubuntu 24.04", 2 * H + 5 * 60, 6, 31, 1.9f, 7.8f);
     disk(c, "root", alert ? 59.5f : 21, 64);
     c = add("kbook2", "Win 11 Pro", 47 * 60, 9, 40, alert ? 13.4f : 9.8f, 15.8f);
     gpu(c, 1.1f, 6, 2);
     disk(c, "C", 301, 476);
+    c = add("kit", "Win 11 Arm", 1 * H + 12 * 60, 5, 19, 11.0f, 31.6f);
+    disk(c, "C", 141, 476);
 
     static const char *fill[] = {"rpidash3", "deskdash", "kwork",   "krpi4",   "kvm1",
                                  "kvm2",     "kvm3",     "ktest1",  "ktest2",  "ktest3",
@@ -245,8 +239,8 @@ int main(int argc, char **argv) {
     synth_history();
 
     lv_init();
-    lv_display_t *disp = lv_display_create(1896, 628);
-    static uint8_t buf[1896 * 64 * 4];
+    lv_display_t *disp = lv_display_create(3792, 628);
+    static uint8_t buf[3792 * 64 * 4];
     lv_display_set_buffers(disp, buf, NULL, sizeof(buf), LV_DISPLAY_RENDER_MODE_PARTIAL);
     lv_display_set_flush_cb(disp, flush_cb);
     lv_obj_t *scr = lv_screen_active();
