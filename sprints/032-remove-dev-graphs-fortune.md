@@ -147,3 +147,23 @@ merged `main`.
 - rpi53's own column shows regular top-core spikes over those ten minutes.
   They were my wait loop, run on rpi53 itself: `ps` every 10 s, then `top`.
   They are not the dashboard.
+
+## Deployed
+
+Deployed 2026-11-12 at 14:20:49 PST, from kai, on the ship turn. That followed
+the overseer's clearance (korg:4562 comment 4609) and the squash merge
+`44b70a0` (PR #35).
+
+- **rpi53**: `scripts/deploy.sh` ran from merged `main`.
+  - The service is active with `NRestarts=0` and reports `44b70a0
+    (2026-11-12)`.
+  - The aarch64 build and link printed no warnings
+    (`.scratch/deploy-032-ship.log`, grepped), and the journal is clean.
+  - `~/kpidash` matches `build-pi/kpidash` (md5 `99d13429…`).
+- **Live capture** (`.scratch/live-032-ship.png`): the layout is as briefed.
+  Row 0 is the host columns. Row 1 has 10G in columns 0-1 and NAS in 2-3,
+  with columns 4-5 empty. Row 2 is empty and the footer is unchanged. The
+  rpidash card reads `44b70a0 (2026-11-12)`.
+- **CPU**: 4.5-4.8 % of one core in the first 30 s, with the rings empty. The
+  full-ring figure, 6.1-6.5 %, was measured on `06f59a4`, which is the same
+  code (§ Pre-ship deploy).
