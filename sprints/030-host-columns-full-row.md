@@ -103,3 +103,45 @@ graphs, NAS, 10G and the footer did not move.
   7, 10, 11 and 20 hosts, quiet and alert, match the mock-up's layouts. They
   give 7/10/9+2/5+15 slots, `src  +1` in yellow on kubs0, NO DATA on rpi53,
   and a red `root 93%` on ksandbox's tile.
+
+## Pre-ship deploy and the CPU number
+
+The proposal named the CPU cost as the number that could say no, and asked
+for it to be reported before the ship rather than tuned silently. So the
+branch build (`62be003`) was deployed to rpi53 from kai with
+`scripts/deploy.sh` at 11:08:42 PST on 2026-11-12, ahead of the clearance.
+The ship turn redeploys from the merged `main`.
+
+- The deploy reported the service active, `NRestarts=0`, and the running
+  binary self-reports `62be003 (2026-11-12)`. The aarch64 build and link
+  printed no warnings (`.scratch/deploy-030.log`, grepped).
+- **CPU, `top` on rpi53, % of one core:**
+
+  | build | state | kpidash CPU |
+  |---|---|---|
+  | old client cards (pre-029) | steady | ~48 % (029's figure) |
+  | 029 host columns | rings full, 13 h uptime, just before this deploy | 36.5-36.6 % |
+  | 030 full row | rings filling, 0-10 min, 30 s samples | 62 % rising to 65 % |
+  | 030 full row | rings full, 10 min, 10 s samples | **65 %** |
+
+  **That is clearly worse than the old 48 %**: about 1.8× 029 with the rings
+  full. All of it is the one LVGL thread (`top -H`: 65.1 %), the same thread
+  that runs the synchronous 1 s Redis poll. That leaves roughly 350 ms of each
+  second for the poll and everything else. The panel renders correctly, and
+  the journal shows no errors. It is visible on the panel itself: rpi53's own
+  top-core line sits near 66 %.
+- **Not tuned, as the proposal asked.** The likely cost, not yet measured:
+  each poll changes a column's CPU figure, the slot's `memcmp` differs, and
+  the whole 361×596 slot is invalidated. That repaints both sparklines, and
+  each area fill is one 1 px-wide rect per pixel column: 321 for CPU and 321
+  for GPU, against 147 in 029. Candidates: draw the fill as one polygon per
+  segment, or invalidate the figure line and the graph separately so a
+  figure tick does not repaint the graph.
+- Live captures (`.scratch/live-030.png` full panel,
+  `.scratch/live-030-row0.png` row 0) and the 7/11/20 alert and 20 quiet
+  renders are attached to korg:4545. They show seven full columns across row
+  0 in priority order (kai, kubs0, cleo, then gratch, kimac, kubsdb, rpi53).
+  The three free columns are empty, and rows 1-2 and the footer are
+  unchanged.
+- Rollback: `~/kpidash.prev` holds the 029 binary (`ca9388c`), so
+  `scripts/deploy.sh --rollback` returns the panel to 029 in one step.
