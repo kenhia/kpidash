@@ -331,8 +331,9 @@ High-frequency telemetry stream, written at `dev_interval_s` (default 1 s,
 configurable in `[client]` config section). Contains 5 metrics (GPU compute,
 CPU avg, CPU top, VRAM, RAM). It was written for the per-host dev graphs,
 which sprint 032 removed. Since then the dashboard GETs only
-`KPIDASH_NAS_HOST`'s key (gratch), for the NAS card's CPU/RAM chart (§8f);
-every other host's key is unread.
+`KPIDASH_NAS_HOST`'s key (gratch), for the NAS card's CPU/RAM chart (§8f).
+Other hosts' keys are still read by kdeskdash (`src/dev_telemetry.c` there),
+so the producer stays.
 
 **Sprint 006**: The `host` field (default `"(legacy)"` when absent) routes
 samples to a per-host series in the dashboard (`GRAPH_HOST_MAX=8`).
