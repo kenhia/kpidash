@@ -17,6 +17,7 @@
 #include "screenshot.h"
 #include "status.h"
 #include "ui.h"
+#include "wxstate.h"
 
 /* ---- Global connection state ---- */
 static redisContext *g_ctx = NULL;
@@ -374,6 +375,8 @@ void redis_poll(void) {
     redis_poll_update();
     /* NAS big panel (WI #3956) */
     redis_poll_nas();
+    /* Weather filler (WI #4576) */
+    redis_poll_weather();
     /* Card eviction command (WI #374) */
     redis_poll_evict();
     /* Network-health card (WI #4062) */
@@ -1081,4 +1084,21 @@ void redis_poll_nas(void) {
 }
 #else
 void redis_poll_nas(void) { /* test stub */ }
+#endif
+
+/* WI #4576: one GET of kdash:weather:home. The key has no TTL and kweather
+ * owns it; this only reads. An unchanged value (every poll between kweather's
+ * ten-minute writes) costs one strcmp in wxstate, not a parse. A record the
+ * contract would reject is logged once and the last good one kept. */
+#ifndef KPIDASH_TEST_STUBS
+void redis_poll_weather(void) {
+    if (!g_ctx || g_ctx->err) return;
+    redisReply *r = redisCommand(g_ctx, "GET " KDASH_KEY_WEATHER);
+    if (!r) return;
+    if (r->type == REDIS_REPLY_STRING && wx_observe(r->str) < 0)
+        fprintf(stderr, "redis: " KDASH_KEY_WEATHER " is off-contract; keeping the last record\n");
+    freeReplyObject(r);
+}
+#else
+void redis_poll_weather(void) { /* test stub */ }
 #endif

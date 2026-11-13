@@ -28,6 +28,12 @@ void hostcols_plan(int n, int *full, int *compact) {
         *compact = n - f;
 }
 
+int hostcols_used(int n) {
+    int full, compact;
+    hostcols_plan(n, &full, &compact);
+    return full + (compact + HOSTCOLS_PER - 1) / HOSTCOLS_PER;
+}
+
 int hostcols_cmp(const client_info_t *a, const client_info_t *b) {
     int pa = registry_priority_index(a->hostname);
     int pb = registry_priority_index(b->hostname);

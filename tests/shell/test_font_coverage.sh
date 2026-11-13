@@ -16,7 +16,10 @@
 # copy of the list is one more thing that can drift.
 #
 # lv_font_icons_56.c is deliberately not checked: it is symbols-only and has
-# its own range, stated inline in generate.sh.
+# its own range, stated inline in generate.sh. Neither is
+# lv_font_montserrat_bold_96_digits.c against RANGE (sprint 034): it is the
+# weather filler's temperature and carries only what that draws, which is
+# checked on its own below.
 
 set -euo pipefail
 cd "$(dirname "$0")/../.."
@@ -115,6 +118,7 @@ check "RANGE expands to a plausible number of codepoints" \
     "$([ "$required_count" -ge 95 ] && echo 0 || echo 1)"
 
 for f in fonts/lv_font_montserrat_bold_*.c; do
+    case "$f" in *_digits.c) continue ;; esac
     covered="$(font_codepoints "$f")"
     missing="$(comm -23 <(printf '%s\n' "$required") <(printf '%s\n' "$covered") | head -20)"
     if [ -n "$missing" ]; then
@@ -135,6 +139,15 @@ done
 for cp in 176 183; do
     got="$(font_codepoints fonts/lv_font_montserrat_bold_20.c | grep -cx "$cp" || true)"
     check "$(printf 'U+%04X is in the panel font (regression: a measured journal flood)' "$cp")" \
+        "$([ "$got" -eq 1 ] && echo 0 || echo 1)"
+done
+
+# Sprint 034: the weather filler's 96 px font draws a temperature or a null:
+# 0-9 (48-57), minus (45), degree (176) and em dash (8212). Every one present.
+digits="$(font_codepoints fonts/lv_font_montserrat_bold_96_digits.c)"
+for cp in 45 48 49 50 51 52 53 54 55 56 57 176 8212; do
+    got="$(printf '%s\n' "$digits" | grep -cx "$cp" || true)"
+    check "$(printf 'U+%04X is in the 96 px weather font' "$cp")" \
         "$([ "$got" -eq 1 ] && echo 0 || echo 1)"
 done
 

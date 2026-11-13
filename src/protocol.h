@@ -136,6 +136,13 @@
 #define KDASH_KEY_NAS_PREFIX "kdash:nas:"
 #define KPIDASH_NAS_HOST "gratch"
 
+/* WI #4576: outdoor weather for the host row's filler, kdashdata kdash-weather
+ * v1 (kdashdata sprint 021), written about every 10 minutes by kweather on
+ * kai. Latest-value and ts-owned: NO TTL, so the reader ages it by `ts`
+ * (wxstate.h). `home` is a location token, not a host, and the only one. The
+ * panel never writes it. */
+#define KDASH_KEY_WEATHER "kdash:weather:home"
+
 #define CMD_TTL_S 300
 
 #endif /* PROTOCOL_H */

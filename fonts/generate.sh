@@ -56,6 +56,20 @@ done
 
 echo "Done. Generated ${#SIZES[@]} font files."
 
+# Sprint 034 (WI #4576): the weather filler's 96 px temperature. Digits,
+# minus, degree and em dash (the null reading) only: a full face at 96 px
+# would be most of a megabyte for characters the card never draws.
+echo "Generating lv_font_montserrat_bold_96_digits.c ..."
+npx lv_font_conv \
+    --bpp "${BPP}" \
+    --size 96 \
+    --format lvgl \
+    --no-compress \
+    --no-prefilter \
+    --font "${BOLD_TTF}" -r 0x30-0x39,0x2D,0xB0,0x2014 \
+    -o "lv_font_montserrat_bold_96_digits.c" \
+    --lv-font-name "lv_font_montserrat_bold_96_digits"
+
 # Sprint 006 / T010: large icon-only font for service status cards.
 # Symbols-only (no ASCII); used by widgets/service_card.c.
 echo "Generating lv_font_icons_56.c ..."

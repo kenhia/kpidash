@@ -117,6 +117,8 @@ add_executable(kpidash
     src/netstate.c
     src/nasstate.c
     src/widgets/nas_card.c
+    src/wxstate.c
+    src/widgets/weather_card.c
     src/icons.c
     fonts/lv_font_montserrat_bold_14.c
     fonts/lv_font_montserrat_bold_16.c
@@ -125,6 +127,7 @@ add_executable(kpidash
     fonts/lv_font_montserrat_bold_28.c
     fonts/lv_font_montserrat_bold_36.c
     fonts/lv_font_montserrat_bold_48.c
+    fonts/lv_font_montserrat_bold_96_digits.c
     fonts/lv_font_icons_56.c
 )
 
@@ -162,6 +165,7 @@ target_compile_definitions(kpidash PRIVATE
     LV_FONT_MONTSERRAT_BOLD_28=1
     LV_FONT_MONTSERRAT_BOLD_36=1
     LV_FONT_MONTSERRAT_BOLD_48=1
+    LV_FONT_MONTSERRAT_BOLD_96_DIGITS=1
     LV_FONT_ICONS_56=1
 )
 

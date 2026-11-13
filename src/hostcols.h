@@ -16,6 +16,15 @@
 #define HOSTCOLS_COLS 10 /* full columns across the widget */
 #define HOSTCOLS_PER 3   /* compact tiles per column */
 #define HOSTCOLS_MAX (HOSTCOLS_COLS * HOSTCOLS_PER)
+/* Where the first column sits, measured from the top row's 6x1 cell block
+ * (the mock-up's `widget`). Shared with the weather filler (sprint 034),
+ * which lines up with the columns. */
+#define HOSTCOLS_X0 28
+#define HOSTCOLS_Y0 16
+
+/* Columns the hosts occupy, of HOSTCOLS_COLS: full ones plus the columns
+ * their compact tiles fill. Everything past it is free for the filler. */
+int hostcols_used(int n);
 
 /* Attention thresholds, the mock-up's: RAM and every drive warn at >= 80 %
  * and are critical at >= 90 %, judged on the rounded percent that is drawn so

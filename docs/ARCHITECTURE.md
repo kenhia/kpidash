@@ -168,6 +168,11 @@ LVGL/DRM/KMS with no mouse or keyboard interaction.
     `widgets/nas_card.c` in row 1, columns 2-3 — a state headline, pool
     and root bars, eight disk tiles labelled by use (sprint 033, "A · Rail"
     in mauve). See CLIENT-PROTOCOL.md §8f (sprint 028).
+13. **Weather filler**: kweather on kai writes `kdash:weather:home` about every
+    10 minutes (kdashdata v1, **no TTL**, ts-owned). Dashboard GETs it each
+    poll into `wxstate.c` (pure model; an unchanged value is one strcmp) and
+    draws `widgets/weather_card.c` in the host row's spare columns. Read only:
+    kweather owns the key. See CLIENT-PROTOCOL.md §8g (sprint 034).
 
 ## Source Structure
 
@@ -179,9 +184,9 @@ kpidash/
 │   ├── lvgl/                   # LVGL 9.2.2 — needed by a Pi/native build only
 │   └── kdashdata/              # libkdash; the GATE needs this one (registry.c calls it)
 ├── fonts/
-│   ├── generate.sh             # lv_font_conv: Montserrat Bold 14-48px + NF icons
+│   ├── generate.sh             # lv_font_conv: Montserrat Bold 14-48px, 96px digits, NF icons
 │   ├── lv_font_custom.h        # Extern declarations for generated bold fonts
-│   ├── lv_font_montserrat_bold_*.c  # Generated font sources (7 sizes)
+│   ├── lv_font_montserrat_bold_*.c  # Generated font sources (7 sizes + 96px digits)
 │   └── ttf/                    # Source TTF files (Montserrat-Bold, SymbolsNerdFont)
 ├── src/
 │   ├── main.c                  # Entry: config, LVGL init, DRM, poll timers
@@ -189,6 +194,7 @@ kpidash/
 │   ├── registry.{h,c}          # In-memory client state (mutex-protected)
 │   ├── hosthist.{h,c}          # Per-host 10-min CPU/top-core/GPU ring (sprint 029)
 │   ├── hostcols.{h,c}          # Host columns fill rule, order, attention (pure)
+│   ├── wxstate.{h,c}           # Weather filler: parse, trust, space, scale (pure, sprint 034)
 │   ├── redis.{h,c}             # hiredis poll cycle + JSON parsing (cJSON)
 │   ├── status.{h,c}            # In-memory status message FIFO queue
 │   ├── ui.{h,c}                # Screen layout + redis error overlay
@@ -199,6 +205,7 @@ kpidash/
 │       ├── host_columns.{h,c}  # Row 0 host columns / compact tiles (sprint 029)
 │       ├── net_card.{h,c}      # 10G network-health card (row 1, sprint 024)
 │       ├── nas_card.{h,c}      # NAS big panel (row 1, sprint 028; restyled 033)
+│       ├── weather_card.{h,c}  # Weather filler in the host row's spare columns (034)
 │       ├── service_card.{h,c}  # Service status card + host staleness card
 │       ├── apt_temps_card.{h,c}# Per-zone temp/humidity card (footer, WI #364)
 │       ├── status_bar.{h,c}    # Bottom status bar (warning/error)
@@ -214,8 +221,12 @@ kpidash/
 │   ├── test_stale_card.c       # Host staleness feed reader (sprint 017)
 │   ├── test_hosthist.c         # History ring: wrap, gaps, eviction (sprint 029)
 │   ├── test_hostcols.c         # Fill-rule table, host order, attention levels
+│   ├── test_nasstate.c         # NAS model against the kdash-nas schema (sprint 028)
+│   ├── test_wxstate.c          # Weather model against the kdash-weather schema (034)
 │   ├── test_widget_leak.c      # Widget leak regression (needs LVGL)
-│   └── render_host_columns.c   # Offline render of the host columns to BMP (tool)
+│   ├── render_host_columns.c   # Offline render of the host columns to BMP (tool)
+│   ├── render_nas_card.c       # Offline render of the NAS card, four states (tool)
+│   └── render_weather.c        # Offline render of the weather filler, 4 states × 4 widths (tool)
 ├── clients/
 │   ├── kpidash-client/         # Python 3.13+ daemon + CLI (psutil, pynvml)
 │   └── kpidash-mcp/            # Python 3.13+ MCP server (mcp>=1)
@@ -268,7 +279,7 @@ Widget content (1×1): UNIT_W - 2×CELL_PAD = 624, UNIT_H - 2×CELL_PAD = 620
 
 ```
 ┌──────────────────────────────────────────────────────────────┐
-│  Row 0: [ host columns (6×1, the whole row) ]                │
+│  Row 0: [ host columns (6×1) | weather in what they leave ]  │
 ├──────────────┬──────────────┬────────────────────────────────┤
 │  Row 1:      │  Row 1:      │  (free)                        │
 │  10G card    │  NAS card    │                                │
@@ -329,6 +340,10 @@ Bold fonts generated via `lv_font_conv` from Montserrat-Bold.ttf at sizes
 quotes, bullet, ellipsis), Nerd Font Logos (0xF300-0xF381), and Git icons
 (0xF1D2-0xF1D3). Regular-weight `lv_font_montserrat_20` from LVGL built-in is
 used for the host columns' labels.
+
+`lv_font_montserrat_bold_96_digits` (sprint 034) is the weather filler's
+temperature: 0-9, minus, degree and em dash only, so it is checked for exactly
+those by `just check-fonts` rather than against `RANGE`.
 
 The glyph set is declared once, in `RANGE` in `fonts/generate.sh`; it is
 stated as a contract in `docs/CLIENT-PROTOCOL.md` §8a, and `just check-fonts`
@@ -393,8 +408,8 @@ is registered as LVGL's print callback in `main.c`; `lv_conf.h` therefore has
 Row 0, all six cells: one 3792×628 widget (`src/widgets/host_columns.c`) that
 replaced the six 1×1 client cards (029) and was widened to the whole row with
 the text roughly doubled in 030, because 14 px was unreadable from Ken's chair.
-Columns to the right of the last host stay empty until Ken decides what fills
-them. Spec: `sprints/planning/hosts-wide-mockups.html` (`plan`, `colFull`,
+The columns to the right of the last host take the weather filler (sprint
+034, below). Spec: `sprints/planning/hosts-wide-mockups.html` (`plan`, `colFull`,
 `tile`, `widget`); the 029 spec was `hosts-columns-mockups.html`. Nothing on
 the widget is smaller than 20 px.
 
@@ -424,6 +439,37 @@ the widget is smaller than 20 px.
 - Each column/tile is one style-less `lv_obj` drawn in `LV_EVENT_DRAW_MAIN`
   from a pre-formatted model; 30 are created once, and an update only moves,
   resizes, hides, and invalidates the slots whose content changed.
+
+## Weather Filler (sprint 034)
+
+`src/widgets/weather_card.c`, the "C · Range" mock-up Ken picked on
+2026-11-12 (`sprints/planning/weather-mockups.html`, function `vC`). A filler:
+nothing depends on it.
+
+- **Space** (`wx_columns`, `wx_left`): n = min(4, 10 − the columns the hosts
+  use (`hostcols_used`)), width 375·n − 14, the host columns' height. It
+  starts right after the last host column; with six hosts or fewer the
+  4-column card is centred in what is left (+ ½ · 375 · (6 − hosts)). n = 0,
+  or no record ever seen: not drawn.
+- **Layout.** Left 361 px: the condition icon, the temperature (96 px bold
+  digits), the condition, "feels · humidity", and at n = 1 "today hi lo". At
+  n ≥ 2, a bar per day from low to high on one shared temperature scale (3, 6
+  or 8 days at 2, 3 or 4 columns, never more than the record has), an opaque
+  LVGL peach-to-blue gradient; a day with only one of hi/lo is a dot. Along the
+  bottom, the local day midnight to midnight: twilight dim, daylight yellow, a
+  marker for now, sunrise/sunset above, first/last light (or the daylight
+  length at n = 1) below; "no sunrise today" when the sun events are null.
+- **Trust and freshness** (`wxstate.c`). Stale after 1 h by `ts`: everything
+  grey and the age in red bold. A record the contract rejects — an unknown
+  `cond`, a millisecond stamp, a percent out of range, a required field absent
+  rather than null — is logged once and the last good one kept.
+- **Icons** are drawn, not images: circles, round-capped lines and four
+  triangles for the bolt, all opaque. They recolour for the stale state for
+  free and are repainted only when a record arrives.
+- **Repaint cost.** One callback-drawn object, as the host columns. A new
+  record, width or stale flip repaints the card; otherwise only the age line
+  (once a minute) or a strip around the day bar's marker (when its minute
+  moves) is invalidated.
 
 ## Memory Telemetry
 

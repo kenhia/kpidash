@@ -13,6 +13,10 @@ LV_FONT_DECLARE(lv_font_montserrat_bold_28);
 LV_FONT_DECLARE(lv_font_montserrat_bold_36);
 LV_FONT_DECLARE(lv_font_montserrat_bold_48);
 
+/* Sprint 034 (WI #4576): the weather filler's 96 px temperature. Only
+ * 0-9, minus, degree and em dash, so it costs a fraction of a full face. */
+LV_FONT_DECLARE(lv_font_montserrat_bold_96_digits);
+
 /* Sprint 006 / T010: large icon-only font (no ASCII) for service cards. */
 LV_FONT_DECLARE(lv_font_icons_56);
 

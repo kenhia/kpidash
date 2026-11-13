@@ -858,6 +858,45 @@ skeleton in the NAS's own colour. Nothing on it is under 20 px.
 
 ---
 
+## 8g. Weather Filler (Sprint 034, WI #4576)
+
+| Key | Type | Written by | Read by | TTL |
+|-----|------|-----------|---------|-----|
+| `kdash:weather:home` | STRING (JSON) | kweather on kai, ~every 10 min | dashboard | none |
+
+**The contract is kdashdata's** (sprint 021): schema
+`lib/kdashdata/contracts/schemas/kdash-weather.schema.json`, notes in
+`contracts/registry.md`. **v1, field names pinned**; a breaking change is
+`kdash:weather:v2:{loc}`. `home` is a location token, not a host.
+`tests/test_wxstate.c` requires every schema example to parse and every
+x-counterexample to be distrusted, and uses the first live record
+(`tests/fixtures/weather-home-2026-11-12.json`) for the rest.
+
+**The dashboard only reads it.** kweather owns the key; never hand-write it to
+test the card. `tests/render_weather` draws any state at any width offline.
+
+**Panel** (`src/wxstate.c` model, `src/widgets/weather_card.c`): one `GET`
+per poll; an unchanged value costs a strcmp, not a parse.
+
+- **Freshness is the reader's.** No TTL, so the last record outlives a dead
+  collector. A `ts` more than 1 h old is stale: the card goes grey and the age
+  reads `STALE · 2 h` in red. An absent key keeps the last record.
+- **Trust.** A record the schema would reject — `cond` outside the closed
+  set, a millisecond `ts` or sun event, a percent outside 0..100, a
+  temperature outside ±150, a required field absent rather than null, more
+  than 8 days — is logged once and ignored; the previous record stays.
+- **Nulls draw a dash**; `now.cond` null is no icon and "No current
+  reading / forecast only". Sun times are formatted in the panel's own
+  timezone (rpi53: America/Los_Angeles).
+- **Never seen** this run: not drawn, like the NAS card before its feed.
+
+```sh
+# What the card reads (rpi53 Redis needs auth) — read only
+redis-cli -h rpi53 GET kdash:weather:home
+```
+
+---
+
 ## 9. Dev Commands (Sprint 002)
 
 Command keys enable/disable developer overlay widgets. All keys use JSON

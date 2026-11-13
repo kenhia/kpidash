@@ -193,6 +193,32 @@ if(TARGET lvgl)
     target_compile_options(render_nas_card PRIVATE -Wall -Wextra -Wno-unused-parameter)
     target_compile_definitions(render_nas_card PRIVATE
         NAS_LIVE_FIXTURE="${CMAKE_CURRENT_SOURCE_DIR}/fixtures/nas-gratch-2026-11-12.json")
+
+    # Sprint 034: offline render of the weather filler in its four states at
+    # any width, for review against sprints/planning/weather-mockups.html (vC).
+    add_executable(render_weather
+        ${CMAKE_CURRENT_SOURCE_DIR}/render_weather.c
+        ${CMAKE_SOURCE_DIR}/src/widgets/weather_card.c
+        ${CMAKE_SOURCE_DIR}/src/wxstate.c
+        ${CMAKE_SOURCE_DIR}/src/bmp_write.c
+        ${CMAKE_SOURCE_DIR}/fonts/lv_font_montserrat_bold_20.c
+        ${CMAKE_SOURCE_DIR}/fonts/lv_font_montserrat_bold_24.c
+        ${CMAKE_SOURCE_DIR}/fonts/lv_font_montserrat_bold_28.c
+        ${CMAKE_SOURCE_DIR}/fonts/lv_font_montserrat_bold_36.c
+        ${CMAKE_SOURCE_DIR}/fonts/lv_font_montserrat_bold_96_digits.c
+    )
+    target_include_directories(render_weather PRIVATE
+        ${CMAKE_SOURCE_DIR}
+        ${CMAKE_SOURCE_DIR}/src
+        ${CMAKE_SOURCE_DIR}/fonts
+        ${CJSON_INCLUDE_DIRS}
+    )
+    target_link_libraries(render_weather lvgl ${CJSON_LIBRARIES} ${PNG_TEST_LIBRARIES} pthread m)
+    target_compile_options(render_weather PRIVATE -Wall -Wextra -Wno-unused-parameter)
+    target_compile_definitions(render_weather PRIVATE
+        LV_FONT_MONTSERRAT_BOLD_96_DIGITS=1
+        KDASH_WEATHER_SCHEMA="${CMAKE_SOURCE_DIR}/lib/kdashdata/contracts/schemas/kdash-weather.schema.json"
+        WX_LIVE_FIXTURE="${CMAKE_CURRENT_SOURCE_DIR}/fixtures/weather-home-2026-11-12.json")
 endif()
 
 # WI #4062: the network card's model. Pure — no LVGL, no Redis — and held to
@@ -241,3 +267,18 @@ add_kpidash_test(test_hostcols
     ${CMAKE_SOURCE_DIR}/src/registry.c
 )
 target_compile_definitions(test_hostcols PRIVATE KPIDASH_TEST_STUBS=1)
+
+# WI #4576: the weather filler's model, held to the kdash-weather contract:
+# every schema example must parse and every x-counterexample be distrusted.
+# The live record kweather published on 2026-11-12 is the other fixture.
+add_executable(test_wxstate
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_wxstate.c
+    ${CMAKE_SOURCE_DIR}/src/wxstate.c
+)
+target_include_directories(test_wxstate PRIVATE ${CMAKE_SOURCE_DIR}/src ${CJSON_INCLUDE_DIRS})
+target_link_libraries(test_wxstate ${CJSON_LIBRARIES} m)
+target_compile_options(test_wxstate PRIVATE -Wall -Wextra -Wno-unused-parameter)
+target_compile_definitions(test_wxstate PRIVATE
+    KDASH_WEATHER_SCHEMA="${CMAKE_SOURCE_DIR}/lib/kdashdata/contracts/schemas/kdash-weather.schema.json"
+    WX_LIVE_FIXTURE="${CMAKE_CURRENT_SOURCE_DIR}/fixtures/weather-home-2026-11-12.json")
+add_test(NAME test_wxstate COMMAND test_wxstate)
