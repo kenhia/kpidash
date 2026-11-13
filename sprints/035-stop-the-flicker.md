@@ -114,3 +114,35 @@ Stop `kpidash-client` on one host for ~20 s (nothing changes), ~60 s (NO DATA
 in place) and > 5 min on an intermittent host (kimac: its column goes), each
 time restarting the client and confirming it publishes again. No cable pull,
 no blocked traffic: the NO PATH streak is proven in the gate.
+
+## Deployed
+
+Deployed 2026-11-13 at 10:20 PST from kai. This was the ship turn, after the
+overseer's clearance (korg:4593 comment 4631), which also ruled for the
+UDM-failed exception. The release is squash merge `c10132f` (PR #38).
+
+- **rpi53:** `scripts/deploy.sh` ran from merged `main`. The service is
+  active with `NRestarts=0` and reports `c10132f (2026-11-13)`. The aarch64
+  build and link printed no warnings (`.scratch/deploy-035-ship.log`,
+  grepped). `just check-warnings-full` on `main` was clean. The journal shows
+  no warnings or errors since the restart.
+- **Live triggered tests, WI 4592.** Screenshots came through `krpidss`, in
+  `.scratch/live035/`, with strips `kai-strip.png` and `kimac-strip.png`.
+  Each client was restarted and seen publishing again (health key back
+  within 1 s):
+  - **kai (always-on), client stopped 20 s:** the shot at 15 s is identical
+    to the baseline. The border is green, `up 23d 20h`, last values, no
+    reflow.
+  - **kai, client stopped 60 s:** at 42 s the column reads `NO DATA 41s`, red
+    and dimmed, in place. At 61 s it reads `NO DATA 1m`. 10 s after the
+    restart it is live again.
+  - **kimac (intermittent), LaunchAgent booted out 342 s:** at 22 s it is
+    unchanged. At 61 s and 272 s it reads `NO DATA 1m` and `NO DATA 4m` in
+    place. At 342 s the column is gone, the row has closed up, and the
+    weather filler has widened to four columns. After the `bootstrap` it is
+    back in its slot. kimac was reached from kai with `ssh -o BatchMode=yes`,
+    which returned rc 0, so it was awake.
+- **WI 4542** was proven in the gate (`test_one_lost_echo_is_noise`), as the
+  notes asked. No real traffic was blocked. Single failed echoes keep
+  arriving at about 0.5 a minute (see the feed sample), so the panel now
+  absorbs them all.
