@@ -42,6 +42,13 @@
 #define NET_HIST_N 60     /* one sample per minute: the 60-min sparkline */
 #define NET_DROPS_MAX 64  /* schema maxItems */
 #define NET_WINDOW_S 3600.0
+/* WI #4542: a host's Internet probe has to fail this many consecutive
+ * RECORDS (not polls: the panel reads each ~5 s record about five times)
+ * before the card shows it. One lost echo is noise; three is ~15 s of real
+ * loss, which still surfaces inside the 15 s the item asks for. A record
+ * whose UDM probe failed as well is shown at once: the UDM and fabric-peer
+ * probes are not debounced (the feed showed no single-miss flashes there). */
+#define NET_WAN_MISS_STREAK 3
 
 typedef enum { NET_LEG_10G = 0, NET_LEG_5G, NET_LEG_1G, NET_LEG_DOWN } net_leg_t;
 
@@ -93,7 +100,9 @@ typedef struct {
     char host[HOSTNAME_LEN];
     net_col_state_t state;
     bool has_rec;     /* a record has been seen this run */
-    net_record_t rec; /* last record seen, ack applied; valid only if has_rec */
+    net_record_t rec; /* last record seen, ack applied, reach_wan debounced
+                       * (WI #4542); valid only if has_rec */
+    int wan_miss;     /* consecutive records whose Internet probe failed */
     bool has_ack;     /* an ack record was present on the last poll */
     net_ack_t ack;
     /* Throughput history, Mb/s, oldest first: per-minute means. */

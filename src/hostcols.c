@@ -50,14 +50,27 @@ static int cmp_ptr(const void *x, const void *y) {
     return hostcols_cmp(*(const client_info_t *const *)x, *(const client_info_t *const *)y);
 }
 
-int hostcols_select(const client_info_t *in, int n, const client_info_t **out, int max,
-                    int *dropped) {
+hc_tier_t hostcols_tier(const client_info_t *c, double now) {
+    if (c->online)
+        return HC_TIER_LIVE;
+    if (c->last_seen_ts > 0.0) {
+        double age = now - c->last_seen_ts;
+        if (age < HOSTCOL_HOLD_S)
+            return HC_TIER_HOLD;
+        if (age < HOSTCOL_DROP_S)
+            return HC_TIER_NODATA;
+    }
+    return c->intermittent ? HC_TIER_GONE : HC_TIER_NODATA;
+}
+
+int hostcols_select(const client_info_t *in, int n, double now, const client_info_t **out,
+                    int max, int *dropped) {
     /* Sort every eligible host first, then cut: the cut has to fall on the
      * lowest priorities, not on whoever registered last. */
     const client_info_t *all[MAX_CLIENTS];
     int k = 0;
     for (int i = 0; i < n && k < MAX_CLIENTS; i++) {
-        if (client_presence(&in[i]) == CLIENT_PRESENCE_ASLEEP)
+        if (hostcols_tier(&in[i], now) == HC_TIER_GONE)
             continue;
         all[k++] = &in[i];
     }
@@ -222,7 +235,8 @@ void hostcols_build(const client_info_t *c, double now, hc_host_t *out) {
     memcpy(out->host, c->hostname, strnlen(c->hostname, HOSTNAME_LEN - 1));
     hostcols_short_os(c->os_name, out->os, sizeof(out->os));
 
-    out->nodata = client_presence(c) == CLIENT_PRESENCE_OFFLINE;
+    /* HOLD draws as LIVE: the last values, the last uptime, no stale style. */
+    out->nodata = hostcols_tier(c, now) == HC_TIER_NODATA;
     if (out->nodata)
         format_nodata(c->last_seen_ts, now, out->status, sizeof(out->status));
     else

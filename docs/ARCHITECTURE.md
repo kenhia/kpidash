@@ -110,9 +110,11 @@ LVGL/DRM/KMS with no mouse or keyboard interaction.
 
 1. **Health**: client writes `kpidash:client:{h}:health` (JSON, EX 5 s).
    Dashboard SMEMBERS the registry set then GETs each health key. Key
-   absence = TTL expired = client offline → its host column turns red and
-   reads `NO DATA <age>` (a host that declared itself intermittent is asleep
-   instead, and takes no slot). Since sprint 022 a member only gets a slot
+   absence = TTL expired = client offline. Since sprint 035 (WI #4592) a
+   column is held on the host's `last_seen_ts`: for the first 30 s nothing on
+   screen changes, then it turns red in place and reads `NO DATA <age>`, and
+   after 5 min a host that declared itself intermittent gives up its slot (an
+   always-on host stays red). Since sprint 022 a member only gets a slot
    once it has actually published — the set is append-only, so membership
    alone proves nothing — but once admitted it keeps its slot, which is what
    makes the red border an outage report rather than a host quietly
@@ -140,7 +142,9 @@ LVGL/DRM/KMS with no mouse or keyboard interaction.
    reads each host's `kdash:net:ack:{host}` (sprint 027), which the panel
    applies to clear a reviewed warning; hosts that have ever published are
    persisted as the `[net]` section of the admitted-hosts file, so they read
-   STALE rather than no feed after a restart. See CLIENT-PROTOCOL.md §8d.
+   STALE rather than no feed after a restart. A failed Internet probe is
+   drawn only after 3 consecutive failed records from that host (sprint 035,
+   WI #4542): one lost echo is noise. See CLIENT-PROTOCOL.md §8d.
 7. **Status**: dashboard pushes warning/error messages to
    `kpidash:status:current`. Client CLIs read and acknowledge via
    `kpidash:status:ack:{id}`.
@@ -433,9 +437,12 @@ the widget is smaller than 20 px.
 - **Attention is colour only** — nothing grows. Yellow (warn) or red (crit)
   3 px border and band, the offending row in the same colour. RAM and every
   drive (all of them, not only the one drawn) warn at ≥ 80 % and are critical at ≥ 90 %. CPU, GPU and VRAM never
-  raise attention. A non-intermittent host that stops reporting is red with
-  `NO DATA <age>`, its metrics dimmed at their last values; an intermittent
-  host that is asleep takes no slot.
+  raise attention. A host that stops reporting is held (`hostcols_tier`,
+  sprint 035): unchanged for `HOSTCOL_HOLD_S` (30 s), then red with
+  `NO DATA <age>` in place, its metrics dimmed at their last values; after
+  `HOSTCOL_DROP_S` (5 min) an intermittent host takes no slot, and an
+  always-on one stays red. A host with no `last_seen_ts` this run (an asleep
+  laptop after a panel restart) has nothing to hold on and gets no column.
 - Each column/tile is one style-less `lv_obj` drawn in `LV_EVENT_DRAW_MAIN`
   from a pre-formatted model; 30 are created once, and an update only moves,
   resizes, hides, and invalidates the slots whose content changed.

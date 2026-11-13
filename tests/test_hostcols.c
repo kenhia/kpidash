@@ -1,7 +1,8 @@
 /* test_hostcols.c — the host columns widget's pure half (WI #4524, #4525):
  * the fill rule as a table, priority-then-hostname order, who gets a slot,
  * the attention levels a column's border and rows are drawn in, and the
- * single fullest-drive row (WI #4544). */
+ * single fullest-drive row (WI #4544), and how long a host that stops
+ * reporting keeps its column (WI #4592). */
 #include "hostcols.h"
 
 #include <stdio.h>
@@ -71,7 +72,7 @@ static void test_order(void) {
                            mk("kubs0")};
     const client_info_t *out[6];
     int dropped = -1;
-    int n = hostcols_select(in, 6, out, 6, &dropped);
+    int n = hostcols_select(in, 6, 0.0, out, 6, &dropped);
     CHECK(n == 6 && dropped == 0);
     const char *want[6] = {"kai", "kubs0", "cleo", "alpha", "gratch", "zeta"};
     for (int i = 0; i < n; i++)
@@ -81,12 +82,12 @@ static void test_order(void) {
     client_info_t rev[6];
     for (int i = 0; i < 6; i++)
         rev[i] = in[5 - i];
-    n = hostcols_select(rev, 6, out, 6, NULL);
+    n = hostcols_select(rev, 6, 0.0, out, 6, NULL);
     for (int i = 0; i < n; i++)
         CHECK(strcmp(out[i]->hostname, want[i]) == 0);
 
     /* Over capacity: the first `max` by priority, the rest counted. */
-    n = hostcols_select(in, 6, out, 4, &dropped);
+    n = hostcols_select(in, 6, 0.0, out, 4, &dropped);
     CHECK(n == 4 && dropped == 2);
     CHECK(strcmp(out[3]->hostname, "alpha") == 0);
 
@@ -99,13 +100,96 @@ static void test_asleep_takes_no_slot(void) {
     in[1].intermittent = true; /* asleep: hidden */
     in[2].online = false;      /* always-on and gone: shown, as NO DATA */
     const client_info_t *out[3];
-    int n = hostcols_select(in, 3, out, 3, NULL);
+    int n = hostcols_select(in, 3, 0.0, out, 3, NULL);
     CHECK(n == 2);
     CHECK(strcmp(out[0]->hostname, "kai") == 0);
     CHECK(strcmp(out[1]->hostname, "rpi53") == 0);
     /* Awake again: it takes a slot back. */
     in[1].online = true;
-    CHECK(hostcols_select(in, 3, out, 3, NULL) == 3);
+    CHECK(hostcols_select(in, 3, 0.0, out, 3, NULL) == 3);
+}
+
+/* WI #4592: the three tiers, at each boundary, for both kinds of host. */
+static void test_tiers(void) {
+    const double now = 1700000000.0;
+    client_info_t c = mk("kai");
+    c.last_seen_ts = now - 1000; /* online wins whatever the stamp says */
+    CHECK(hostcols_tier(&c, now) == HC_TIER_LIVE);
+
+    for (int intermittent = 0; intermittent <= 1; intermittent++) {
+        c.online = false;
+        c.intermittent = intermittent;
+        c.last_seen_ts = now - 6; /* the health key has only just expired */
+        CHECK(hostcols_tier(&c, now) == HC_TIER_HOLD);
+        c.last_seen_ts = now - (HOSTCOL_HOLD_S - 1);
+        CHECK(hostcols_tier(&c, now) == HC_TIER_HOLD);
+        c.last_seen_ts = now - HOSTCOL_HOLD_S;
+        CHECK(hostcols_tier(&c, now) == HC_TIER_NODATA);
+        c.last_seen_ts = now - (HOSTCOL_DROP_S - 1);
+        CHECK(hostcols_tier(&c, now) == HC_TIER_NODATA);
+        /* Past the drop: only an intermittent host gives its column up. */
+        c.last_seen_ts = now - HOSTCOL_DROP_S;
+        CHECK(hostcols_tier(&c, now) == (intermittent ? HC_TIER_GONE : HC_TIER_NODATA));
+        c.last_seen_ts = now - 86400;
+        CHECK(hostcols_tier(&c, now) == (intermittent ? HC_TIER_GONE : HC_TIER_NODATA));
+        /* No stamp (never seen since the dashboard started): past every
+         * window, so an asleep intermittent host gets no invented column. */
+        c.last_seen_ts = 0;
+        CHECK(hostcols_tier(&c, now) == (intermittent ? HC_TIER_GONE : HC_TIER_NODATA));
+        /* A producer clock slightly ahead of the panel's is a fresh host. */
+        c.last_seen_ts = now + 3;
+        CHECK(hostcols_tier(&c, now) == HC_TIER_HOLD);
+    }
+}
+
+/* WI #4592: kimac misses a heartbeat. Its column stays where it is, looks
+ * unchanged for HOSTCOL_HOLD_S, then shows NO DATA in place, and is given
+ * up only after HOSTCOL_DROP_S; reporting again inside that resumes it. */
+static void test_hold_keeps_column(void) {
+    const double t0 = 1700000000.0;
+    client_info_t in[3] = {mk("kai"), mk("kimac"), mk("zeta")};
+    in[1].intermittent = true;
+    in[1].last_seen_ts = t0;
+    in[1].uptime_seconds = 7200.0f;
+    in[1].cpu_pct = 42.0f;
+    const client_info_t *out[3];
+    hc_host_t h, live;
+    hostcols_build(&in[1], t0, &live);
+
+    in[1].online = false; /* the health key expired */
+    for (double age = 5; age < HOSTCOL_HOLD_S; age += 5) {
+        CHECK(hostcols_select(in, 3, t0 + age, out, 3, NULL) == 3);
+        CHECK(strcmp(out[1]->hostname, "kimac") == 0); /* no reflow */
+        hostcols_build(&in[1], t0 + age, &h);
+        /* Tier 1: exactly what it drew while live. */
+        CHECK(!h.nodata && h.att == live.att && h.cpu == 42);
+        CHECK(strcmp(h.status, live.status) == 0);
+    }
+
+    double t = t0 + 60;
+    CHECK(hostcols_select(in, 3, t, out, 3, NULL) == 3);
+    CHECK(strcmp(out[1]->hostname, "kimac") == 0);
+    hostcols_build(&in[1], t, &h);
+    CHECK(h.nodata && h.att == HC_ATT_CRIT && h.cpu == 42);
+    CHECK(strcmp(h.status, "NO DATA 1m") == 0);
+
+    /* Back inside the window: in place, live again. */
+    in[1].online = true;
+    in[1].last_seen_ts = t0 + 120;
+    hostcols_build(&in[1], t0 + 121, &h);
+    CHECK(!h.nodata && hostcols_select(in, 3, t0 + 121, out, 3, NULL) == 3);
+
+    /* Gone past the drop: the column goes, and the rest close up. */
+    in[1].online = false;
+    t = in[1].last_seen_ts + HOSTCOL_DROP_S;
+    CHECK(hostcols_select(in, 3, t, out, 3, NULL) == 2);
+    CHECK(strcmp(out[1]->hostname, "zeta") == 0);
+
+    /* An always-on host past the drop keeps its NO DATA column. */
+    in[1].intermittent = false;
+    CHECK(hostcols_select(in, 3, t, out, 3, NULL) == 3);
+    hostcols_build(&in[1], t, &h);
+    CHECK(h.nodata && strcmp(h.status, "NO DATA 5m") == 0);
 }
 
 static void test_thresholds(void) {
@@ -315,6 +399,8 @@ int main(void) {
     test_plan_table();
     test_order();
     test_asleep_takes_no_slot();
+    test_tiers();
+    test_hold_keeps_column();
     test_thresholds();
     test_build();
     test_fullest_drive();

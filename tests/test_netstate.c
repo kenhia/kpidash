@@ -246,14 +246,80 @@ static void test_uplink_lost(void) {
 
 static void test_wan_down(void) {
     net_set_hosts(HOSTS, 5);
-    for (int i = 0; i < 4; i++)
-        net_observe(HOSTS[i], rec("10g", 1, 1, 0, 0, 1, 1, 0, NULL, NOW - 1), NOW);
-    net_observe("cleo", rec("5g", 0, 0, 0, 0, 1, 1, 0, NULL, NOW - 1), NOW);
     net_summary_t s;
+    /* A real outage: every host's probe fails, record after record. It shows
+     * on the third (WI #4542), about 10 s after the first. */
+    for (int k = NET_WAN_MISS_STREAK - 1; k >= 0; k--) {
+        double ts = NOW - 1 - 5 * k;
+        for (int i = 0; i < 4; i++)
+            net_observe(HOSTS[i], rec("10g", 1, 1, 0, 0, 1, 1, 0, NULL, ts), ts + 1);
+        net_observe("cleo", rec("5g", 0, 0, 0, 0, 1, 1, 0, NULL, ts), ts + 1);
+        if (k > 0) {
+            net_derive(ts + 1, &s);
+            CHECK(s.level == NET_LEVEL_OK && s.wan_up);
+        }
+    }
     net_derive(NOW, &s);
     CHECK(s.level == NET_LEVEL_CRIT);
     CHECK(strcmp(s.verdict, "WAN DOWN") == 0);
     CHECK(s.uplink_up && s.udm_up && !s.wan_up);
+}
+
+/* WI #4542: one lost Internet echo flashed "<host> NO PATH" for a record.
+ * A failure shows only after NET_WAN_MISS_STREAK consecutive failed records;
+ * the 1 s poll re-reading one record does not count again; one good record
+ * clears the streak. */
+static void test_one_lost_echo_is_noise(void) {
+    all_healthy(NOW - 20);
+    net_summary_t s;
+    char sub[64];
+    bool bold;
+    double ts = NOW - 15;
+
+    /* One failed record, re-read by five polls: nothing drawn. */
+    for (int poll = 0; poll < 5; poll++)
+        net_observe("cleo", rec("5g", 0, 0, 0, 0, 1, 1, 0, NULL, ts), ts + poll);
+    CHECK(host("cleo")->wan_miss == 1);
+    CHECK(net_column_attn(host("cleo")) == NET_ATTN_NONE);
+    net_subtitle(host("cleo"), ts + 4, sub, sizeof(sub), &bold);
+    CHECK(strcmp(sub, "single NIC") == 0);
+    net_derive(ts + 4, &s);
+    CHECK(s.level == NET_LEVEL_OK);
+
+    /* A good record clears it; two more failures are still under the bar. */
+    ts += 5;
+    net_observe("cleo", rec("5g", 0, 0, 0, 0, 1, 1, 1, NULL, ts), ts);
+    CHECK(host("cleo")->wan_miss == 0);
+    for (int k = 1; k < NET_WAN_MISS_STREAK; k++) {
+        ts += 5;
+        net_observe("cleo", rec("5g", 0, 0, 0, 0, 1, 1, 0, NULL, ts), ts);
+        net_derive(ts, &s);
+        CHECK(s.level == NET_LEVEL_OK);
+    }
+    /* The third in a row is real: the column and the headline say so. */
+    ts += 5;
+    net_observe("cleo", rec("5g", 0, 0, 0, 0, 1, 1, 0, NULL, ts), ts);
+    CHECK(host("cleo")->wan_miss == NET_WAN_MISS_STREAK);
+    CHECK(net_column_attn(host("cleo")) == NET_ATTN_CRIT);
+    net_subtitle(host("cleo"), ts, sub, sizeof(sub), &bold);
+    CHECK(strcmp(sub, "no path to Internet") == 0 && bold);
+    net_derive(ts, &s);
+    CHECK(s.level == NET_LEVEL_CRIT && strcmp(s.verdict, "cleo NO PATH") == 0);
+    CHECK(strcmp(s.why, "Internet unreachable from this host") == 0);
+    /* And one good record takes it straight back down. */
+    ts += 5;
+    net_observe("cleo", rec("5g", 0, 0, 0, 0, 1, 1, 1, NULL, ts), ts);
+    net_derive(ts, &s);
+    CHECK(s.level == NET_LEVEL_OK && host("cleo")->wan_miss == 0);
+
+    /* The UDM and fabric-peer probes are not debounced: one miss shows. */
+    ts += 5;
+    net_observe("kai", rec("10g", 1, 1, 0, 0, 0, 1, 1, NULL, ts), ts);
+    CHECK(net_column_attn(host("kai")) == NET_ATTN_CRIT);
+    ts += 5;
+    net_observe("kai", rec("10g", 1, 1, 0, 0, 1, 1, 1, NULL, ts), ts);
+    net_observe("gratch", rec("10g", 1, 1, 0, 0, 1, 0, 1, NULL, ts), ts);
+    CHECK(net_column_attn(host("gratch")) == NET_ATTN_CRIT);
 }
 
 static void test_stale_is_never_healthy(void) {
@@ -519,6 +585,7 @@ int main(void) {
     test_flapping();
     test_uplink_lost();
     test_wan_down();
+    test_one_lost_echo_is_noise();
     test_stale_is_never_healthy();
     test_no_feed_is_not_a_fault();
     test_down_and_no_path();

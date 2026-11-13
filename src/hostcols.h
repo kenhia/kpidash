@@ -51,7 +51,7 @@ typedef struct {
     char host[HOSTNAME_LEN];
     char os[OS_NAME_LEN];
     char status[32]; /* "up 3d 2h", or "NO DATA 4m" when nodata */
-    bool nodata;     /* a non-intermittent host that stopped reporting */
+    bool nodata;     /* stopped reporting HOSTCOL_HOLD_S ago or more (WI #4592) */
     hc_att_t att;    /* the border: worst of nodata, RAM and the drives */
     int cpu;
     int core;
@@ -79,12 +79,25 @@ void hostcols_plan(int n, int *full, int *compact);
  * hostname. */
 int hostcols_cmp(const client_info_t *a, const client_info_t *b);
 
-/* Choose and order the hosts that get a slot. A host that declared itself
- * intermittent and is asleep takes no slot. Writes pointers into `out`
- * (sorted, at most `max`) and returns how many; `*dropped` (may be NULL) gets
- * how many otherwise-eligible hosts did not fit. */
-int hostcols_select(const client_info_t *in, int n, const client_info_t **out, int max,
-                    int *dropped);
+/* Where a host stands on the column's clock (WI #4592), from its last_seen_ts
+ * at wall time `now`:
+ *   LIVE   — health key present.
+ *   HOLD   — gone for less than HOSTCOL_HOLD_S: drawn exactly as if LIVE, so a
+ *            late heartbeat moves nothing on the panel.
+ *   NODATA — gone longer, but its column stays in place, drawn NO DATA. An
+ *            always-on host stays here however long it is gone.
+ *   GONE   — an intermittent host gone HOSTCOL_DROP_S or more: no column.
+ * A host with no last_seen_ts (never seen this run, e.g. after a dashboard
+ * restart) has no age to hold on, so it is past every window. */
+typedef enum { HC_TIER_LIVE = 0, HC_TIER_HOLD, HC_TIER_NODATA, HC_TIER_GONE } hc_tier_t;
+hc_tier_t hostcols_tier(const client_info_t *c, double now);
+
+/* Choose and order the hosts that get a slot at wall time `now`. A host in
+ * HC_TIER_GONE takes no slot. Writes pointers into `out` (sorted, at most
+ * `max`) and returns how many; `*dropped` (may be NULL) gets how many
+ * otherwise-eligible hosts did not fit. */
+int hostcols_select(const client_info_t *in, int n, double now, const client_info_t **out,
+                    int max, int *dropped);
 
 hc_att_t hostcols_ram_att(int pct);
 hc_att_t hostcols_disk_att(int pct);

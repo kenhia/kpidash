@@ -99,7 +99,8 @@ static void refresh_host_columns(void) {
     int n = registry_snapshot(clients, MAX_CLIENTS);
     const client_info_t *sel[HOSTCOLS_MAX];
     int dropped = 0;
-    int ns = hostcols_select(clients, n, sel, HOSTCOLS_MAX, &dropped);
+    double now = (double)time(NULL);
+    int ns = hostcols_select(clients, n, now, sel, HOSTCOLS_MAX, &dropped);
     if (dropped != last_dropped) {
         /* Logged on change, not every second: the journal is for news. */
         if (dropped > 0)
@@ -107,7 +108,6 @@ static void refresh_host_columns(void) {
                     dropped, HOSTCOLS_MAX);
         last_dropped = dropped;
     }
-    double now = (double)time(NULL);
     for (int i = 0; i < ns; i++)
         hostcols_build(sel[i], now, &models[i]);
     host_columns_update(g_host_columns, models, ns);

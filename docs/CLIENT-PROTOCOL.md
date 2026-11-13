@@ -569,7 +569,17 @@ restart, an admitted host with no key reads `STALE · no record yet` and counts
 in the headline like any other stale column — so a producer that died *before*
 the restart no longer reads calmer than one that died after. A host in
 `KPIDASH_NET_HOSTS` that was never admitted stays no feed. Admission is
-append-only; a host dropped from the list keeps its line. The panel derives the verdict,
+append-only; a host dropped from the list keeps its line.
+
+`reach.wan` is debounced by the reader, not the producer (sprint 035, WI
+#4542): each producer sends one echo per record, so the panel draws an
+Internet failure only once **3 consecutive records** from that host have
+`wan: false` (≈ 10–15 s), counting each record once by its `ts`, and one good
+record clears it. A record whose `udm` probe also failed is drawn at once.
+`udm` and `peers` are not debounced. The contract is unchanged: producers
+still report each probe as it came out.
+
+The panel derives the verdict,
 uplink-lost (live hosts reach peers but none reaches the UDM), WAN-down, the
 header RTT tiles (medians) and a 60-minute, per-minute throughput history.
 

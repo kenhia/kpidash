@@ -28,6 +28,13 @@
 #define HEALTH_TTL_S 5
 #define TELEMETRY_TTL_S 15
 #define STATUS_ACK_TTL_S 60
+/* WI #4592: how long a host column outlives its health key. Measured from the
+ * host's last_seen_ts: inside HOSTCOL_HOLD_S nothing on screen changes (one
+ * late heartbeat is not news); up to HOSTCOL_DROP_S the column stays in place
+ * as NO DATA; past it an intermittent host gives up its column, and an
+ * always-on host stays NO DATA. */
+#define HOSTCOL_HOLD_S 30
+#define HOSTCOL_DROP_S 300
 
 /* ---- Application version ---- */
 #define KPIDASH_VERSION "1.0.0"
