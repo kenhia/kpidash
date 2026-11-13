@@ -1,7 +1,9 @@
 """
 cli.py — Click CLI entry point for kpidash-client.
 
-Implements T028 (activity), T035 (daemon), T051 (status ack/log-path), T054 (fortune push).
+Implements T035 (daemon) and T051 (status ack/log-path). The `activity` and
+`fortune` groups were removed in 2.0.0 (sprint 036): nothing has read their keys
+since sprint 032.
 """
 
 from __future__ import annotations
@@ -23,36 +25,12 @@ from .redis_client import RedisClient, RedisClientError
 # ---------------------------------------------------------------------------
 
 
-def _state_path() -> Path:
-    """Path to state.json storing the last activity_id."""
-    if platform.system() == "Windows":
-        appdata = os.environ.get("APPDATA", str(Path.home() / "AppData" / "Roaming"))
-        return Path(appdata) / "kpidash-client" / "state.json"
-    return Path.home() / ".config" / "kpidash-client" / "state.json"
-
-
 def _pid_path() -> Path:
     """Path to daemon.pid."""
     if platform.system() == "Windows":
         appdata = os.environ.get("APPDATA", str(Path.home() / "AppData" / "Roaming"))
         return Path(appdata) / "kpidash-client" / "daemon.pid"
     return Path.home() / ".config" / "kpidash-client" / "daemon.pid"
-
-
-def _load_state() -> dict:
-    p = _state_path()
-    if p.exists():
-        try:
-            return json.loads(p.read_text())
-        except (json.JSONDecodeError, OSError):
-            pass
-    return {}
-
-
-def _save_state(state: dict) -> None:
-    p = _state_path()
-    p.parent.mkdir(parents=True, exist_ok=True)
-    p.write_text(json.dumps(state, indent=2))
 
 
 def _load_config(config_path: str | None) -> ClientConfig:
@@ -87,70 +65,9 @@ def _make_client(cfg: ClientConfig) -> RedisClient:
 )
 @click.pass_context
 def main(ctx: click.Context, config_path: str | None) -> None:
-    """kpidash client — activity tracking, telemetry daemon, and dashboard utilities."""
+    """kpidash client — telemetry daemon and dashboard utilities."""
     ctx.ensure_object(dict)
     ctx.obj["config_path"] = config_path
-
-
-# ---------------------------------------------------------------------------
-# activity
-# ---------------------------------------------------------------------------
-
-
-@main.group()
-def activity() -> None:
-    """Manage activities shown on the kpidash dashboard."""
-
-
-@activity.command("start")
-@click.argument("name")
-@click.pass_context
-def activity_start(ctx: click.Context, name: str) -> None:
-    """Start a named activity and record its ID locally in state.json."""
-    cfg = _load_config(ctx.obj.get("config_path"))
-    client = _make_client(cfg)
-    try:
-        activity_id = client.start_activity(name)
-    except RedisClientError as e:
-        click.echo(f"Error: {e}", err=True)
-        sys.exit(1)
-    finally:
-        client.disconnect()
-
-    state = _load_state()
-    state["activity_id"] = activity_id
-    _save_state(state)
-    click.echo(f"Started: {name!r}  (id: {activity_id})")
-
-
-@activity.command("done")
-@click.argument("activity_id", required=False)
-@click.pass_context
-def activity_done(ctx: click.Context, activity_id: str | None) -> None:
-    """Mark an activity as done.  Uses last started activity if no ID given."""
-    if not activity_id:
-        activity_id = _load_state().get("activity_id")
-    if not activity_id:
-        click.echo(
-            "Error: no activity_id found.  Pass one explicitly or run `activity start` first.",
-            err=True,
-        )
-        sys.exit(1)
-
-    cfg = _load_config(ctx.obj.get("config_path"))
-    client = _make_client(cfg)
-    try:
-        client.end_activity(activity_id)
-    except RedisClientError as e:
-        click.echo(f"Error: {e}", err=True)
-        sys.exit(1)
-    finally:
-        client.disconnect()
-
-    state = _load_state()
-    state.pop("activity_id", None)
-    _save_state(state)
-    click.echo(f"Done: {activity_id}")
 
 
 # ---------------------------------------------------------------------------
@@ -269,39 +186,6 @@ def net_ack(ctx: click.Context, host: str, by: str | None) -> None:
         f"Acked kdash:net:ack:{host.lower()}: lfc={ack['lfc']} rx_errors={ack['rx_errors']} "
         f"by={ack['by']} (expires in 24 h)"
     )
-
-
-# ---------------------------------------------------------------------------
-# fortune (T054)
-# ---------------------------------------------------------------------------
-
-
-@main.group()
-def fortune() -> None:
-    """Push fortune messages to the dashboard display."""
-
-
-@fortune.command("push")
-@click.argument("text")
-@click.option(
-    "--duration",
-    default=300,
-    show_default=True,
-    help="How long to display the fortune (seconds)",
-)
-@click.pass_context
-def fortune_push(ctx: click.Context, text: str, duration: int) -> None:
-    """Push TEXT to the dashboard fortune display for DURATION seconds."""
-    cfg = _load_config(ctx.obj.get("config_path"))
-    client = _make_client(cfg)
-    try:
-        client.push_fortune(text, duration)
-    except RedisClientError as e:
-        click.echo(f"Error: {e}", err=True)
-        sys.exit(1)
-    finally:
-        client.disconnect()
-    click.echo(f"Fortune pushed (visible for {duration}s).")
 
 
 # ---------------------------------------------------------------------------

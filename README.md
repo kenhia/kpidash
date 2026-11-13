@@ -34,7 +34,9 @@ Attention is a yellow or red border, never a bigger card. See
 `docs/ARCHITECTURE.md` § Host Columns.
 
 The per-host dev graphs, Fortune, Activities and Repo Status widgets were
-removed in sprint 032. They are retrievable from the git tag
+removed in sprint 032, and the client code that fed them (repo scanning,
+`activity`, `fortune push`, and the `kpidash-mcp` package) in sprint 036,
+kpidash-client 2.0.0. All of it is retrievable from the git tag
 `last-with-dev-graphs-fortune`; `docs/ARCHITECTURE.md` § Removed widgets lists
 the paths.
 
@@ -130,9 +132,8 @@ this needs no Pi, no sysroot and no submodule checkout.
 | Package | Purpose | Docs |
 |---------|---------|------|
 | `clients/kpidash-client` | Telemetry daemon + CLI (Linux, Windows) | [README](clients/kpidash-client/README.md) |
-| `clients/kpidash-mcp` | MCP server for AI agent activity reporting | [README](clients/kpidash-mcp/README.md) |
 
-Both packages are managed with [uv](https://docs.astral.sh/uv/) and pinned to Python 3.13.
+It is managed with [uv](https://docs.astral.sh/uv/) and pinned to Python 3.13.
 
 ---
 
@@ -168,8 +169,7 @@ kpidash/
 │   ├── test_config.c           # ctest: config env-var parsing
 │   └── test_redis_json.c       # ctest: Redis JSON parsing helpers
 ├── clients/
-│   ├── kpidash-client/         # Python 3.13 daemon + CLI
-│   └── kpidash-mcp/            # Python 3.13 MCP server
+│   └── kpidash-client/         # Python 3.13 daemon + CLI
 ├── scripts/
 │   └── load_test.py            # 8-client concurrent write stress test
 ├── lib/

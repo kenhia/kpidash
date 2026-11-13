@@ -68,16 +68,24 @@ kpidash is a fullscreen KPI dashboard for a Raspberry Pi 5 touch panel (`rpi53`)
 written in C11 with [LVGL](https://lvgl.io/) 9.2.2 rendering straight to DRM/KMS —
 no X11, no Wayland, no window chrome. Client machines push telemetry, health
 and card feeds (network, NAS, services) into a Redis instance on the Pi; the dashboard polls
-Redis once a second and re-renders. `clients/` holds two Python 3.13 packages
-that feed it: `kpidash-client` (the telemetry daemon + CLI) and `kpidash-mcp`
-(an MCP server for agent activity reporting).
+Redis once a second and re-renders. `clients/kpidash-client` is the Python
+package that feeds it (the telemetry daemon + CLI). Its repo scanner and the
+`activity` and `fortune` commands were removed in 2.0.0 (sprint 036), with the
+`kpidash-mcp` package; all are retrievable from tag `last-with-dev-graphs-fortune`.
 
 ### Build, test, deploy
 
-- **`just check`** — the gate: configures with `-DTESTS_ONLY=ON`, builds, runs
-  `ctest`. `TESTS_ONLY` skips the dashboard binary and its LVGL/DRM deps, so it
-  needs no Pi, no sysroot and no submodule checkout. This is the only automated
-  safety net in the repo — there is no CI.
+- **`just check`** — the gate: `check-dashboard` (configure `-DTESTS_ONLY=ON`,
+  build, `ctest --no-tests=error`), `check-release` (the same sources at `-O2`
+  with `-Werror`), then `check-client` (ruff + pytest). `TESTS_ONLY` skips the
+  dashboard binary and its LVGL/DRM deps, so it needs no Pi and no sysroot.
+  This is the only automated safety net in the repo — there is no CI.
+  - It needs **one** submodule — `lib/kdashdata`, for the shared band
+    classifier `src/registry.c` calls. The gate inits it itself, so a clean
+    clone still passes in one command. `lib/lvgl` is still not needed.
+  - `--no-tests=error` matters: bare `ctest` prints "No tests were found!!!"
+    and **exits 0**, so without it the gate would pass loudest when there is
+    least to check.
 - **Pi build** — cross-compiled x86_64 → aarch64 against a synced Pi sysroot:
   `cmake -B build-pi5 -DCMAKE_TOOLCHAIN_FILE=cmake/aarch64-toolchain.cmake`.
   The sysroot rsync and toolchain setup are in `docs/HANDOFF-CROSSCOMPILE.md`.
@@ -108,21 +116,90 @@ that feed it: `kpidash-client` (the telemetry daemon + CLI) and `kpidash-mcp`
   legible at a glance from across the room.
 - **The Redis poll runs on the LVGL thread** as a synchronous 1s cycle. Anything
   slow added there stalls the render loop.
+- **On the Pi, a translucent fill is expensive; an opaque one is cheap.** LVGL
+  renders `LV_DISPLAY_RENDER_MODE_DIRECT` straight into the DRM framebuffer, so
+  blending anything below `LV_OPA_COVER` reads back every pixel it covers from
+  slow memory. In sprint 030 one 361×596 frame at 26 % opacity cost ~530 ms of
+  every second. Mixing the colour once (`lv_color_mix`) and drawing it opaque
+  gave the same pixels and took kpidash from 65 % to 10.6 % of a core. Benches
+  that render into ordinary RAM (kai, the render tool) **cannot** show this, so
+  measure render cost on rpi53 itself.
 - **Redis auth is `REDISCLI_AUTH` in the environment only** — never in code, never
   in a config file. DRM needs root, and `sudo -E` is what preserves the variable.
-  One copy per host lives in `/etc/khomelab/secrets.env` (`root:khomelab 0640`);
-  units read it with `EnvironmentFile=` and `just check-units` enforces that.
-  Shell helpers resolve it via `scripts/kpidash-auth.sh`; the Python client reads
-  only `$REDISCLI_AUTH`.
+  Since sprint 020 the value has **one copy per host**, `/etc/khomelab/secrets.env`
+  (`root:khomelab 0640`, rendered by k-homelab from the age store). Every unit this
+  repo authors reads it with `EnvironmentFile=`, and `just check-units` fails if one
+  stops. The per-user `redis-auth.env` and rpi53's `/etc/kpidash.env` are retired.
+  - **`EnvironmentFile=` has no `-` prefix on the secrets file, deliberately.** A
+    client or dashboard that starts without a password authenticates nowhere and
+    looks healthy doing it — this repo's own 2026-09-05 scar. Refusing to start is
+    the louder failure, and on a panel with no keyboard the only visible one.
+  - **Every unit this repo authors is a *system* unit, and since sprint 021 that is
+    enforced rather than conventional.** A `systemd --user` unit is the exception to
+    "systemd reads it as root": it runs as you, so it needs an effective `khomelab`
+    membership — and `/etc/group` is not that. The manager takes its groups when it
+    starts and, under `enable-linger`, outlives every login, so the membership can be
+    correct in every file and still not be in effect, indefinitely. kai, kubs0 and
+    kubsdb ran user units and were all three in exactly that state. They are now
+    system units running the published package; `install.sh --user` is refused, and
+    `just check-units` fails if a `*.user.service.template` reappears.
+  - **macOS is the one per-user exception, and it is not the same trap.** kimac runs
+    a LaunchAgent (`net.kenhia.kpidash.client`, `clients/kpidash-client/launchd/`,
+    sprint 023). launchd resolves a job's groups **when it spawns the job**, not from
+    the login session, and kmon sprint 39 proved on kimac that a launchd-fired job
+    reads the file. launchd has no `EnvironmentFile=`, so the plist's `/bin/sh`
+    launcher extracts `REDISCLI_AUTH` and refuses to exec the client without it.
+    `check-units` lints the plist as well.
+  - Shell helpers (`krpidss`, `kpidash-cards`, `deploy.sh`) have no unit to hand
+    them the value, so they resolve it themselves through `scripts/kpidash-auth.sh`
+    — this repo's copy of the fleet's CD-19 order. The Python client does **not**:
+    it reads `$REDISCLI_AUTH` and nothing else, on purpose.
 - **Redis keys** are `kpidash:{category}:{hostname}:{subcategory}`, lowercase with
   colons; JSON values use `snake_case` fields.
-- **`lib/lvgl` is a git submodule.** Clone with `--recurse-submodules`. `just check`
-  does not need it; a Pi build does.
+- **Two git submodules.** Clone with `--recurse-submodules`. `lib/lvgl` is the
+  big one and only a Pi/native build needs it. `lib/kdashdata` (sprint 018,
+  WI #2244) is small and **the gate does need it** — `src/registry.c` calls
+  `kdash_apttemps_band()`, and registry.c compiles into nine gate test targets.
+  kpidash links `kdash_core` only: the pure logic, no sockets, no hiredis —
+  the I/O shell (`kdash`) is deliberately not linked, because kpidash has its
+  own Redis layer and is not migrating it.
+- **The apartment-temperature thresholds are not in this repo any more.**
+  65/75/80 °F live in kdashdata (`KDASH_APTTEMPS_{COLD,OK,HOT}_F`);
+  `APTTEMPS_COLOR_*` in `src/registry.h` is the *palette* only (CD-10: the
+  library carries no colours). Changing a number in registry.h changes
+  nothing — change it in kdashdata.
 - **Build trees are git-ignored** (`build-*/`): `build-tests/` is the gate's,
   `build-pi5/` the cross-build, `build-native/` a local full build. Note
   `scripts/deploy.sh` uses its own `build-pi/`.
-- `-Wall -Wextra` is on for every target and the tree is warning-clean — keep it
-  that way.
+- **`-Wall -Wextra` is on for every target, and what "warning-clean" covers is
+  now a precise claim** (WI #1934). It used to be an unqualified one, and it
+  was false under the flags that actually reach the Pi: `scripts/deploy.sh`
+  builds `-DCMAKE_BUILD_TYPE=Release`, and GCC's flow-sensitive warnings
+  (`-Wstringop-truncation`, `-Wunused-result`, the `-Wmaybe-*` family) only run
+  once the optimiser does. Two warnings survived unseen that way until sprint
+  017 read the deploy output.
+  - `just check-release` compiles at `-O2 -Werror`, but **only what TESTS_ONLY
+    compiles**: `config.c`, `redis.c`, `registry.c`, `hosthist.c`, `hostcols.c`,
+    `icons.c`, `admitted.c`, `logfilter.c`, `netstate.c`, `nasstate.c`,
+    `wxstate.c` (`memstat.c` links only into the LVGL leak test).
+    Worth knowing why that is not enough: neither of the two warnings it was
+    written in response to was in those files, so on its own it could not have
+    caught them. It is in `just check` because it is cheap and needs no LVGL.
+  - `just check-warnings-full` compiles the **whole tree** at `-O2 -Werror`,
+    dashboard-only sources included (`main.c`, `ui.c`,
+    `screenshot.c`, `src/widgets/*`). Added in sprint 019 once `libpng-dev`
+    landed on kai — before that the configure step could not even run here.
+    It is **opt-in, not in `just check`**: it needs `lib/lvgl` initialised.
+    Run it before a deploy and before shipping C changes.
+  - **Neither gate sees linker warnings, and aarch64-only ones least of all.**
+    Sprint 019 fixed an exec-stack warning that `ld` printed on every Pi link
+    while the native x86_64 link stayed silent — invisible to both gates by
+    construction. A nested function in `redis.c` was forcing a stack
+    trampoline; it moved to file scope.
+  - So: warning-clean at `-O2` for the whole tree, gated; **linker** output at
+    deploy time still read by eye. The uncovered class is now linking, not
+    compiling — do not let that slip back to "read the deploy output" for
+    everything.
 - **`clang-format` and `cppcheck` are not installed on kai**, so neither is in the
   gate, though `.clang-format` exists and the retired Spec-Kit constitution
   claimed both as pre-commit checks. Format new C to match surrounding style by

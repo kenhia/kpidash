@@ -3,7 +3,6 @@
 Runs concurrent health-ping and telemetry loops.
 Health: every config.health_interval_s (default 3s)
 Telemetry: every config.telemetry_interval_s (default 5s, A1)
-Repo scan: every config.repo_scan_interval_s (default 30s)
 khlenv retry: every KHLENV_RETRY_S while the endpoint came from a fallback
 """
 
@@ -21,7 +20,6 @@ from .endpoint import khlenv_on_fallback
 from .nas import NasCollector
 from .net import NetCollector
 from .redis_client import RedisClient, RedisClientError
-from .repos import scan_repos
 from .telemetry.disk import collect_disks
 from .telemetry.gpu import collect_gpu
 from .telemetry.system import collect_os_name, collect_system
@@ -130,16 +128,6 @@ def _nas_loop(rc: RedisClient, config: ClientConfig) -> None:
         _stop_event.wait(config.telemetry_interval_s)
 
 
-def _repo_loop(rc: RedisClient, config: ClientConfig) -> None:
-    while not _stop_event.is_set():
-        try:
-            repos = scan_repos(config.repos)
-            rc.write_repos(repos)
-        except Exception as e:
-            logger.warning("repo scan failed: %s", e)
-        _stop_event.wait(config.repo_scan_interval_s)
-
-
 def run_daemon(config: ClientConfig) -> None:
     """Block until SIGTERM/SIGINT or _stop_event is set."""
     _stop_event.clear()
@@ -160,7 +148,6 @@ def run_daemon(config: ClientConfig) -> None:
     threads = [
         threading.Thread(target=_health_loop, args=(rc, config.health_interval_s), daemon=True),
         threading.Thread(target=_telemetry_loop, args=(rc, config), daemon=True),
-        threading.Thread(target=_repo_loop, args=(rc, config), daemon=True),
     ]
 
     if config.nas.enabled is not False:

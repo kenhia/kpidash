@@ -15,14 +15,11 @@ import json
 import os
 import socket
 import time
-import uuid
 
 import redis
 
 from .config import ClientConfig
 from .endpoint import EndpointError, khlenv_on_fallback, resolve_redis_endpoint
-
-ACTIVITY_ZSET_TRIM = 20  # keep 2× display max in sorted set
 
 
 class RedisClientError(Exception):
@@ -202,69 +199,6 @@ class RedisClient:
         ack = {"lfc": lfc, "rx_errors": rx, "by": by, "ts": time.time()}
         self._cmd("set", f"kdash:net:ack:{host}", json.dumps(ack), ex=86400)
         return ack
-
-    # ---- Repos ----
-
-    def write_repos(self, repo_statuses: list[dict]) -> None:
-        """Write all non-clean repos as fields in the repos hash."""
-        key = f"kpidash:repos:{self._hostname}"
-        pipe = self._r.pipeline()
-        # Build new field set
-        new_paths = {r["path"] for r in repo_statuses}
-        # Delete stale entries
-        existing = self._r.hkeys(key)
-        for p in existing:
-            if p not in new_paths:
-                pipe.hdel(key, p)
-        # Write active entries
-        for r in repo_statuses:
-            pipe.hset(key, r["path"], json.dumps(r))
-        if repo_statuses:
-            pipe.expire(key, 30)  # REPOS_TTL_S
-        pipe.execute()
-
-    # ---- Activities ----
-
-    def start_activity(self, name: str) -> str:
-        activity_id = str(uuid.uuid4())
-        now = time.time()
-        pipe = self._r.pipeline()
-        pipe.hset(
-            f"kpidash:activity:{activity_id}",
-            mapping={
-                "activity_id": activity_id,
-                "host": self._hostname,
-                "name": name,
-                "state": "active",
-                "start_ts": str(now),
-            },
-        )
-        pipe.zadd("kpidash:activities", {activity_id: now})
-        pipe.zremrangebyrank("kpidash:activities", 0, -(ACTIVITY_ZSET_TRIM + 1))
-        pipe.execute()
-        return activity_id
-
-    def end_activity(self, activity_id: str) -> None:
-        self._cmd(
-            "hset",
-            f"kpidash:activity:{activity_id}",
-            mapping={
-                "state": "done",
-                "end_ts": str(time.time()),
-            },
-        )
-
-    # ---- Fortune ----
-
-    def push_fortune(self, text: str, duration: int = 300) -> None:
-        payload = json.dumps(
-            {
-                "text": text,
-                "source": "pushed",
-                "pushed_by": self._hostname,
-            }
-        )
-        self._cmd("set", "kpidash:fortune:pushed", payload, ex=duration)
 
     # ---- Service status (sprint 006 / FR-021) ----
 
