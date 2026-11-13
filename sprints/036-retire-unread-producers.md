@@ -132,3 +132,42 @@ Not upgraded, and why:
 
 Orphaned keys on rpi53 at the time of the check: `kpidash:repos:kai`, 63 keys
 matching `kpidash:activit*`, and `kpidash:fortune:current`.
+
+## Deployed
+
+2026-11-13, 11:01–11:07 PST, from kai under the overseer's clearance
+(korg:4596 comment 4638). Merged as `635efce` (#39). There is no CI.
+
+- **Published** with `just publish`: `kpidash_client-2.0.0` wheel and sdist
+  are in the package store on kubsdb.
+- **Upgraded one host at a time.** After each restart I checked on rpi53 that
+  the health TTL had reset, telemetry was fresh, `kdash:net` was under 3 s old
+  and `kpidash:repos:{host}` was absent.
+
+  | host | from → to | how | after restart |
+  |---|---|---|---|
+  | kai | 1.3.1 → 2.0.0 | `uv tool upgrade`, restart system unit | health 5, telemetry 13, net 2.3 s |
+  | kubs0 | 1.3.1 → 2.0.0 | same | health 5, telemetry 13, net 2.4 s |
+  | kubsdb | 1.3.1 → 2.0.0 | same | health 5, telemetry 13, net 2.2 s |
+  | gratch | 1.5.0 → 2.0.0 | same | health 5, telemetry 13, net 2.3 s, nas 2.3 s |
+  | kimac | 1.2.0 → 2.0.0 | `uv tool upgrade`, `launchctl kickstart -k` | health 4, telemetry 14 (no net on macOS, before or after) |
+  | rpi53 | 1.3.1 → 2.0.0 | WI 1427's route: rsync of kai's checkout, `uv sync`, restart | health 5, telemetry 13, net 2.1 s |
+
+  Each unit came back `active` with `NRestarts=0`, and no host's journal had
+  an error. The old daemon on kubs0 had used 3 h 9 min of CPU, much of it
+  presumably the repo scanner walking `~/src`.
+- **rpi53's checkout** cannot pull from GitHub (no key), so it is synced from
+  kai. Its "modified" `lib/kdashdata` turned out to be two tracked kdashdata
+  files (`scripts/build-darwin.sh`, `scripts/build-darwin-remote.sh`) missing
+  from the working tree. A dry run showed that `--delete` would remove only
+  files upstream had removed since `918f2ba`, two untracked 1.1.0 `dist/`
+  artifacts and a stale remote-tracking ref. There were no local commits and
+  no stash, so nothing unique was lost. It now reads `## main...origin/main`
+  at `635efce`, clean.
+- **Orphaned keys** deleted on rpi53's Redis with SCAN + DEL: 64 keys (62
+  `kpidash:activity:*` hashes, `kpidash:activities`,
+  `kpidash:fortune:current`). `kpidash:repos:kai` had already expired once kai
+  stopped writing it. **0 after 65 s.**
+- **Not upgraded:** cleo, whose Windows client is a separate package and was
+  out of scope, and kwork, a stale member of `kpidash:clients` with no
+  manifest that is unreachable from kai. The overseer ruled to leave it.
