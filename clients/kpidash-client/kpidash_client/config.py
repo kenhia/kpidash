@@ -44,14 +44,6 @@ class DiskConfig:
 
 
 @dataclass
-class RepoConfig:
-    explicit: list[str] = field(default_factory=list)
-    scan_roots: list[str] = field(default_factory=list)
-    exclude: list[str] = field(default_factory=list)
-    scan_depth: int = 3
-
-
-@dataclass
 class ClientConfig:
     # Redis endpoint. Both are an explicit LOCAL OVERRIDE: leave `[redis]
     # host` out of config.toml and the endpoint is resolved through khlenv
@@ -64,10 +56,8 @@ class ClientConfig:
     telemetry_interval_s: int = 5  # A1: configurable telemetry interval
     dev_interval_s: int | None = None  # fast GPU+CPU+RAM interval (default: telemetry_interval_s)
     health_interval_s: int = 3  # health ping interval
-    repo_scan_interval_s: int = 30  # repo scan interval
     availability: str = "always"  # "always" | "intermittent" (AVAILABILITY_VALUES)
     disks: list[DiskConfig] = field(default_factory=list)
-    repos: RepoConfig = field(default_factory=RepoConfig)
     # WI #4061: kdash:net:{host}. On by default on Linux, the only platform
     # whose inputs (/proc/net/bonding, /sys/class/net) the collector reads.
     net: NetConfig = field(
@@ -119,14 +109,10 @@ class ClientConfig:
                 )
             )
 
-        # Parse repos
-        repos_data = data.get("repos", {})
-        repos = RepoConfig(
-            explicit=repos_data.get("explicit", []),
-            scan_roots=repos_data.get("scan_roots", []),
-            exclude=repos_data.get("exclude", []),
-            scan_depth=repos_data.get("scan_depth", 3),
-        )
+        # `[repos]` and `[client] repo_scan_interval_s` configured the repo scanner,
+        # removed in 2.0.0 (sprint 036). They are ignored, silently: k-homelab still
+        # renders them until its own follow-up lands, and a warning on every start
+        # of every host would be noise about a file the host does not own.
 
         # Parse client section
         client_section = data.get("client", {})
@@ -150,10 +136,8 @@ class ClientConfig:
             if "dev_interval_s" in client_section
             else None,
             health_interval_s=int(client_section.get("health_interval_s", 3)),
-            repo_scan_interval_s=int(client_section.get("repo_scan_interval_s", 30)),
             availability=availability,
             disks=disks,
-            repos=repos,
             net=net,
             nas=nas,
         )

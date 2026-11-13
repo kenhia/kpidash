@@ -44,11 +44,11 @@ installed with `kpkg install kpidash-client`) is preferred; a checkout venv
 (`<checkout>/.venv/bin/kpidash-client`) is the fallback. A host with both is a dev host, and the
 published build is the one the fleet actually runs. `--exec PATH` forces the choice.
 
-**Which account it runs as.** Your own, by default (`--run-as NAME` overrides). Not root, and
-deliberately not a dedicated service account: the client reports git status for the repos named in
-`config.toml`, which live in your home, and `repos.py` swallows `PermissionError` — so a service
-account would report "no dirty repos" rather than failing. The Redis keys are named from the
-hostname, not the account, so nothing downstream depends on this choice.
+**Which account it runs as.** Your own, by default (`--run-as NAME` overrides). Not root. It
+reads `config.toml` from your home (`~/.config/kpidash-client/`). Until 2.0.0 there was a second
+reason — the repo scanner read git status for repos in your home — and that went with the scanner
+in sprint 036. The Redis keys are named from the hostname, not the account, so nothing
+downstream depends on this choice.
 
 Runs via `--foreground`, so systemd owns the process lifecycle directly rather than the
 double-fork path — matches how the Windows client's `run --foreground` works under its own service

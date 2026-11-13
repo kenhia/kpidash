@@ -68,9 +68,10 @@ kpidash is a fullscreen KPI dashboard for a Raspberry Pi 5 touch panel (`rpi53`)
 written in C11 with [LVGL](https://lvgl.io/) 9.2.2 rendering straight to DRM/KMS —
 no X11, no Wayland, no window chrome. Client machines push telemetry, health
 and card feeds (network, NAS, services) into a Redis instance on the Pi; the dashboard polls
-Redis once a second and re-renders. `clients/` holds two Python 3.13 packages
-that feed it: `kpidash-client` (the telemetry daemon + CLI) and `kpidash-mcp`
-(an MCP server for agent activity reporting).
+Redis once a second and re-renders. `clients/kpidash-client` is the Python
+package that feeds it (the telemetry daemon + CLI). Its repo scanner and the
+`activity` and `fortune` commands were removed in 2.0.0 (sprint 036), with the
+`kpidash-mcp` package; all are retrievable from tag `last-with-dev-graphs-fortune`.
 
 ### Build, test, deploy
 

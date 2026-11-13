@@ -6,10 +6,16 @@
 
 ## Now
 
-- **034 — weather filler** (korg proposal 4577). Weather in the host row's
-  spare columns, "C · Range": current conditions, a low-to-high bar per
-  forecast day on one scale, the local day as a bar. 0-4 columns, from
-  kweather's `kdash:weather:home`. Spec: `planning/weather-mockups.html` (vC).
+- **036 — retire the client's unread producers** (korg proposal 4596, slice 1
+  of program 4599). kpidash-client 2.0.0 drops repo scanning, `activity` and
+  `fortune push`, and `clients/kpidash-mcp` is deleted; every reachable client
+  host is upgraded and the orphaned Redis keys deleted. k-homelab (drop the
+  rendered `[repos]` settings, raise the version floor) and kdashdata (registry)
+  follow as slices 2 and 3.
+- **035** (shipped). Host column hold and NO PATH debounce: two timing rules
+  that stopped the host row and the 10G card flickering.
+- **034** (shipped). Weather filler in the host row's spare columns,
+  "C · Range" (`planning/weather-mockups.html`, vC).
 - **033** (shipped). The NAS card rebuilt to "A · Rail" in mauve
   (`planning/nas-card-mockups.html`, vA).
 - **030-032** (shipped). 030 widened the host columns across all of row 0

@@ -96,55 +96,6 @@ def test_write_telemetry_sets_key(tmp_path):
     assert mock_r.set.call_args.kwargs["ex"] == 15
 
 
-def test_start_activity(tmp_path):
-    client, mock_r = make_client(tmp_path)
-    mock_pipe = MagicMock()
-    mock_r.pipeline.return_value = mock_pipe
-
-    activity_id = client.start_activity("Test task")
-
-    assert len(activity_id) == 36  # UUID4 format
-    mock_pipe.hset.assert_called_once()
-    hset_args = mock_pipe.hset.call_args
-    assert hset_args.args[0] == f"kpidash:activity:{activity_id}"
-    mapping = hset_args.kwargs["mapping"]
-    assert mapping["host"] == "testhost"
-    assert mapping["name"] == "Test task"
-    assert mapping["state"] == "active"
-    mock_pipe.zadd.assert_called_once()
-    mock_pipe.zremrangebyrank.assert_called_once()
-    mock_pipe.execute.assert_called_once()
-
-
-def test_end_activity(tmp_path):
-    client, mock_r = make_client(tmp_path)
-    client.end_activity("some-uuid-1234")
-
-    mock_r.hset.assert_called_once()
-    mapping = mock_r.hset.call_args.kwargs["mapping"]
-    assert mapping["state"] == "done"
-    assert "end_ts" in mapping
-
-
-def test_push_fortune_uses_duration(tmp_path):
-    client, mock_r = make_client(tmp_path)
-    client.push_fortune("Hello world", duration=600)
-
-    mock_r.set.assert_called_once()
-    key = mock_r.set.call_args.args[0]
-    assert key == "kpidash:fortune:pushed"
-    payload = json.loads(mock_r.set.call_args.args[1])
-    assert payload["text"] == "Hello world"
-    assert payload["source"] == "pushed"
-    assert mock_r.set.call_args.kwargs["ex"] == 600
-
-
-def test_push_fortune_default_duration(tmp_path):
-    client, mock_r = make_client(tmp_path)
-    client.push_fortune("Hello")
-    assert mock_r.set.call_args.kwargs["ex"] == 300
-
-
 def test_ack_status(tmp_path):
     client, mock_r = make_client(tmp_path)
     client.ack_status("msg-id-abc")

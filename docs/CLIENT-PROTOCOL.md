@@ -8,7 +8,7 @@
 
 This document is the canonical reference for all Redis key names, value
 formats, TTLs, and access patterns for the kpidash system. All components
-(dashboard C binary, Python client daemons, MCP server) MUST conform to this
+(dashboard C binary, Python client daemons) MUST conform to this
 schema. See also `sprints/001-mvp-dashboard/contracts/redis-schema.md` for the
 authoritative source during development.
 
@@ -169,117 +169,24 @@ SET kpidash:client:kubs0:health '{...}' EX 5
 
 ---
 
-## 4. Activities
+## 4. Activities — retired
 
-> **Unread since sprint 032.** The dashboard widget for this feed was removed
-> (`docs/ARCHITECTURE.md`, "Removed widgets"; tag
-> `last-with-dev-graphs-fortune`). Producers may still write it; nothing in
-> the dashboard reads it. The schema is kept as a record of what they write.
+## 5. Repo Status — retired
 
-| Key | Type | Written by | Read by | TTL |
-|-----|------|-----------|---------|-----|
-| `kpidash:activities` | ZSET (score=start_ts) | any client | dashboard | none |
-| `kpidash:activity:{uuid}` | HASH | any client | dashboard | none |
+## 6. Fortune — retired
 
-**HASH fields**: `activity_id`, `host`, `name`, `state` (`active`/`done`),
-`start_ts` (string float), `end_ts` (string float, only when done).
-
-**Start**:
-```
-HSET kpidash:activity:{id}  activity_id {id}  host {h}  name {n}  state active  start_ts {ts}
-ZADD kpidash:activities {ts} {id}
-ZREMRANGEBYRANK kpidash:activities 0 -21    # keep 20 most-recent
-```
-
-**End**:
-```
-HSET kpidash:activity:{id}  state done  end_ts {ts}
-```
-
-**Dashboard reads**:
-```
-ZREVRANGE kpidash:activities 0 9
-HGETALL kpidash:activity:{id}
-```
-
----
-
-## 5. Repo Status
-
-> **Unread since sprint 032.** The dashboard widget for this feed was removed
-> (`docs/ARCHITECTURE.md`, "Removed widgets"; tag
-> `last-with-dev-graphs-fortune`). Producers may still write it; nothing in
-> the dashboard reads it. The schema is kept as a record of what they write.
-
-| Key | Type | Written by | Read by | TTL |
-|-----|------|-----------|---------|-----|
-| `kpidash:repos:{hostname}` | HASH (field=path, value=JSON) | client (~30 s) | dashboard | 30 s |
-
-```json
-{
-  "name": "kpidash",
-  "path": "/home/ken/src/kpidash",
-  "branch": "002-exploration-sprint",
-  "default_branch": "main",
-  "is_dirty": true,
-  "explicit": true,
-  "detached_head": false,
-  "ahead": 5,
-  "behind": 0,
-  "untracked_count": 2,
-  "changed_count": 3,
-  "deleted_count": 0,
-  "renamed_count": 0,
-  "last_commit_ts": 1743292600.0,
-  "ts": 1743292801.0
-}
-```
-
-| Field | Source | Notes |
-|-------|--------|-------|
-| `default_branch` | Client detection | For branch color logic |
-| `detached_head` | `repo.head.is_detached` | Boolean |
-| `ahead` / `behind` | `git rev-list --left-right --count HEAD...@{upstream}` | 0 if no upstream |
-| `untracked_count` | `len(repo.untracked_files)` | |
-| `changed_count` | Modified/added/typed changes in working tree | |
-| `deleted_count` | Deleted files in working tree | |
-| `renamed_count` | Renamed files in working tree | |
-| `last_commit_ts` | `repo.head.commit.committed_date` (Unix epoch) | Used for "age" display |
-
-`explicit: true` when the repo was listed under `[repos] explicit` in the
-client config; `false` (or absent) for repos found via `scan_roots`.
-The dashboard sorts explicit repos to the top of the Repo Status widget.
-
-Only repos where `branch != default_branch OR is_dirty` are written. Clean
-repos on their default branch are removed with `HDEL`.
-
----
-
-## 6. Fortune
-
-> **Unread since sprint 032.** The dashboard widget for this feed was removed
-> (`docs/ARCHITECTURE.md`, "Removed widgets"; tag
-> `last-with-dev-graphs-fortune`). Producers may still write it; nothing in
-> the dashboard reads it. The schema is kept as a record of what they write.
-
-| Key | Type | Written by | Read by | TTL |
-|-----|------|-----------|---------|-----|
-| `kpidash:fortune:current` | STRING (JSON) | dashboard | dashboard | none |
-| `kpidash:fortune:pushed` | STRING (JSON) | any client | dashboard | configured (default 300 s) |
-
-```json
-{ "text": "...", "source": "pushed", "pushed_by": "kubs0" }
-```
-
-`source`: `"local"` for `fortune` popen output, `"pushed"` for client pushes.
-`pushed_by` may be omitted when `source == "local"`.
-
-Pushed fortune overrides the rotation timer while the key exists.
-
-**Client push**:
-```
-SET kpidash:fortune:pushed '{"text":"...","source":"pushed","pushed_by":"kubs0"}' EX 300
-```
+> **Retired, producers and all.** The dashboard stopped reading these feeds in
+> sprint 032, and kpidash-client **2.0.0** (sprint 036) stopped writing them:
+> the daemon's repo scanner (`kpidash:repos:{host}`), the `activity start|done`
+> CLI (`kpidash:activities`, `kpidash:activity:{uuid}`), and `fortune push`
+> (`kpidash:fortune:pushed`; `kpidash:fortune:current` was the dashboard's
+> own). The `kpidash-mcp` package, the other activity writer, was deleted in
+> the same sprint. Nothing in the fleet writes or reads any of these keys; the
+> leftovers on rpi53 are deleted as part of the 2.0.0 rollout. The schemas
+> are on the git tag `last-with-dev-graphs-fortune`, in this file.
+>
+> The section numbers are kept so the numbering of everything after stays
+> stable.
 
 ---
 

@@ -20,12 +20,6 @@ telemetry_interval_s = 10
 path = "/dev/sda1"
 label = "root"
 type = "nvme"
-
-[repos]
-explicit = ["/home/ken/src/kpidash"]
-scan_roots = ["/home/ken/src"]
-exclude = ["/home/ken/src/vendor"]
-scan_depth = 2
 """
 
 MINIMAL_TOML = """
@@ -46,8 +40,6 @@ def test_valid_load(tmp_path):
     assert cfg.disks[0].path == "/dev/sda1"
     assert cfg.disks[0].label == "root"
     assert cfg.disks[0].type == "nvme"
-    assert "/home/ken/src/kpidash" in cfg.repos.explicit
-    assert cfg.repos.scan_depth == 2
 
 
 def test_minimal_load(tmp_path):
@@ -59,7 +51,35 @@ def test_minimal_load(tmp_path):
     assert cfg.redis_port == 6379  # default
     assert cfg.telemetry_interval_s == 5  # default
     assert cfg.disks == []
-    assert cfg.repos.explicit == []
+
+
+# The settings k-homelab rendered for the repo scanner before 2.0.0 (sprint 036),
+# as it renders them today -- a host may be upgraded before its config changes.
+LEGACY_REPOS_TOML = """
+[redis]
+host = "10.0.0.1"
+
+[client]
+repo_scan_interval_s = 30
+
+[repos]
+explicit = ["/home/ken/src/kpidash"]
+scan_roots = ["/home/ken/src"]
+exclude = ["/home/ken/src/vendor"]
+scan_depth = 3
+"""
+
+
+def test_a_leftover_repos_section_is_ignored_silently(tmp_path, caplog):
+    cfg_file = tmp_path / "config.toml"
+    cfg_file.write_text(LEGACY_REPOS_TOML)
+    with caplog.at_level(logging.DEBUG):
+        cfg = ClientConfig.load(cfg_file)
+
+    assert cfg.redis_host == "10.0.0.1"
+    assert not hasattr(cfg, "repos")
+    assert not hasattr(cfg, "repo_scan_interval_s")
+    assert caplog.records == []
 
 
 def test_absent_redis_host_means_resolve_through_khlenv(tmp_path):
@@ -110,7 +130,6 @@ def test_defaults(tmp_path):
     cfg_file.write_text(MINIMAL_TOML)
     cfg = ClientConfig.load(cfg_file)
     assert cfg.health_interval_s == 3
-    assert cfg.repo_scan_interval_s == 30
     assert cfg.hostname is None
 
 

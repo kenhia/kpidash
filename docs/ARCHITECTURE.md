@@ -93,15 +93,8 @@ LVGL/DRM/KMS with no mouse or keyboard interaction.
 │  │  kpidash-client (Python daemon)                   │    │
 │  │  • write_health()   every ~3 s (EX 5)            │    │
 │  │  • write_telemetry() every ~5 s (EX 15)          │    │
-│  │  • write_repos()    every ~30 s (EX 30)          │    │
-│  │  CLI: activity start|done, fortune push,          │    │
-│  │       status ack, log-path, daemon start|stop     │    │
-│  └───────────────────────────────────────────────────┘    │
-│                                                           │
-│  ┌───────────────────────────────────────────────────┐    │
-│  │  kpidash-mcp (Python MCP server)                  │    │
-│  │  Tools: start_activity, end_activity              │    │
-│  │  Consumers: Claude Desktop, GitHub Copilot        │    │
+│  │  CLI: status ack, log-path, net, service-status,  │    │
+│  │       daemon start|stop                           │    │
 │  └───────────────────────────────────────────────────┘    │
 └───────────────────────────────────────────────────────────┘
 ```
@@ -232,8 +225,7 @@ kpidash/
 │   ├── render_nas_card.c       # Offline render of the NAS card, four states (tool)
 │   └── render_weather.c        # Offline render of the weather filler, 4 states × 4 widths (tool)
 ├── clients/
-│   ├── kpidash-client/         # Python 3.13+ daemon + CLI (psutil, pynvml)
-│   └── kpidash-mcp/            # Python 3.13+ MCP server (mcp>=1)
+│   └── kpidash-client/         # Python 3.13+ daemon + CLI (psutil, pynvml)
 ├── scripts/
 │   └── load_test.py            # 8-client concurrent write stress test
 └── docs/
@@ -312,9 +304,21 @@ retrievable from the git tag **`last-with-dev-graphs-fortune`**
 | Activities | Table of agent/CLI activities with live elapsed timers (`kpidash:activities`); compiled out since sprint 012 (WI #365) | `src/widgets/activities.{h,c}`, `poll_activities()` in `src/redis.c` |
 | Repo Status | Card grid of repos off their default branch or dirty (`kpidash:repos:{host}`); compiled out since sprint 012 (WI #365) | `src/widgets/repo_status.{h,c}`, `poll_repos()` in `src/redis.c` |
 
-The host columns (sprints 029-031) replaced the dev graphs. The producers of
-the other three feeds still publish, and nothing reads them: see
-`docs/CLIENT-PROTOCOL.md`.
+The host columns (sprints 029-031) replaced the dev graphs.
+
+The producers of the other three feeds went in sprint 036 (korg:4596), in
+kpidash-client **2.0.0**, and are on the same tag:
+
+| Producer | Wrote | Paths at the tag |
+|---|---|---|
+| Repo scanner (daemon, every ~30 s on every client host) | `kpidash:repos:{host}` | `clients/kpidash-client/kpidash_client/repos.py`, `write_repos()` in `redis_client.py`, `_repo_loop()` in `daemon.py`, `[repos]` in `config.py` |
+| `kpidash-client activity start\|done` | `kpidash:activities`, `kpidash:activity:{uuid}` | the `activity` group in `cli.py`, `start_activity()` / `end_activity()` in `redis_client.py` |
+| `kpidash-client fortune push` | `kpidash:fortune:pushed` | the `fortune` group in `cli.py`, `push_fortune()` in `redis_client.py` |
+| `kpidash-mcp` (MCP server; retired from every host in korg:2381) | `kpidash:activities`, `kpidash:activity:{uuid}` | `clients/kpidash-mcp/` |
+
+A 2.0.0 client ignores a leftover `[repos]` section and `[client]
+repo_scan_interval_s` silently, so a host can be upgraded before or after its
+rendered config drops them.
 
 ## Color Palette (Catppuccin Mocha)
 

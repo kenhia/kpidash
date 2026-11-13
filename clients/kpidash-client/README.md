@@ -1,6 +1,6 @@
 # kpidash-client
 
-A telemetry and activity daemon that reports machine status to the
+A telemetry daemon that reports machine status to the
 [kpidash](https://github.com/your-org/kpidash) dashboard display.
 
 ---
@@ -70,7 +70,6 @@ port = 6379             # default
 hostname = ""           # optional: override auto-detected hostname
 telemetry_interval_s = 5
 health_interval_s    = 3
-repo_scan_interval_s = 30
 availability = "always" # or "intermittent" -- see "Hosts that sleep" below
 
 [[disks]]
@@ -81,13 +80,10 @@ label = "root"
 [[disks]]
 path  = "/mnt/data"
 label = "data"
-
-[repos]
-explicit   = ["/home/user/important-repo"]
-scan_roots = ["/home/user/src"]
-scan_depth = 3
-exclude    = ["/home/user/src/vendor"]
 ```
+
+A `[repos]` section or `[client] repo_scan_interval_s` left over from 1.x is
+ignored: the repo scanner was removed in 2.0.0.
 
 ### macOS
 
@@ -190,30 +186,12 @@ kpidash-client daemon stop
 
 ---
 
-## Activity tracking
+## Removed in 2.0.0
 
-```bash
-# Start a named activity (saves activity_id to state.json automatically)
-kpidash-client activity start "Implementing kpidash MVP"
-
-# Mark the last activity as done
-kpidash-client activity done
-
-# End a specific activity by ID
-kpidash-client activity done 550e8400-e29b-41d4-a716-446655440000
-```
-
----
-
-## Fortune messages
-
-```bash
-# Push a custom fortune to the dashboard (visible for 5 minutes by default)
-kpidash-client fortune push "Stay curious."
-
-# Override display duration
-kpidash-client fortune push "Deploying to prod on Friday." --duration 600
-```
+The `activity` and `fortune` command groups and the daemon's repo scanner
+(sprint 036). Nothing has read `kpidash:activities`, `kpidash:fortune:*` or
+`kpidash:repos:*` since the dashboard dropped those widgets in sprint 032. The
+code is on the git tag `last-with-dev-graphs-fortune`.
 
 ---
 
