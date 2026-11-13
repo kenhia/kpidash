@@ -281,6 +281,15 @@ void net_observe(const char *host, const char *json, double now) {
     }
     if (h->has_ack)
         net_apply_ack(&r, &h->ack);
+    /* WI #4542: count each record once, by its ts — the 1 s poll sees the
+     * same record several times. One good record clears the streak; until it
+     * reaches NET_WAN_MISS_STREAK a failed probe is drawn as reachable —
+     * unless the UDM probe failed too, which explains it and is never held
+     * back, so the card cannot draw the Internet up behind a lost gateway. */
+    if (!h->has_rec || r.ts != h->rec.ts)
+        h->wan_miss = r.reach_wan ? 0 : h->wan_miss + 1;
+    if (!r.reach_wan && r.reach_udm && h->wan_miss < NET_WAN_MISS_STREAK)
+        r.reach_wan = true;
     h->rec = r;
     h->has_rec = true;
     h->state = NET_COL_LIVE;

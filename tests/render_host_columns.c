@@ -250,7 +250,7 @@ int main(int argc, char **argv) {
     lv_obj_t *w = host_columns_create(scr, 0, 0);
     const client_info_t *sel[HOSTCOLS_MAX];
     int dropped = 0;
-    int ns = hostcols_select(g_hosts, g_n, sel, want < HOSTCOLS_MAX ? want : HOSTCOLS_MAX,
+    int ns = hostcols_select(g_hosts, g_n, (double)time(NULL), sel, want < HOSTCOLS_MAX ? want : HOSTCOLS_MAX,
                              &dropped);
     static hc_host_t models[HOSTCOLS_MAX];
     double now = (double)time(NULL);
