@@ -7,7 +7,8 @@
  *
  *   ┌─────────────────────────────────────────────┐
  *   │  Host columns — Row 0, cols 0-5, 6×1 units  │
- *   │  (the whole row; sprint 030, WI #4543)      │
+ *   │  (the whole row; sprint 030, WI #4543), the │
+ *   │  weather filler in what they leave (034)    │
  *   ├──────────┬──────────┬───────────────────────┤
  *   │ 10G card │ NAS card │  (free)               │
  *   │  2×1     │  2×1     │                       │
@@ -38,10 +39,13 @@
 #include "widgets/net_card.h"
 #include "widgets/service_card.h"
 #include "widgets/status_bar.h"
+#include "widgets/weather_card.h"
+#include "wxstate.h"
 
 /* ---- Layout objects ---- */
 static lv_obj_t *g_screen = NULL;
 static lv_obj_t *g_host_columns = NULL; /* WI #4526: replaces the client card grid */
+static lv_obj_t *g_weather = NULL;      /* WI #4576: the filler in the hosts' spare columns */
 static lv_obj_t *g_netcard = NULL;
 static lv_obj_t *g_nascard = NULL; /* WI #3956 */
 static lv_obj_t *g_service_strip = NULL;  /* T013: footer Service-Strip container */
@@ -63,6 +67,24 @@ static void clear_bg(lv_obj_t *obj) {
     lv_obj_set_style_border_width(obj, 0, 0);
     lv_obj_set_style_pad_all(obj, 0, 0);
     lv_obj_clear_flag(obj, LV_OBJ_FLAG_SCROLLABLE);
+}
+
+/* WI #4576: the weather filler takes min(4, 10 - host columns) of the row,
+ * starting right after the hosts (centred in what is left when six or fewer
+ * report). Not drawn with no room, and not drawn before kdash:weather:home has
+ * ever published — like the NAS card. Position and visibility change only on
+ * a real transition, for the reason the NAS card's flag does (ui_refresh). */
+static void refresh_weather(int host_cols, double now) {
+    int n = wx_columns(host_cols);
+    bool hidden = lv_obj_has_flag(g_weather, LV_OBJ_FLAG_HIDDEN);
+    if (n == 0 || !wx_has_record()) {
+        if (!hidden) lv_obj_add_flag(g_weather, LV_OBJ_FLAG_HIDDEN);
+        return;
+    }
+    int32_t x = COL_X(0) + HOSTCOLS_X0 + wx_left(host_cols);
+    if (lv_obj_get_x(g_weather) != x) lv_obj_set_x(g_weather, x);
+    weather_card_update(g_weather, n, now);
+    if (hidden) lv_obj_clear_flag(g_weather, LV_OBJ_FLAG_HIDDEN);
 }
 
 /* WI #4524/#4525: snapshot the registry, pick and order the hosts that get a
@@ -89,6 +111,7 @@ static void refresh_host_columns(void) {
     for (int i = 0; i < ns; i++)
         hostcols_build(sel[i], now, &models[i]);
     host_columns_update(g_host_columns, models, ns);
+    refresh_weather(hostcols_used(ns), now);
 }
 
 /* ---- Public API ---- */
@@ -102,9 +125,15 @@ void ui_init(void) {
     static const int32_t status_bar_h = 40;
 
     /* ---- Host columns (WI #4526, widened by WI #4543): the whole of row 0.
-     * Columns to the right of the last host stay empty — what fills them is
-     * Ken's later call. ---- */
+     * The columns to the right of the last host take the weather filler
+     * (sprint 034). ---- */
     g_host_columns = host_columns_create(g_screen, COL_X(0), ROW_Y(0));
+
+    /* ---- The weather filler (WI #4576) over the columns the hosts leave.
+     * Created after the host columns so it draws above their background. ---- */
+    g_weather = weather_card_create(g_screen);
+    lv_obj_set_y(g_weather, ROW_Y(0) + HOSTCOLS_Y0);
+    lv_obj_add_flag(g_weather, LV_OBJ_FLAG_HIDDEN);
 
     /* ---- Row 1: the 10G card in columns 0-1, then the NAS card in columns
      * 2-3 (sprint 032). The NAS card is shown only once kdash:nas has

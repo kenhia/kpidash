@@ -6,11 +6,12 @@
 
 ## Now
 
-- **033 — NAS card restyle** (korg proposal 4567). The NAS card rebuilt to
-  "A · Rail" in mauve, the 10G card's skeleton in the NAS's own colour: a
-  state headline, eight disk tiles in Ken's order with a use label above each,
-  nothing under 20 px, the CPU/RAM chart dropped. Spec:
-  `planning/nas-card-mockups.html` (vA).
+- **034 — weather filler** (korg proposal 4577). Weather in the host row's
+  spare columns, "C · Range": current conditions, a low-to-high bar per
+  forecast day on one scale, the local day as a bar. 0-4 columns, from
+  kweather's `kdash:weather:home`. Spec: `planning/weather-mockups.html` (vC).
+- **033** (shipped). The NAS card rebuilt to "A · Rail" in mauve
+  (`planning/nas-card-mockups.html`, vA).
 - **030-032** (shipped). 030 widened the host columns across all of row 0
   (`planning/hosts-wide-mockups.html`); 031 gave them short OS names; 032
   removed the dev graphs, Fortune, Activities and Repo Status and fixed the
@@ -22,9 +23,6 @@
 
 - **What fills the free cells** — row 1 columns 4-5 and all of row 2 have
   been empty since sprint 032 removed the dev graphs. A later brainstorm.
-- **What fills the free host columns.** With seven hosts, three of row 0's ten
-  columns are empty (1111×596) since 030. A later brainstorm with Ken; he wants
-  something graphical there, not Fortune.
 - **Service card: kmon status with staleness alerting** (korg #902, M) — the
   card should distinguish "kmon says everything is fine" from "kmon has not
   said anything in a while", which currently look the same.

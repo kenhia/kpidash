@@ -47,6 +47,12 @@ static void test_plan_table(void) {
         CHECK(full + ccols <= HOSTCOLS_COLS);
         CHECK(full + compact == n);
     }
+    /* Sprint 034: the columns the hosts use, which is what the weather filler
+     * subtracts from ten. Up to ten hosts it is the host count; past ten the
+     * tiles fill the row. */
+    CHECK(hostcols_used(0) == 0 && hostcols_used(7) == 7 && hostcols_used(10) == 10);
+    for (int n = 11; n <= 40; n++)
+        CHECK(hostcols_used(n) == HOSTCOLS_COLS);
 }
 
 static client_info_t mk(const char *host) {

@@ -1,0 +1,322 @@
+<meta name="claude:viewport-fit-sides" content="cover">
+<title>kpidash Weather Filler</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;700&display=swap">
+<style>
+/* Same chrome as the other kpidash mock-up pages: one dark Mocha column, figures at real panel
+   pixels. Single dark look by choice, because the subject is a dark panel. */
+:root{
+  color-scheme:dark;
+  --crust:#11111B; --base:#1E1E2E; --s0:#313244; --s1:#45475A;
+  --muted:#6C7086; --sub:#A6ADC8; --fg:#CDD6F4;
+  --teal:#94E2D5; --lav:#B4BEFE; --peach:#FAB387; --yellow:#F9E2AF;
+  --font:"Montserrat",system-ui,-apple-system,"Segoe UI",sans-serif;
+}
+body{background:var(--crust);color:var(--fg);font-family:var(--font);font-size:16px;line-height:1.55;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:32px 80px}
+.wrap{max-width:1920px;margin:0 auto;display:flex;flex-direction:column;gap:48px}
+body.actual{padding-inline:0}
+body.actual .wrap{max-width:none}
+body.actual .wrap>*:not(#figsec){padding-inline:24px}
+body.actual .sechead,body.actual .vhead,body.actual .variant>p{padding-inline:24px}
+h1{font-size:40px;line-height:1.1;margin:0;color:var(--yellow);font-weight:700;text-wrap:balance}
+h2{font-size:28px;margin:0;font-weight:700;text-wrap:balance}
+h3{font-size:20px;margin:0;font-weight:700}
+p{margin:0;max-width:68ch;color:var(--sub)}
+p b,li b{color:var(--fg)}
+.lede{font-size:18px}
+header{display:flex;flex-direction:column;gap:14px}
+.bar{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--crust);padding-block:10px;
+  display:flex;flex-wrap:wrap;gap:10px 24px;align-items:center;border-bottom:1px solid var(--s0)}
+.seg{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.seg span{font-size:13px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-right:4px}
+button{font:inherit;font-size:14px;font-weight:700;color:var(--fg);background:var(--base);border:1px solid var(--s1);
+  border-radius:999px;padding:6px 14px;cursor:pointer}
+button[aria-pressed="true"]{background:var(--yellow);color:var(--crust);border-color:var(--yellow)}
+button:focus-visible{outline:2px solid var(--lav);outline-offset:2px}
+section{display:flex;flex-direction:column;gap:24px}
+.sechead{display:flex;flex-direction:column;gap:8px}
+#figs{display:flex;flex-direction:column;gap:40px}
+.variant{display:flex;flex-direction:column;gap:12px}
+.vhead{display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 16px}
+.tag{font-size:13px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--crust);background:var(--lav);
+  border-radius:999px;padding:2px 10px}
+.cap{font-size:14px;color:var(--muted)}
+.canvas{overflow-x:auto;max-width:100%}
+.canvas svg{display:block;max-width:100%;height:auto}
+body.actual .canvas svg{max-width:none}
+ul{margin:0;padding-left:20px;color:var(--sub);max-width:68ch}
+li{margin-block:4px}
+.open{border-left:3px solid var(--peach);padding-left:14px;display:flex;flex-direction:column;gap:8px}
+.how{border-left:3px solid var(--teal);padding-left:14px;display:flex;flex-direction:column;gap:8px}
+</style>
+
+<div class="wrap">
+<header>
+  <h1>Weather in the host row, three ways</h1>
+  <p class="lede">Drawn from <b>kdash-weather.schema.json</b> and nothing else: current conditions, today's four sun times and the daily forecast. Each candidate is shown where it would sit today, right of the seven host columns, and then at every width from four columns down to one.</p>
+  <div class="how">
+    <h3>To see it at the size it will be on the dashboard</h3>
+    <p>Open this page on cleo's monitor 2, press <b>Actual pixels</b>, and set the browser zoom to 50%.</p>
+  </div>
+</header>
+
+<div class="bar">
+  <div class="seg"><span>State</span>
+    <button id="st-day" aria-pressed="true">Cloudy afternoon</button>
+    <button id="st-night" aria-pressed="false">Clear night</button>
+    <button id="st-nws" aria-pressed="false">No current reading</button>
+    <button id="st-polar" aria-pressed="false">One day, no sunrise</button>
+    <button id="st-stale" aria-pressed="false">Stale</button></div>
+  <div class="seg"><span>Scale</span>
+    <button id="sc-fit" aria-pressed="true">Fit to page</button>
+    <button id="sc-actual" aria-pressed="false">Actual pixels</button></div>
+</div>
+
+<section id="figsec">
+  <div class="sechead">
+    <h2>Three candidates</h2>
+    <p>The host columns in the first figure of each pair are this afternoon's screen capture, so they do not change with the switches.</p>
+  </div>
+  <div id="figs"></div>
+</section>
+
+<section>
+  <div class="sechead"><h2>How the space works out</h2></div>
+  <ul>
+    <li><b>The row holds ten host-width columns.</b> A host column is 361 px wide on a 375 px pitch, and ten fit across the panel.</li>
+    <li><b>Weather takes what the hosts leave, up to four.</b> Seven hosts today leaves three. Eight leaves two, nine leaves one, ten leaves none and the weather is not drawn.</li>
+    <li><b>With six hosts or fewer</b> the four-column version is centred in what is left. Your formula is right: the left pad is half a column pitch for each host under six.</li>
+  </ul>
+</section>
+
+<section>
+  <div class="sechead"><h2>The same in all three</h2></div>
+  <ul>
+    <li><b>Colours:</b> yellow is the sun, peach is a high, blue is a low or rain. Nothing here uses teal, mauve or green, which already mean something on the panel.</li>
+    <li><b>A missing value is a dash.</b> The schema sends null when a provider has no reading. "No current reading" shows that case.</li>
+    <li><b>Stale after an hour</b> without a new record, as the schema suggests: the card goes grey and says how old the data is.</li>
+    <li><b>Nothing under 20 px.</b></li>
+  </ul>
+</section>
+
+<section>
+  <div class="sechead"><h2>Things to decide while you look</h2></div>
+  <div class="open">
+    <h3>The big temperature needs a new font size</h3>
+    <p>It is drawn at 96 px. The dashboard's largest font today is 48 px bold. A digits-only 96 px font (0-9, minus, degree sign, dash) is small to add.</p>
+  </div>
+  <div class="open">
+    <h3>The icons have to be built</h3>
+    <p>Nine conditions plus a moon. They are drawn here from circles, lines and one polygon so they can be made as small image files or drawn directly. Either way it is new work on the dashboard side.</p>
+  </div>
+  <div class="open">
+    <h3>What two columns should show</h3>
+    <p>At two columns there is room for the current conditions and one more thing. A shows three forecast days and drops the sun; B and C keep both in a smaller form.</p>
+  </div>
+</section>
+</div>
+
+<script>
+const C={crust:'#11111B',mantle:'#181825',base:'#1E1E2E',raise:'#222333',s0:'#313244',s1:'#45475A',muted:'#6C7086',ov:'#7F849C',sub:'#A6ADC8',fg:'#CDD6F4',
+  red:'#F38BA8',peach:'#FAB387',yellow:'#F9E2AF',blue:'#89B4FA',lav:'#B4BEFE'};
+let STATE='day';
+const P=375,CW=361,CH=596, wOf=n=>P*n-14;
+const TZ='America/Los_Angeles';
+
+const esc=s=>String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;');
+function T(x,y,s,o={}){return `<text x="${x}" y="${y}" font-size="${o.s||20}" font-weight="${o.w||400}" fill="${o.f||C.fg}" text-anchor="${o.a||'start'}"${o.ls?` letter-spacing="${o.ls}"`:''}>${esc(s)}</text>`}
+function TS(x,y,parts,a='start'){return `<text x="${x}" y="${y}" text-anchor="${a}" xml:space="preserve">`+parts.map(p=>`<tspan${p.dx?` dx="${p.dx}"`:''} font-size="${p.s||20}" font-weight="${p.w||400}" fill="${p.f||C.fg}">${esc(p.t)}</tspan>`).join('')+`</text>`}
+function R(x,y,w,h,f,o={}){return `<rect x="${x}" y="${y}" width="${Math.max(0,w)}" height="${Math.max(0,h)}" rx="${o.rx??0}" fill="${f}"${o.st?` stroke="${o.st}" stroke-width="${o.sw||1}"`:''}/>`}
+function L(x1,y1,x2,y2,c,sw=2,o=''){return `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${c}" stroke-width="${sw}" stroke-linecap="round" ${o}/>`}
+
+/* ---------- data: the schema's own examples, with the forecast filled out to eight days ---------- */
+const SUN={first_light:1794494179,sunrise:1794496173,sunset:1794530276,last_light:1794532269};
+const WEEK=[
+  {date:'2026-11-12',hi_f:61,lo_f:52,cond:'cloudy',pop_pct:33},{date:'2026-11-13',hi_f:59,lo_f:50,cond:'rain',pop_pct:77},
+  {date:'2026-11-14',hi_f:57,lo_f:51,cond:'thunder',pop_pct:null},{date:'2026-11-15',hi_f:55,lo_f:44,cond:'partly',pop_pct:20},
+  {date:'2026-11-16',hi_f:53,lo_f:39,cond:'clear',pop_pct:5},{date:'2026-11-17',hi_f:50,lo_f:38,cond:'fog',pop_pct:10},
+  {date:'2026-11-18',hi_f:52,lo_f:43,cond:'drizzle',pop_pct:45},{date:'2026-11-19',hi_f:41,lo_f:33,cond:'sleet',pop_pct:60}];
+const DATA={
+  day:{ts:1794528429.6,source:'open-meteo',age:'4 m ago',now:{temp_f:60.8,humidity_pct:63,feels_f:59.2,cond:'cloudy',is_day:true},sun:SUN,days:WEEK},
+  night:{ts:1794540000,source:'open-meteo',age:'7 m ago',now:{temp_f:48.2,humidity_pct:78,feels_f:46.0,cond:'clear',is_day:false},sun:SUN,days:WEEK},
+  nws:{ts:1794535000,source:'nws',age:'2 m ago',now:{temp_f:null,humidity_pct:null,feels_f:null,cond:null,is_day:false},sun:SUN,
+    days:[{date:'2026-11-12',hi_f:null,lo_f:52,cond:'rain',pop_pct:33},{date:'2026-11-13',hi_f:59,lo_f:null,cond:'rain',pop_pct:77}]},
+  polar:{ts:1797800000,source:'open-meteo',age:'9 m ago',now:{temp_f:-4.0,humidity_pct:80,feels_f:-18.5,cond:'snow',is_day:false},
+    sun:{first_light:null,sunrise:null,sunset:null,last_light:null},days:[{date:'2026-12-21',hi_f:-2,lo_f:-11,cond:'snow',pop_pct:60}]}};
+DATA.stale={...DATA.day,age:'STALE · 2 h',stale:true};
+
+const NAME={clear:'Clear',partly:'Partly cloudy',cloudy:'Cloudy',fog:'Fog',drizzle:'Drizzle',rain:'Rain',sleet:'Sleet',snow:'Snow',thunder:'Thunderstorm'};
+const deg=v=>v==null?'—':Math.round(v)+'°';
+const fmtT=ts=>ts==null?'—':new Date(ts*1000).toLocaleTimeString('en-US',{timeZone:TZ,hour:'numeric',minute:'2-digit'});
+function dayFrac(ts){const p=new Intl.DateTimeFormat('en-US',{timeZone:TZ,hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).formatToParts(new Date(ts*1000));
+  const g=k=>+p.find(q=>q.type===k).value;return (g('hour')*60+g('minute'))/1440}
+const wd=(d,i)=>i===0?'Today':new Date(d.date+'T12:00:00Z').toLocaleDateString('en-US',{weekday:'short',timeZone:'UTC'});
+function pal(d){const s=!!d.stale;return {s,fg:s?C.muted:C.fg,sub:s?C.muted:C.sub,mut:C.muted,hi:s?C.muted:C.peach,lo:s?C.muted:C.blue,sun:s?C.muted:C.yellow,
+  age:s?C.red:C.muted,ageW:s?700:400}}
+function sunF(d){const u=d.sun;if(u.sunrise==null)return null;const f=(d.ts-u.sunrise)/(u.sunset-u.sunrise);return f>=0&&f<=1?f:null}
+function daylight(d){const u=d.sun;if(u.sunrise==null)return 'no sunrise today';const m=Math.round((u.sunset-u.sunrise)/60);return Math.floor(m/60)+' h '+(m%60)+' m of daylight'}
+function feels(d){const n=d.now;return n.temp_f==null?'forecast only':'feels '+deg(n.feels_f)+' · '+n.humidity_pct+'% humidity'}
+const condName=d=>d.now.cond?NAME[d.now.cond]:'No current reading';
+
+/* ---------- icons: circles, lines and one polygon, so they can be drawn or pre-rendered ---------- */
+function icon(cond,isDay,cx,cy,s,st){
+  const sunC=st?C.muted:C.yellow, moonC=st?C.muted:C.lav, cl=st?C.s1:C.sub, cl2=st?C.s0:C.ov, bl=st?C.muted:C.blue, wh=st?C.muted:C.fg;
+  const sun=(x,y,r)=>{let o=`<circle cx="${x}" cy="${y}" r="${r}" fill="${sunC}"/>`;
+    for(let k=0;k<8;k++){const a=k*Math.PI/4;o+=L(x+Math.cos(a)*r*1.4,y+Math.sin(a)*r*1.4,x+Math.cos(a)*r*1.85,y+Math.sin(a)*r*1.85,sunC,r*.24)}return o};
+  const moon=(x,y,r)=>`<path d="M ${x+.34*r} ${y-.94*r} A ${r} ${r} 0 1 0 ${x+.94*r} ${y+.34*r} A ${.8*r} ${.8*r} 0 0 1 ${x+.34*r} ${y-.94*r} Z" fill="${moonC}"/>`;
+  const sky=(x,y,r)=>isDay?sun(x,y,r):moon(x,y,r*1.5);
+  const cloud=(x,y,w,f)=>`<circle cx="${x-.22*w}" cy="${y+.05*w}" r="${.2*w}" fill="${f}"/><circle cx="${x}" cy="${y-.08*w}" r="${.27*w}" fill="${f}"/><circle cx="${x+.24*w}" cy="${y+.04*w}" r="${.21*w}" fill="${f}"/>`+R(x-.42*w,y+.05*w,.87*w,.2*w,f,{rx:.1*w});
+  const drop=(x,y)=>L(x+.04*s,y,x-.04*s,y+.14*s,bl,s*.05);
+  const dot=(x,y,c)=>`<circle cx="${x}" cy="${y}" r="${s*.04}" fill="${c}"/>`;
+  const cw=.66*s, cyc=cy-.1*s, py=cy+.2*s, xs=[cx-.2*s,cx,cx+.2*s];
+  switch(cond){
+    case 'clear': return isDay?sun(cx,cy,.22*s):moon(cx,cy,.34*s);
+    case 'partly': return sky(cx+.17*s,cy-.14*s,.15*s)+cloud(cx-.05*s,cy+.08*s,.6*s,cl);
+    case 'cloudy': return cloud(cx+.13*s,cy-.12*s,.5*s,cl2)+cloud(cx-.05*s,cy+.06*s,.64*s,cl);
+    case 'fog': return cloud(cx,cy-.14*s,.6*s,cl)+[0,1,2].map(k=>L(cx-.3*s+(k%2)*.06*s,cy+.2*s+k*.11*s,cx+.3*s-((k+1)%2)*.06*s,cy+.2*s+k*.11*s,cl2,s*.05)).join('');
+    case 'drizzle': return cloud(cx,cyc,cw,cl)+xs.map((x,k)=>dot(x,py+(k%2)*.1*s+.04*s,bl)).join('');
+    case 'rain': return cloud(cx,cyc,cw,cl)+xs.map(x=>drop(x,py)).join('');
+    case 'sleet': return cloud(cx,cyc,cw,cl)+drop(xs[0],py)+dot(xs[1],py+.08*s,wh)+drop(xs[2],py);
+    case 'snow': return cloud(cx,cyc,cw,cl)+xs.map((x,k)=>dot(x,py+.03*s+(k%2)*.1*s,wh)).join('')+dot(cx-.1*s,py+.2*s,wh)+dot(cx+.1*s,py+.2*s,wh);
+    case 'thunder': return cloud(cx,cyc,cw,cl2)+`<polygon points="${cx+.04*s},${py-.04*s} ${cx-.1*s},${py+.14*s} ${cx-.01*s},${py+.14*s} ${cx-.06*s},${py+.3*s} ${cx+.12*s},${py+.08*s} ${cx+.02*s},${py+.08*s}" fill="${st?C.muted:C.yellow}"/>`;
+    default: return ''; /* no classification: the temperature's own dash says it */
+  }
+}
+function hilo(x,y,d,p,a='middle',s=24){return TS(x,y,[{t:deg(d.hi_f),s,w:700,f:p.hi},{t:deg(d.lo_f),s,w:700,f:p.lo,dx:12}],a)}
+
+/* ---------- A: Columns ---------- */
+function colBg(x){return R(x,0,CW,CH,C.raise,{rx:6,st:C.s0})+R(x,0,CW,4,C.lav,{rx:2})}
+function nowCol(x,d,p){
+  const cx=x+CW/2, t=d.days[0];
+  let s=colBg(x)+T(x+20,46,'home',{s:28,w:700,f:p.fg})+T(x+CW-20,44,d.age,{a:'end',f:p.age,w:p.ageW});
+  s+=icon(d.now.cond,d.now.is_day,cx,150,190,p.s);
+  s+=T(cx,342,deg(d.now.temp_f),{s:96,w:700,a:'middle',f:p.fg})+T(cx,386,condName(d),{s:28,w:700,a:'middle',f:p.fg})+T(cx,418,feels(d),{a:'middle',f:p.sub});
+  s+=L(x+20,448,x+CW-20,448,C.s0);
+  const cell=(k,l,v,f)=>T(x+20+k*110,486,l,{f:C.muted,ls:'.04em'})+T(x+20+k*110,536,v,{s:36,w:700,f});
+  s+=cell(0,'HIGH',deg(t.hi_f),p.hi)+cell(1,'LOW',deg(t.lo_f),p.lo)+cell(2,'RAIN',t.pop_pct==null?'—':t.pop_pct+'%',p.fg);
+  return s;
+}
+function sunCol(x,d,p){
+  const cx=x+CW/2, hy=290, r=140, f=sunF(d), u=d.sun;
+  let s=colBg(x)+T(x+20,46,'sun',{s:28,w:700,f:p.fg})+T(x+20,76,daylight(d),{f:p.sub});
+  s+=`<path d="M ${cx-r} ${hy} A ${r} ${r} 0 0 1 ${cx+r} ${hy}" fill="none" stroke="${C.s1}" stroke-width="4" stroke-dasharray="2 12" stroke-linecap="round"/>`;
+  if(f!=null){s+=`<path d="M ${cx-r} ${hy} A ${r} ${r} 0 0 1 ${cx+r} ${hy}" fill="none" stroke="${p.sun}" stroke-width="6" pathLength="100" stroke-dasharray="${(f*100).toFixed(1)} 200"/>`;
+    s+=`<circle cx="${cx-r*Math.cos(Math.PI*f)}" cy="${hy-r*Math.sin(Math.PI*f)}" r="20" fill="${p.sun}" stroke="${C.raise}" stroke-width="5"/>`}
+  else s+=icon('clear',false,cx,hy-70,110,p.s)+T(cx,hy-8,u.sunrise==null?'no sun today':'sun is down',{a:'middle',f:p.sub});
+  s+=L(x+20,hy,x+CW-20,hy,C.s1,3);
+  [['First light',u.first_light],['Sunrise',u.sunrise],['Sunset',u.sunset],['Last light',u.last_light]].forEach(([l,v],k)=>{
+    const y=350+k*56, main=k===1||k===2;
+    s+=T(x+20,y,l,{f:main?p.fg:p.sub,w:main?700:400,s:main?24:20})+T(x+CW-20,y,fmtT(v),{a:'end',s:main?28:24,w:700,f:main?p.sun:p.sub})});
+  return s;
+}
+function daysCol(x,d,p,from){
+  let s=colBg(x);
+  for(let k=0;k<3;k++){const day=d.days[from+k], y=6+k*197; if(!day)continue;
+    if(k)s+=L(x+20,y,x+CW-20,y,C.s0);
+    s+=T(x+20,y+44,wd(day,from+k),{s:28,w:700,f:p.fg})+T(x+20,y+76,NAME[day.cond]||'—',{f:p.sub});
+    s+=icon(day.cond,true,x+86,y+130,104,p.s);
+    s+=T(x+CW-20,y+52,deg(day.hi_f),{s:48,w:700,a:'end',f:p.hi})+T(x+CW-20,y+100,deg(day.lo_f),{s:36,w:700,a:'end',f:p.lo});
+    if(day.pop_pct!=null)s+=T(x+CW-20,y+160,'rain '+day.pop_pct+'%',{a:'end',f:day.pop_pct>=50?p.lo:p.sub,w:day.pop_pct>=50?700:400});
+  }
+  return s;
+}
+function vA(n,d){const p=pal(d);
+  if(n===1)return nowCol(0,d,p);
+  if(n===2)return nowCol(0,d,p)+daysCol(P,d,p,1);
+  if(n===3)return nowCol(0,d,p)+sunCol(P,d,p)+daysCol(2*P,d,p,1);
+  return nowCol(0,d,p)+sunCol(P,d,p)+daysCol(2*P,d,p,1)+daysCol(3*P,d,p,4);
+}
+
+/* ---------- B: Sky ---------- */
+function vB(n,d){
+  const p=pal(d), w=wOf(n), cx=w/2, hy=250, rx=n===1?140:(w-80)/2, ry=n===1?150:190, f=sunF(d), u=d.sun;
+  let s=R(0,0,w,CH,p.s?C.raise:d.now.is_day?'url(#skyDay)':'url(#skyNight)',{rx:6,st:C.s0});
+  s+=T(20,38,d.age,{f:p.age,w:p.ageW});
+  const arc=`M ${cx-rx} ${hy} A ${rx} ${ry} 0 0 1 ${cx+rx} ${hy}`;
+  s+=`<path d="${arc}" fill="none" stroke="${C.s1}" stroke-width="4" stroke-dasharray="2 12" stroke-linecap="round"/>`;
+  if(f!=null){s+=`<path d="${arc}" fill="none" stroke="${p.sun}" stroke-width="6" pathLength="100" stroke-dasharray="${(f*100).toFixed(1)} 200"/>`;
+    s+=`<circle cx="${cx-rx*Math.cos(Math.PI*f)}" cy="${hy-ry*Math.sin(Math.PI*f)}" r="22" fill="${p.sun}" stroke="${C.base}" stroke-width="5"/>`}
+  s+=L(20,hy,w-20,hy,C.s1,3);
+  s+=T(cx,n===1?222:212,deg(d.now.temp_f),{s:96,w:700,a:'middle',f:p.fg});
+  if(n===1){s+=T(20,282,fmtT(u.sunrise),{w:700,f:p.sun})+T(w-20,282,fmtT(u.sunset),{a:'end',w:700,f:p.sun})}
+  else{
+    s+=TS(cx-rx,284,[{t:fmtT(u.sunrise),s:24,w:700,f:p.sun},{t:'sunrise',dx:10,f:p.sub}])+TS(cx+rx,284,[{t:'sunset',f:p.sub},{t:fmtT(u.sunset),dx:10,s:24,w:700,f:p.sun}],'end');
+    s+=T(cx-rx,312,'first light '+fmtT(u.first_light),{f:C.muted})+T(cx+rx,312,'last light '+fmtT(u.last_light),{a:'end',f:C.muted});
+  }
+  s+=icon(d.now.cond,d.now.is_day,78,378,104,p.s)+T(146,372,n===1&&!d.now.cond?'No reading':condName(d),{s:n===1?24:28,w:700,f:p.fg})+T(146,402,n===1?(d.now.temp_f==null?'forecast only':'feels '+deg(d.now.feels_f)):feels(d),{f:p.sub});
+  if(n>1){const t=d.days[0];s+=TS(w-40,384,[{t:'today',f:p.sub},{t:deg(t.hi_f),dx:14,s:36,w:700,f:p.hi},{t:deg(t.lo_f),dx:14,s:36,w:700,f:p.lo}],'end')}
+  s+=L(20,436,w-20,436,C.s0);
+  const k=[0,2,4,6,8][n], cwid=(w-20)/k;
+  for(let i=0;i<k;i++){const day=d.days[i];if(!day)continue;const x=10+cwid*i+cwid/2;
+    s+=T(x,468,wd(day,i),{w:700,a:'middle',f:p.fg})+icon(day.cond,true,x,508,66,p.s)+hilo(x,574,day,p)}
+  return s;
+}
+
+/* ---------- C: Range ---------- */
+function vC(n,d){
+  const p=pal(d), w=wOf(n), u=d.sun, t0=d.days[0];
+  let s=R(0,0,w,CH,C.raise,{rx:6,st:C.s0})+R(0,0,w,4,C.lav,{rx:2})+T(20,40,d.age,{f:p.age,w:p.ageW});
+  const cx=CW/2;
+  s+=icon(d.now.cond,d.now.is_day,cx,130,170,p.s)+T(cx,300,deg(d.now.temp_f),{s:96,w:700,a:'middle',f:p.fg});
+  s+=T(cx,342,condName(d),{s:28,w:700,a:'middle',f:p.fg})+T(cx,374,feels(d),{a:'middle',f:p.sub});
+  if(n===1)s+=TS(cx,426,[{t:'today',f:p.sub},{t:deg(t0.hi_f),dx:14,s:36,w:700,f:p.hi},{t:deg(t0.lo_f),dx:14,s:36,w:700,f:p.lo}],'middle');
+  if(n>1){
+    const x0=P, rw=w-20-x0, k=[0,0,3,6,8][n], pitch=rw/k, shown=d.days.slice(0,k);
+    const vals=shown.flatMap(q=>[q.hi_f,q.lo_f]).filter(v=>v!=null), tmin=Math.min(...vals), tmax=Math.max(...vals), yT=156, yB=330;
+    const yOf=v=>yB-(v-tmin)/((tmax-tmin)||1)*(yB-yT);
+    s+=L(x0-8,24,x0-8,440,C.s0);
+    shown.forEach((day,i)=>{const x=x0+pitch*i+pitch/2;
+      s+=icon(day.cond,true,x,54,70,p.s);
+      const yh=day.hi_f==null?null:yOf(day.hi_f), yl=day.lo_f==null?null:yOf(day.lo_f);
+      if(yh!=null&&yl!=null)s+=R(x-15,yh-15,30,yl-yh+30,p.s?C.s1:'url(#range)',{rx:15});
+      else s+=`<circle cx="${x}" cy="${yh??yl}" r="15" fill="${p.s?C.s1:yh!=null?C.peach:C.blue}"/>`;
+      if(yh!=null)s+=T(x,yh-26,deg(day.hi_f),{s:24,w:700,a:'middle',f:p.hi});
+      if(yl!=null)s+=T(x,yl+44,deg(day.lo_f),{s:24,w:700,a:'middle',f:p.lo});
+      s+=T(x,410,wd(day,i),{w:700,a:'middle',f:p.fg});
+      if(day.pop_pct!=null)s+=T(x,438,day.pop_pct+'%',{a:'middle',f:day.pop_pct>=50?p.lo:C.muted,w:day.pop_pct>=50?700:400});
+    });
+  }
+  /* daylight bar: midnight to midnight, twilight dim, daylight yellow, a marker for now */
+  const bx=20, bw=w-40, by=506, X=fr=>bx+bw*fr;
+  s+=R(bx,by,bw,20,C.s0,{rx:10});
+  if(u.sunrise!=null){
+    const a=dayFrac(u.first_light), b=dayFrac(u.sunrise), c=dayFrac(u.sunset), e=dayFrac(u.last_light);
+    s+=R(X(a),by,X(e)-X(a),20,p.s?C.s1:'#857C6C',{rx:10})+R(X(b),by,X(c)-X(b),20,p.sun,{rx:10});
+    s+=T(X(b),by-14,fmtT(u.sunrise),{a:'middle',w:700,f:p.sun})+T(X(c),by-14,fmtT(u.sunset),{a:'middle',w:700,f:p.sun});
+    if(n>1)s+=T(X(a),by+52,'first light '+fmtT(u.first_light),{a:'middle',f:C.muted})+T(X(e),by+52,'last light '+fmtT(u.last_light),{a:'middle',f:C.muted});
+    else s+=T(w/2,by+52,daylight(d),{a:'middle',f:C.muted});
+  } else s+=T(w/2,by-14,'no sunrise today',{a:'middle',f:p.sub});
+  s+=`<circle cx="${X(dayFrac(d.ts))}" cy="${by+10}" r="13" fill="${p.fg}" stroke="${C.raise}" stroke-width="5"/>`;
+  return s;
+}
+
+const VARIANTS=[
+  {k:'A',name:'Columns',fn:vA,note:'Built like the hosts beside it: one column for now, one for the sun, then three forecast days to a column. Each column is the same width as a host, so it trims by dropping whole columns.'},
+  {k:'B',name:'Sky',fn:vB,note:'One panel. The sun’s path for the day runs across the top with the sun on it, the temperature sits under the arc, and the forecast is a strip along the bottom. The background is a darker blue at night.'},
+  {k:'C',name:'Range',fn:vC,note:'Now on the left; the forecast as a bar per day from low to high on one temperature scale, so a warm or cold spell shows as a shape. Along the bottom, the day from midnight to midnight with daylight in yellow and a marker for now.'}];
+
+const DEFS=`<defs><linearGradient id="skyDay" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#26324F"/><stop offset=".45" stop-color="#222333"/></linearGradient>
+<linearGradient id="skyNight" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#14141F"/><stop offset=".45" stop-color="#1B1B29"/></linearGradient>
+<linearGradient id="range" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${C.peach}"/><stop offset="1" stop-color="${C.blue}"/></linearGradient></defs>`;
+function svg(inner,label){return `<svg xmlns="http://www.w3.org/2000/svg" width="3840" height="628" viewBox="0 0 3840 628" font-family="Montserrat, system-ui, sans-serif" role="img" aria-label="${esc(label)}">${DEFS}${inner}</svg>`}
+function render(){
+  const d=DATA[STATE];let h='';
+  for(const v of VARIANTS){
+    const ctx=`<image href="row1.png" x="0" y="0" width="3840" height="628"/><g transform="translate(2678 16)">${v.fn(3,d)}</g>`;
+    let x=13, all=R(0,0,3840,628,C.crust)+R(0,6,3840,616,C.base);
+    for(const n of [4,3,2,1]){all+=`<g transform="translate(${x} 16)">${v.fn(n,d)}</g>`;x+=wOf(n)+40}
+    h+=`<div class="variant"><div class="vhead"><span class="tag">${v.k}</span><h3>${v.name}</h3></div><p>${v.note}</p>
+      <div class="cap">In place today: seven host columns, then three columns of weather.</div><div class="canvas">${svg(ctx,'Row 1 with weather candidate '+v.k+' at three columns')}</div>
+      <div class="cap">Left to right: four, three, two and one column.</div><div class="canvas">${svg(all,'Weather candidate '+v.k+' at four, three, two and one column')}</div></div>`;
+  }
+  document.getElementById('figs').innerHTML=h;
+}
+function group(prefix,keys,apply){
+  keys.forEach(k=>document.getElementById(prefix+k).addEventListener('click',()=>{
+    keys.forEach(j=>document.getElementById(prefix+j).setAttribute('aria-pressed',String(j===k)));apply(k)}));
+}
+group('st-',['day','night','nws','polar','stale'],k=>{STATE=k;render()});
+group('sc-',['fit','actual'],k=>document.body.classList.toggle('actual',k==='actual'));
+if(location.hash==='#actual')document.getElementById('sc-actual').click();
+render();
+</script>

@@ -1,0 +1,68 @@
+{
+  "days": [
+    {
+      "cond": "cloudy",
+      "date": "2026-11-12",
+      "hi_f": 64,
+      "lo_f": 50,
+      "pop_pct": 23
+    },
+    {
+      "cond": "rain",
+      "date": "2026-11-13",
+      "hi_f": 61,
+      "lo_f": 48,
+      "pop_pct": 74
+    },
+    {
+      "cond": "rain",
+      "date": "2026-11-14",
+      "hi_f": 57,
+      "lo_f": 49,
+      "pop_pct": 100
+    },
+    {
+      "cond": "rain",
+      "date": "2026-11-15",
+      "hi_f": 55,
+      "lo_f": 44,
+      "pop_pct": 100
+    },
+    {
+      "cond": "rain",
+      "date": "2026-11-16",
+      "hi_f": 53,
+      "lo_f": 41,
+      "pop_pct": 50
+    },
+    {
+      "cond": "cloudy",
+      "date": "2026-11-17",
+      "hi_f": 53,
+      "lo_f": 38,
+      "pop_pct": 18
+    },
+    {
+      "cond": "rain",
+      "date": "2026-11-18",
+      "hi_f": 52,
+      "lo_f": 38,
+      "pop_pct": 18
+    }
+  ],
+  "now": {
+    "cond": "cloudy",
+    "feels_f": 56.0,
+    "humidity_pct": 87,
+    "is_day": false,
+    "temp_f": 56.0
+  },
+  "source": "nws",
+  "sun": {
+    "first_light": 1794494155,
+    "last_light": 1794532207,
+    "sunrise": 1794496155,
+    "sunset": 1794530207
+  },
+  "ts": 1794530513.4
+}

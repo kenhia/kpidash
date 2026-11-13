@@ -179,7 +179,8 @@ that feed it: `kpidash-client` (the telemetry daemon + CLI) and `kpidash-mcp`
   017 read the deploy output.
   - `just check-release` compiles at `-O2 -Werror`, but **only what TESTS_ONLY
     compiles**: `config.c`, `redis.c`, `registry.c`, `hosthist.c`, `hostcols.c`,
-    `icons.c`, `memstat.c`.
+    `icons.c`, `admitted.c`, `logfilter.c`, `netstate.c`, `nasstate.c`,
+    `wxstate.c` (`memstat.c` links only into the LVGL leak test).
     Worth knowing why that is not enough: neither of the two warnings it was
     written in response to was in those files, so on its own it could not have
     caught them. It is in `just check` because it is cheap and needs no LVGL.

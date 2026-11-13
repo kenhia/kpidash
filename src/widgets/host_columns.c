@@ -22,8 +22,8 @@
 #define HC_H UNIT_H      /* 628 */
 #define HC_CW 361        /* column width */
 #define HC_GAP 14
-#define HC_X0 28
-#define HC_Y0 16
+#define HC_X0 HOSTCOLS_X0
+#define HC_Y0 HOSTCOLS_Y0
 #define HC_CH 596                                   /* column height */
 #define HC_TH ((HC_CH - 2 * HC_GAP) / HOSTCOLS_PER) /* tile height, 189 */
 #define SLOT_X(col) (HC_X0 - CELL_PAD + (col) * (HC_CW + HC_GAP))

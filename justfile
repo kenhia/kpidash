@@ -44,8 +44,9 @@ check-dashboard: _kdash
 #
 # -Werror is safe to demand here precisely because this pass is scoped to what
 # TESTS_ONLY compiles. COVERAGE IS PARTIAL AND DELIBERATELY SO: it covers
-# config.c, redis.c, registry.c, hosthist.c, hostcols.c, icons.c and memstat.c
-# — every source the unit tests link — and NOT the dashboard-only sources
+# config.c, redis.c, registry.c, hosthist.c, hostcols.c, icons.c, admitted.c,
+# logfilter.c, netstate.c, nasstate.c and wxstate.c — every source the unit
+# tests link — and NOT the dashboard-only sources
 # (main.c, ui.c, screenshot.c,
 # src/widgets/*), which need LVGL and libpng and so cannot be
 # compiled on a bare dev host. Those stay covered by the deploy's own Release
