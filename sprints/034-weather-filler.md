@@ -117,3 +117,33 @@ The live krpidss capture of row 0 and the panel CPU check (sprint 033
 measured 5.7 % of one core with the rings full) can only be taken once this is
 deployed to rpi53. With seven hosts reporting, the card should be at three
 columns.
+
+## Deployed
+
+Deployed 2026-11-12 at about 16:58 PST from kai. This was the ship turn, after
+the overseer's clearance (korg:4577 comment 4621). The release is squash merge
+`3a9bf39` (PR #37).
+
+- **rpi53:** `scripts/deploy.sh` ran from merged `main`. The service is
+  active with `NRestarts=0` and reports `3a9bf39 (2026-11-13)`. The aarch64
+  build and link printed no warnings (`.scratch/deploy-034-ship.log`,
+  grepped). The journal shows no warnings since the restart.
+- **Live capture** (`.scratch/live-034-ship.png`, row 0 cropped to
+  `live-034-row1.png`): the filler is at three columns, right of the seven
+  host columns and aligned to their pitch. It draws a newer kweather record
+  than the fixture: cloudy 56°, six forecast days with drizzle, rain and
+  clear icons, the range bars on one scale, and the day bar with the marker
+  just after sunset. It matches vC and the offline renders.
+- **CPU, % of one core, measured on rpi53 from `/proc/<pid>/stat` ticks over
+  60 s:**
+  - Before the deploy, on the 033 build (up 77 min): 361 ticks, **6.0 %**.
+  - After, with the rings full (up 11 min): 361 and 382 ticks, **6.0 %** and
+    **6.4 %**.
+
+  The bar was 6.7 % (033's 5.7 % plus a point). It held, and the change is
+  within the spread of the same build measured twice.
+- **Memory:** the panel's own memory ring (`kpidash:system:mem:ring`) shows
+  RSS at 70.9 MB until about 12 minutes of uptime, then 104 MB. The 033
+  build had the same 104 MB at 77 minutes, so the step happens in both builds
+  and is not this sprint's.
+- `kdash:weather:home` was only read, never written.
