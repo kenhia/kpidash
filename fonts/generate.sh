@@ -58,7 +58,8 @@ echo "Done. Generated ${#SIZES[@]} font files."
 
 # Sprint 034 (WI #4576): the weather filler's 96 px temperature. Digits,
 # minus, degree and em dash (the null reading) only: a full face at 96 px
-# would be most of a megabyte for characters the card never draws.
+# would be most of a megabyte for characters the card never draws. Sprint 040
+# (WI #4665) added the colon for the calendar card's 24-hour HH:MM clock.
 echo "Generating lv_font_montserrat_bold_96_digits.c ..."
 npx lv_font_conv \
     --bpp "${BPP}" \
@@ -66,7 +67,7 @@ npx lv_font_conv \
     --format lvgl \
     --no-compress \
     --no-prefilter \
-    --font "${BOLD_TTF}" -r 0x30-0x39,0x2D,0xB0,0x2014 \
+    --font "${BOLD_TTF}" -r 0x30-0x3A,0x2D,0xB0,0x2014 \
     -o "lv_font_montserrat_bold_96_digits.c" \
     --lv-font-name "lv_font_montserrat_bold_96_digits"
 

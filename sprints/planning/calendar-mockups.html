@@ -1,0 +1,271 @@
+<meta name="claude:viewport-fit-sides" content="cover">
+<title>kpidash Calendar Card</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;700&display=swap">
+<style>
+/* Same chrome as the other kpidash mock-up pages: one dark Mocha column, figures at real panel
+   pixels. Single dark look by choice, because the subject is a dark panel. */
+:root{
+  color-scheme:dark;
+  --crust:#11111B; --base:#1E1E2E; --s0:#313244; --s1:#45475A;
+  --muted:#6C7086; --sub:#A6ADC8; --fg:#CDD6F4;
+  --teal:#94E2D5; --lav:#B4BEFE; --peach:#FAB387; --yellow:#F9E2AF; --blue:#89B4FA;
+  --font:"Montserrat",system-ui,-apple-system,"Segoe UI",sans-serif;
+}
+body{background:var(--crust);color:var(--fg);font-family:var(--font);font-size:16px;line-height:1.55;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:32px 80px}
+.wrap{max-width:1920px;margin:0 auto;display:flex;flex-direction:column;gap:48px}
+body.actual{padding-inline:0}
+body.actual .wrap{max-width:none}
+body.actual .wrap>*:not(.figsec){padding-inline:24px}
+body.actual .sechead,body.actual .vhead,body.actual .variant>p{padding-inline:24px}
+h1{font-size:40px;line-height:1.1;margin:0;color:var(--yellow);font-weight:700;text-wrap:balance}
+h2{font-size:28px;margin:0;font-weight:700;text-wrap:balance}
+h3{font-size:20px;margin:0;font-weight:700}
+p{margin:0;max-width:68ch;color:var(--sub)}
+p b,li b{color:var(--fg)}
+.lede{font-size:18px}
+header{display:flex;flex-direction:column;gap:14px}
+.bar{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--crust);padding-block:10px;
+  display:flex;flex-wrap:wrap;gap:10px 24px;align-items:center;border-bottom:1px solid var(--s0)}
+.seg{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.seg span{font-size:13px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-right:4px}
+button{font:inherit;font-size:14px;font-weight:700;color:var(--fg);background:var(--base);border:1px solid var(--s1);
+  border-radius:999px;padding:6px 14px;cursor:pointer}
+button[aria-pressed="true"]{background:var(--yellow);color:var(--crust);border-color:var(--yellow)}
+button:focus-visible{outline:2px solid var(--lav);outline-offset:2px}
+section{display:flex;flex-direction:column;gap:24px}
+.sechead{display:flex;flex-direction:column;gap:8px}
+#cards{display:flex;flex-wrap:wrap;gap:40px 32px}
+.variant{display:flex;flex-direction:column;gap:12px;min-width:0}
+.vhead{display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 16px}
+.tag{font-size:13px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--crust);background:var(--blue);
+  border-radius:999px;padding:2px 10px}
+.cap{font-size:14px;color:var(--muted)}
+.variant>p{max-width:600px;font-size:15px}
+.canvas{overflow-x:auto;max-width:100%}
+.canvas svg{display:block;max-width:100%;height:auto}
+body.actual .canvas svg{max-width:none}
+body.actual #cards{gap:40px 0}
+ul{margin:0;padding-left:20px;color:var(--sub);max-width:68ch}
+li{margin-block:4px}
+.open{border-left:3px solid var(--peach);padding-left:14px;display:flex;flex-direction:column;gap:8px}
+.how{border-left:3px solid var(--teal);padding-left:14px;display:flex;flex-direction:column;gap:8px}
+code{font-family:ui-monospace,Consolas,monospace;font-size:14px;color:var(--fg)}
+pre{margin:0;background:var(--base);border-radius:10px;padding:14px 16px;overflow-x:auto;max-width:68ch}
+</style>
+
+<div class="wrap">
+<header>
+  <h1>Time and calendar for row 3</h1>
+  <p class="lede">Four ways to draw it, with this month's real tags: the 25th and 27th as days off, the 26th as a holiday, and the 27th also as Lynn's birthday. Veterans Day on the 11th is there too, because the holidays are worked out by rule.</p>
+  <div class="how">
+    <h3>To see it at the size it will be on the dashboard</h3>
+    <p>Open this page on cleo's monitor 2, press <b>Actual pixels</b>, and set the browser zoom to 50%.</p>
+  </div>
+</header>
+
+<div class="bar">
+  <div class="seg"><span>Day</span>
+    <button id="st-now" aria-pressed="true">Today, the 13th</button>
+    <button id="st-27" aria-pressed="false">On the 27th</button>
+    <button id="st-six" aria-pressed="false">A six-week month</button></div>
+  <div class="seg"><span>In place</span>
+    <button id="pl-0" aria-pressed="true">A</button>
+    <button id="pl-1" aria-pressed="false">B</button>
+    <button id="pl-2" aria-pressed="false">C</button>
+    <button id="pl-3" aria-pressed="false">D</button></div>
+  <div class="seg"><span>Scale</span>
+    <button id="sc-fit" aria-pressed="true">Fit to page</button>
+    <button id="sc-actual" aria-pressed="false">Actual pixels</button></div>
+</div>
+
+<section class="figsec">
+  <div class="sechead">
+    <h2>In place</h2>
+    <p>Row 3 with the chosen card at its right end. The rest of the row is still free.</p>
+  </div>
+  <div class="canvas" id="inplace"></div>
+</section>
+
+<section class="figsec">
+  <div class="sechead"><h2>The four cards</h2></div>
+  <div id="cards"></div>
+</section>
+
+<section>
+  <div class="sechead"><h2>How a day is marked</h2></div>
+  <ul>
+    <li><b>Day off:</b> a blue-tinted background. Weekends get a plain grey one, so a weekday off stands out from a Saturday.</li>
+    <li><b>Holiday:</b> the number in rose.</li>
+    <li><b>Special day:</b> a yellow ring round the date. A birthday is the example; anything you tag as special gets it.</li>
+    <li><b>Today:</b> a solid blue cell with dark text. It keeps its ring if it is also a special day.</li>
+    <li><b>They stack.</b> The 27th is a day off and a birthday, so it has the tint and the ring. Card C marks the same three things with a bar, a colour and a dot, for comparison.</li>
+    <li><b>Days gone by</b> are dimmed, so the eye lands on what is ahead.</li>
+  </ul>
+</section>
+
+<section>
+  <div class="sechead"><h2>Where the tagged days come from</h2></div>
+  <div class="open">
+    <h3>Holidays: worked out by rule, no yearly chore</h3>
+    <p>US federal holidays are all "a fixed date" or "the nth weekday of a month", so a few lines of date arithmetic give every year's list. Nothing to generate each January, and nothing to go stale. A holiday you do not want shown, or one that is not federal, goes in the list below.</p>
+  </div>
+  <div class="open">
+    <h3>Your days: one small list, one Redis record</h3>
+    <p>Days off and special days live in one plain file, one line per entry, with a yearly flag for birthdays so Lynn's is entered once. A small publisher merges that list with the computed holidays and writes one record to the dashboard's Redis. Asking an agent to "add the 27th as a day off" is then a one-line edit.</p>
+<pre><code>2026-11-25  off
+2026-11-27  off
+11-27       special  Lynn's birthday   # no year: repeats</code></pre>
+    <p>Where that file lives is the open choice. My pick is korg, as a small list it serves over its API, because you already reach korg from every machine and from your phone through the gate. The alternative is a file in a repo on kai.</p>
+  </div>
+  <div class="open">
+    <h3>The panel draws the month itself</h3>
+    <p>The card works out the grid from the clock on the Pi and only reads the tagged days from Redis. If the record is missing, the calendar still shows, just with no tags.</p>
+  </div>
+</section>
+
+<section>
+  <div class="sechead"><h2>Things to know before picking</h2></div>
+  <ul>
+    <li><b>The clock shows hours and minutes only.</b> No seconds and no blinking colon, so nothing on the card moves more than once a minute.</li>
+    <li><b>The big clock needs a colon added to the 96 px digits font.</b> That font was built for weather with digits only. Card D uses a size the dashboard already has.</li>
+    <li><b>Six-week months fit.</b> The rows get shorter; press "A six-week month" to see August 2026. The August tags are made up for the picture.</li>
+    <li><b>Card B's cell labels are short.</b> "Lynn", not "Lynn's birthday", so each tag carries an optional short name.</li>
+    <li><b>Colour:</b> blue is new on this dashboard and is this card's accent. Rose and yellow are used here for holiday and special, not as warnings.</li>
+  </ul>
+</section>
+</div>
+
+<script>
+const C={crust:'#11111B',base:'#1E1E2E',mantle:'#181825',s0:'#313244',s1:'#45475A',muted:'#6C7086',sub:'#A6ADC8',fg:'#CDD6F4',
+  blue:'#89B4FA',rose:'#EBA0AC',yellow:'#F9E2AF',lav:'#B4BEFE'};
+const F='Montserrat,sans-serif';
+const esc=s=>String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;');
+const T=(x,y,s,sz,fill,o={})=>`<text x="${x}" y="${y}" font-family="${F}" font-size="${sz}" font-weight="${o.b?700:400}" fill="${fill}"${o.a?` text-anchor="${o.a}"`:''}${o.ls?` letter-spacing="${o.ls}"`:''}>${esc(s)}</text>`;
+const R=(x,y,w,h,r,fill,o={})=>`<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="${r}" fill="${fill}"${o.s?` stroke="${o.s}" stroke-width="${o.sw||3}"`:''}/>`;
+function mix(a,b,t){const p=h=>[1,3,5].map(i=>parseInt(h.slice(i,i+2),16));const A=p(a),B=p(b);
+  return '#'+A.map((v,i)=>Math.round(v*t+B[i]*(1-t)).toString(16).padStart(2,'0')).join('');}
+const OFFBG=mix(C.blue,C.base,.30), WKBG=mix(C.s0,C.base,.75), CELL=mix(C.s0,C.base,.22);
+const MON=['January','February','March','April','May','June','July','August','September','October','November','December'];
+const DOW=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+const D3=DOW.map(d=>d.slice(0,3));
+
+/* tagged days per month: day -> {off, hol, sp, short} */
+const NOV={11:{hol:'Veterans Day',short:'Veterans'},25:{off:1},26:{hol:'Thanksgiving',short:'Thanksgiving'},27:{off:1,sp:"Lynn's birthday",short:'Lynn'}};
+const AUG={20:{off:1},21:{off:1},28:{sp:'Example day',short:'Example'}};
+const S={
+  /* 24-hour time, zero-padded, no AM/PM (Ken, 2026-11-14) */
+  now:{y:2026,m:10,d:13,time:'18:42',ap:'',tags:NOV},
+  d27:{y:2026,m:10,d:27,time:'09:15',ap:'',tags:NOV},
+  six:{y:2026,m:7,d:14,time:'18:42',ap:'',tags:AUG}};
+let state='now', place=0;
+
+function month(s){const first=new Date(s.y,s.m,1).getDay(), n=new Date(s.y,s.m+1,0).getDate();
+  const rows=Math.ceil((first+n)/7); return {first,n,rows};}
+function upcoming(s,max){const out=[];const {n}=month(s);
+  for(let d=s.d;d<=n&&out.length<max;d++){const t=s.tags[d]; if(!t) continue;
+    const dow=D3[new Date(s.y,s.m,d).getDay()];
+    out.push({d,dow,t,label:t.sp||t.hol||'day off',when:d===s.d?'today':d===s.d+1?'tomorrow':`in ${d-s.d} days`});}
+  return out;}
+
+/* one date cell. style 'fill' = Ken's encoding (background, colour, ring); 'mark' = bar, colour, dot */
+function cell(s,d,x,y,w,h,o){const t=s.tags[d]||{}, dow=new Date(s.y,s.m,d).getDay(), wk=dow===0||dow===6;
+  const today=d===s.d, past=d<s.d; const sz=o.sz||36; let out='';
+  let bg=CELL, num=past?C.muted:C.fg;
+  if(o.style==='fill'){ if(wk) bg=WKBG; if(t.off) bg=OFFBG; }
+  else { if(wk) num=past?C.s1:C.muted; }
+  if(t.hol) num=past?mix(C.rose,C.base,.55):C.rose;
+  if(today){bg=C.blue; num=C.crust;}
+  const ring=o.style==='fill'&&t.sp;
+  out+=R(x,y,w,h,10,bg,ring?{s:C.yellow,sw:4}:{});
+  const bold=today||t.off||t.hol||t.sp;
+  if(o.labels){
+    out+=T(x+14,y+sz+4,d,sz,num,{b:bold});
+    const lab=t.short||(t.off?'day off':'');
+    if(lab) out+=T(x+14,y+h-12,lab,20,today?C.crust:t.sp?C.yellow:t.hol?C.rose:C.sub,{b:1});
+    if(t.sp&&t.off) out+=T(x+w-12,y+sz-2,'off',20,today?C.crust:C.sub,{a:'end'});
+  } else {
+    out+=T(x+w/2,y+h/2+sz*.36,d,sz,num,{b:bold,a:'middle'});
+    if(o.style==='mark'&&!o.chip){
+      if(t.off) out+=R(x+w/2-22,y+h-16,44,6,3,today?C.crust:C.blue);
+      if(t.sp) out+=`<circle cx="${x+w-16}" cy="${y+16}" r="7" fill="${C.yellow}"/>`;
+    }
+  }
+  return out;}
+
+function grid(s,x,y,w,h,o){const {first,n,rows}=month(s); const g=6, cw=(w-6*g)/7, ch=(h-(rows-1)*g)/rows; let out='';
+  for(let i=0;i<7;i++) out+=T(x+i*(cw+g)+(o.labels?14:cw/2),y-12,o.names?D3[i].toUpperCase():D3[i][0],20,C.muted,{b:1,a:o.labels?undefined:'middle',ls:1});
+  for(let d=1;d<=n;d++){const k=first+d-1; out+=cell(s,d,x+(k%7)*(cw+g),y+Math.floor(k/7)*(ch+g),cw,ch,o);}
+  return out;}
+
+const shell=(w,h,inner)=>R(4,4,w-8,h-8,18,C.base)+inner;
+const svg=(w,h,inner)=>`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${w} ${h}" width="${w}" height="${h}" role="img">${R(0,0,w,h,0,C.crust)}${inner}</svg>`;
+
+/* time and AM/PM as one text run, so the suffix sits right after the digits whatever their width */
+const clock=(x,y,s,sz,ap)=>`<text x="${x}" y="${y}" font-family="${F}"><tspan font-size="${sz}" font-weight="700" fill="${C.fg}">${s.time}</tspan><tspan dx="${Math.round(sz*.16)}" font-size="${ap}" fill="${C.sub}">${s.ap}</tspan></text>`;
+/* chip in the coming-up list, drawn in the same encoding as its cell (marks left off: too small to carry them) */
+function chip(s,u,x,y,style){return cell(s,u.d,x,y,64,48,{style,sz:28,chip:1});}
+
+function sideClock(s,style){let o='';
+  o+=clock(36,138,s,96,36);
+  const dt=new Date(s.y,s.m,s.d);
+  o+=T(36,200,DOW[dt.getDay()],36,C.blue,{b:1});
+  o+=T(36,246,`${MON[s.m]} ${s.d}`,36,C.fg);
+  o+=`<line x1="36" y1="282" x2="430" y2="282" stroke="${C.s0}" stroke-width="2"/>`;
+  o+=T(36,326,'COMING UP',20,C.muted,{b:1,ls:2});
+  const up=upcoming(s,4);
+  if(!up.length) o+=T(36,376,'nothing tagged this month',24,C.muted);
+  up.forEach((u,i)=>{const y=346+i*62; o+=chip(s,u,36,y,style);
+    o+=T(116,y+22,u.label,24,C.fg,{b:1})+T(116,y+46,`${u.dow} · ${u.when}`,20,C.sub);});
+  return o;}
+
+function cardA(s){let o=sideClock(s,'fill');
+  o+=T(480,62,`${MON[s.m]} ${s.y}`,28,C.blue,{b:1});
+  o+=grid(s,480,112,748,484,{style:'fill'});
+  return shell(1264,628,o);}
+function cardC(s){let o=sideClock(s,'mark');
+  o+=T(480,62,`${MON[s.m]} ${s.y}`,28,C.blue,{b:1});
+  o+=grid(s,480,112,748,484,{style:'mark'});
+  return shell(1264,628,o);}
+function cardB(s){let o='';const dt=new Date(s.y,s.m,s.d);
+  o+=T(36,68,`${MON[s.m]} ${s.y}`,36,C.blue,{b:1});
+  o+=T(1228,68,`${D3[dt.getDay()]} ${s.d} · ${s.time} ${s.ap}`,36,C.fg,{b:1,a:'end'});
+  o+=grid(s,36,124,1192,472,{style:'fill',labels:1,names:1});
+  return shell(1264,628,o);}
+function cardD(s){let o='';const dt=new Date(s.y,s.m,s.d);
+  o+=clock(36,78,s,48,24);
+  o+=T(596,54,DOW[dt.getDay()],24,C.blue,{b:1,a:'end'})+T(596,84,`${MON[s.m]} ${s.d}`,24,C.fg,{a:'end'});
+  o+=grid(s,36,136,560,400,{style:'fill',sz:28});
+  const up=upcoming(s,2);
+  const line=up.length?up.map(u=>`${u.dow} ${u.d} ${u.t.short||u.label}`).join('   ·   '):'nothing tagged this month';
+  o+=T(36,584,line,20,C.sub,{b:up.length?1:0});
+  return shell(632,628,o);}
+
+const CARDS=[
+ ['A','Clock and month',1264,'A big clock and today\'s date on the left with the next tagged days listed by name. The month on the right, marked your way: tint for a day off, rose number for a holiday, yellow ring for a special day.',cardA],
+ ['B','Labels in the cells',1264,'The month takes the whole card and each tagged cell says what it is. The clock shrinks to one line in the corner. Best if the calendar matters more than the time.',cardB],
+ ['C','Marks, not fills',1264,'Same layout as A with a quieter encoding: a blue bar under a day off, a rose number for a holiday, a yellow dot for a special day. Weekends are just dimmer numbers.',cardC],
+ ['D','One cell',632,'Everything in a single 1×1: a smaller clock, the month, and the next two tagged days on one line. Leaves five cells of row 3 free instead of four.',cardD]];
+
+function render(){const s=S[state];
+  document.getElementById('cards').innerHTML=CARDS.map(([k,name,w,desc,fn])=>
+    `<div class="variant"><div class="vhead"><span class="tag">${k} · ${name}</span><span class="cap">${w} × 628</span></div>
+     <div class="canvas">${svg(w,628,fn(s))}</div><p>${desc}</p></div>`).join('');
+  const [k,,w,,fn]=CARDS[place]; const x0=3792-w; let o='';
+  for(let i=0;i<(x0/632);i++) o+=`<rect x="${i*632+6}" y="6" width="620" height="616" rx="18" fill="none" stroke="${C.s0}" stroke-width="2" stroke-dasharray="10 10"/>`+T(i*632+316,326,'free',28,C.s1,{a:'middle'});
+  o+=`<g transform="translate(${x0},0)">${fn(s)}</g>`;
+  document.getElementById('inplace').innerHTML=svg(3792,628,o);}
+
+function press(prefix,id){document.querySelectorAll(`button[id^="${prefix}"]`).forEach(b=>b.setAttribute('aria-pressed',b.id===id));}
+const STK={'st-now':'now','st-27':'d27','st-six':'six'};
+Object.keys(STK).forEach(id=>document.getElementById(id).onclick=()=>{state=STK[id];press('st-',id);render();});
+[0,1,2,3].forEach(i=>document.getElementById('pl-'+i).onclick=()=>{place=i;press('pl-','pl-'+i);render();});
+function scale(a){document.body.classList.toggle('actual',a);press('sc-',a?'sc-actual':'sc-fit');}
+document.getElementById('sc-fit').onclick=()=>scale(false);
+document.getElementById('sc-actual').onclick=()=>scale(true);
+const h=location.hash;
+if(h==='#actual') scale(true);
+if(h==='#d27'){state='d27';press('st-','st-27');}
+if(h==='#six'){state='six';press('st-','st-six');}
+render();
+</script>

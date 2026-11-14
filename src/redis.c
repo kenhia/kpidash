@@ -12,6 +12,7 @@
 
 #include "hosthist.h"
 #include "kkstate.h"
+#include "calstate.h"
 #include "limstate.h"
 #include "memstat.h"
 #include "nasstate.h"
@@ -385,6 +386,8 @@ void redis_poll(void) {
     redis_poll_limits();
     /* korg + klams card (WI #4613) */
     redis_poll_korg_klams();
+    /* Time and calendar card (WI #4665) */
+    redis_poll_calendar();
     /* Card eviction command (WI #374) */
     redis_poll_evict();
     /* Network-health card (WI #4062) */
@@ -1162,4 +1165,20 @@ void redis_poll_korg_klams(void) {
 }
 #else
 void redis_poll_korg_klams(void) { /* test stub */ }
+#endif
+
+/* WI #4665: one GET of kdash:calendar, read only — korg's hourly publisher on
+ * kai owns it (CD-30), and it lives on this same Redis like the other central
+ * keys. hiredis hands back the whole value, so a full-cap record (64 entries,
+ * every string at its bound: about 9.4 KB) arrives intact; calstate keeps its
+ * own copy with no length clamp, and test_calstate adopts one. An unchanged
+ * value costs one strcmp; an absent key or a failed command keeps the last
+ * record; a record libkdash rejects is logged and skipped. */
+#ifndef KPIDASH_TEST_STUBS
+void redis_poll_calendar(void) {
+    if (!g_ctx || g_ctx->err) return;
+    poll_status_key(KDASH_KEY_CALENDAR, cal_observe);
+}
+#else
+void redis_poll_calendar(void) { /* test stub */ }
 #endif

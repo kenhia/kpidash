@@ -207,6 +207,8 @@ void redis_poll_limits(void);
 /* WI #4613: GET kdash:korg:pulse and kdash:klams:status into kkstate (read
  * only — korg's and klams's publishers own both keys). */
 void redis_poll_korg_klams(void);
+/* WI #4665: GET kdash:calendar (read only; korg's publisher owns it). */
+void redis_poll_calendar(void);
 /* Copy pending evict targets into out[] (up to max) and clear them; returns count. */
 int redis_take_evict_targets(evict_target_t *out, int max);
 
