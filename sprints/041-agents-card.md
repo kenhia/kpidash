@@ -206,3 +206,30 @@ figure. Expect one full-card repaint (2520 × 620, opaque) per minute.
   live, the card shows the grid and "no agents feed", which the overseer has
   already accepted for a few hours.
 - Panel CPU after the deploy, against 8.4 %.
+
+## Deployed
+
+Deployed 2026-11-14 from the ship turn with `scripts/deploy.sh` to rpi53,
+after the overseer's clearance (korg comment 4716). There is no
+`.sprint-deploy`.
+
+- **`b00da0b`** (PR #45). The service is active (NRestarts=0), and the
+  dashboard self-reports `b00da0b (2026-11-14)`. The aarch64 Release build
+  printed **zero** warnings, and the link printed nothing.
+- **Live capture** (`krpidss`, 12:16:55 PST). The card crop is attached to
+  korg:4698 as img-126e, and the whole panel at half scale as img-126f.
+  - The card is at row 3, columns 0-3, left of the calendar. It shows the
+    header, the host and state legends, and the hour grid, 14:00 to 12:00
+    with midnight heavier, ending at the now line.
+  - **`kdash:agents` is absent**, because ksitrep's publisher (korg:4697) is
+    not deployed yet. So the plot reads "no agents feed", which is the
+    designed no-feed state; the overseer accepted this for the few hours
+    until the publisher lands. The bars were proved against fixtures and the
+    contract's own examples (see "Renders"). The overseer does the live-feed
+    check.
+  - The rest of the panel is unchanged: hosts, weather, 10G, NAS, korg +
+    klams, Claude limits, the calendar (now showing korg's live tags), and
+    the footer.
+- **Panel CPU**, measured on rpi53 itself as before (utime + stime over
+  120 s, pid 382238, ending 12:19 PST): **6.5 %** of a core, against 8.4 %
+  before the ship. Not above it. The card repaints at most once a minute.
