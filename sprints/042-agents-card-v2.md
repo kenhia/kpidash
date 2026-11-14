@@ -59,6 +59,10 @@ render is `kai:/scratch/kpidash-agents/agents-card-target-v2.png`.
     its bar down a row. Under the ruling, a name with no room in the bar's
     own row falls to step 3, 4 or 5 instead. So the extent check now guards
     the room on the left, and nothing overlaps.
+
+  The overseer accepted both readings at clearance (korg comment 4735): a
+  bar that cannot take an outside name without moving stays put, unnamed;
+  and "20 characters with ellipsis" is 19 characters plus the "…".
 - **Packing keeps 041's 16 px row gap.** The mock-up uses 12 px, plus 12 px
   after a shipped bar. So on the target day `kpidash` shares row 1 with
   `kdashdata` (as close as 16 px after its end, past the diamond), where the
