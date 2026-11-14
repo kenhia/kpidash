@@ -25,7 +25,7 @@
  *   - the only stale condition is a window that no longer covers today, and
  *     then the grid and weekends draw untagged — the card never reflows.
  *
- * One kdash_calendar_t (about 5.8 KB) lives here as a static, with one static
+ * One kdash_calendar_t (19,960 bytes since kdashdata 026) lives here as a static, with one static
  * scratch for parsing; nothing that size goes on the stack per frame.
  *
  * Touched only from the LVGL thread, so there is no lock.

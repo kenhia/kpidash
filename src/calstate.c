@@ -18,7 +18,7 @@ static const char *const WEEKDAYS[7] = {"Sunday",   "Monday", "Tuesday", "Wednes
 /* ---- the record ---- */
 
 /* The one instance, and a scratch to parse into so a rejected record never
- * touches it. Both static: about 5.8 KB each, never on the stack. */
+ * touches it. Both static: 19,960 bytes each, never on the stack. */
 static kdash_calendar_t g_cal, g_scratch;
 static bool g_have;
 static char *g_raw; /* the last value seen, so an unchanged poll is a strcmp */

@@ -125,6 +125,8 @@ add_executable(kpidash
     src/widgets/korg_klams_card.c
     src/calstate.c
     src/widgets/calendar_card.c
+    src/agstate.c
+    src/widgets/agents_card.c
     src/icons.c
     fonts/lv_font_montserrat_bold_14.c
     fonts/lv_font_montserrat_bold_16.c

@@ -38,6 +38,7 @@
 #include "widgets/host_columns.h"
 #include "widgets/korg_klams_card.h"
 #include "widgets/calendar_card.h"
+#include "widgets/agents_card.h"
 #include "widgets/limits_card.h"
 #include "widgets/nas_card.h"
 #include "widgets/net_card.h"
@@ -54,6 +55,7 @@ static lv_obj_t *g_netcard = NULL;
 static lv_obj_t *g_nascard = NULL; /* WI #3956 */
 static lv_obj_t *g_korgklams = NULL; /* WI #4613: korg + klams; "row 2, column 4" counts rows from 1 */
 static lv_obj_t *g_limits = NULL;  /* WI #4609: Claude limits; "row 2, column 5" counts rows from 1 */
+static lv_obj_t *g_agents = NULL;   /* WI #4695: agents timeline; "row 3, columns 0-3" counts rows from 1 */
 static lv_obj_t *g_calendar = NULL; /* WI #4665: time and calendar; "row 3, columns 4-5" counts rows from 1 */
 static lv_obj_t *g_service_strip = NULL;  /* T013: footer Service-Strip container */
 static lv_obj_t *g_status_bar = NULL;
@@ -161,9 +163,14 @@ void ui_init(void) {
     lv_obj_set_pos(g_limits, COL_X(5) + CELL_PAD, ROW_Y(1) + CELL_PAD);
     lv_obj_add_flag(g_limits, LV_OBJ_FLAG_HIDDEN);
 
-    /* ---- Row 2: the time and calendar card, a 2×1 in columns 4-5 (sprint
-     * 040). Always shown: the clock and grid come from the panel's own
-     * clock, so it draws with no feed at all. Columns 0-3 stay free. ---- */
+    /* ---- Row 2: the Agents card, a 4×1 in columns 0-3 (sprint 041), then
+     * the time and calendar card, a 2×1 in columns 4-5 (sprint 040). Both
+     * always shown: the agents card draws its grid and "no agents feed"
+     * before kdash:agents has ever published, and the calendar's clock and
+     * grid come from the panel's own clock. ---- */
+    g_agents = agents_card_create(g_screen); /* WI #4695 */
+    lv_obj_set_pos(g_agents, COL_X(0) + CELL_PAD, ROW_Y(2) + CELL_PAD);
+
     g_calendar = calendar_card_create(g_screen); /* WI #4665 */
     lv_obj_set_pos(g_calendar, COL_X(4) + CELL_PAD, ROW_Y(2) + CELL_PAD);
 
@@ -234,6 +241,11 @@ void ui_refresh(void) {
          * only when the date or the tags change; the last good calendar
          * record is held through any gap, so nothing here flashes. */
         calendar_card_update(g_calendar, (time_t)now_s);
+
+        /* WI #4695: always drawn. It repaints when the record changes or the
+         * minute turns, nothing between; the last good record is held
+         * through a gap, and an old one stops its running bars instead. */
+        agents_card_update(g_agents, (time_t)now_s);
 
         /* WI #4609: not drawn before claude:limits has ever published. Once
          * it has, it stays — limstate keeps the last record through a gap and

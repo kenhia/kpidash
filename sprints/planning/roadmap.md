@@ -6,11 +6,13 @@
 
 ## Now
 
-- **040 — time and calendar card** (korg proposal 4668, slice 3 of program
-  4669). A 2×1 at the right end of row 2 (columns 4-5): a 24-hour clock, the
-  date, the next tagged days, and the month marking weekends, Ken's days off,
-  holidays and special days from `kdash:calendar` (kdashdata CD-30, written
-  by korg). Card A of `planning/calendar-mockups.html`.
+- **041 — Agents card** (korg proposal 4698, slice 3 of program 4699). A 4×1
+  in row 2, columns 0-3: the last 24 hours of agent sessions as host-bordered
+  bars, legs hung under their overseer, ships as diamonds, from
+  `kdash:agents` (kdashdata CD-31, written by ksitrep). The "Border colour" +
+  links "On" view of `planning/agents-mockups.html`.
+- **040** (shipped). Time and calendar card, row 2 columns 4-5, from
+  `kdash:calendar` (`planning/calendar-mockups.html`, card A).
 - **036-039** (shipped). 036 retired the client's unread producers
   (kpidash-client 2.0.0). 037 and 039 built the Claude limits card in row 1,
   column 5; 038 the korg + klams card in column 4
@@ -32,8 +34,10 @@
 
 - **What fills the free cells.** Row 1, columns 4-5, came from program
   korg:4619: Claude limits (037) and korg + klams (038). Row 2, columns 4-5,
-  is the calendar card (040, program korg:4669). Row 2, columns 0-3, is still
-  open, and ideas for it are still owed.
+  is the calendar card (040, program korg:4669), and columns 0-3 the Agents
+  card (041, program korg:4699). Every cell of the grid is now spoken for.
+  The parked alternative for row 2 is the Airspace card
+  (`planning/row3-mockups.html`, korg WI 4692).
 - **Service card: kmon status with staleness alerting** (korg #902, M) — the
   card should distinguish "kmon says everything is fine" from "kmon has not
   said anything in a while", which currently look the same.

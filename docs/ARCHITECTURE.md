@@ -194,6 +194,13 @@ LVGL/DRM/KMS with no mouse or keyboard interaction.
     4-5. The clock and grid come from the panel's own local clock, so the
     card draws with no feed. Read only. See CLIENT-PROTOCOL.md §8j (sprint
     040).
+17. **Agents card**: ksitrep's publisher writes `kdash:agents` (kdashdata
+    CD-31: one JSON document, ts-owned, cadence-declared, no TTL): the last
+    24 hours of agent sessions as bars. Dashboard GETs it each poll into
+    `agstate.c` (libkdash's parser and bar-end rule, plus the time axis, the
+    row packing with legs under their overseer, and the hour grid) and draws
+    `widgets/agents_card.c` in row 2, columns 0-3. Read only. See
+    CLIENT-PROTOCOL.md §8k (sprint 041).
 
 ## Source Structure
 
@@ -219,6 +226,7 @@ kpidash/
 │   ├── limstate.{h,c}          # Claude limits card: pace, bands, strings, carry (pure, 037)
 │   ├── kkstate.{h,c}           # korg + klams card: debounce, scanners, 30-day line (pure, 038)
 │   ├── calstate.{h,c}          # Time and calendar card: month grid, tags, coming up (pure, 040)
+│   ├── agstate.{h,c}           # Agents card: time axis, packing, hour grid, label fit (pure, 041)
 │   ├── redis.{h,c}             # hiredis poll cycle + JSON parsing (cJSON)
 │   ├── status.{h,c}            # In-memory status message FIFO queue
 │   ├── ui.{h,c}                # Screen layout + redis error overlay
@@ -233,6 +241,7 @@ kpidash/
 │       ├── korg_klams_card.{h,c} # korg + klams, row 1 column 4 (038)
 │       ├── limits_card.{h,c}   # Claude limits, row 1 column 5 (037)
 │       ├── calendar_card.{h,c} # Time and calendar, row 2 columns 4-5 (040)
+│       ├── agents_card.{h,c}   # Agents, the last 24 hours, row 2 columns 0-3 (041)
 │       ├── service_card.{h,c}  # Service status card + host staleness card
 │       ├── apt_temps_card.{h,c}# Per-zone temp/humidity card (footer, WI #364)
 │       ├── status_bar.{h,c}    # Bottom status bar (warning/error)
@@ -253,13 +262,15 @@ kpidash/
 │   ├── test_limstate.c         # Claude limits model: pace, bands, strings, carry (037)
 │   ├── test_kkstate.c          # korg + klams model against both schemas (038)
 │   ├── test_calstate.c         # Calendar model: schema, full-cap record, midnight, DST (040)
+│   ├── test_agstate.c          # Agents model: schema, packing, legs, clipping, crowding (041)
 │   ├── test_widget_leak.c      # Widget leak regression (needs LVGL)
 │   ├── render_host_columns.c   # Offline render of the host columns to BMP (tool)
 │   ├── render_nas_card.c       # Offline render of the NAS card, four states (tool)
 │   ├── render_weather.c        # Offline render of the weather filler, 4 states × 4 widths (tool)
 │   ├── render_limits.c         # Offline render of the Claude limits card, 5 states (tool)
 │   ├── render_korg_klams.c     # Offline render of the korg + klams card, 6 states (tool)
-│   └── render_calendar.c       # Offline render of the time and calendar card, 7 states (tool)
+│   ├── render_calendar.c       # Offline render of the time and calendar card, 7 states (tool)
+│   └── render_agents.c         # Offline render of the Agents card, 7 states + live (tool)
 ├── clients/
 │   └── kpidash-client/         # Python 3.13+ daemon + CLI (psutil, pynvml)
 ├── scripts/
@@ -312,20 +323,21 @@ Widget content (1×1): UNIT_W - 2×CELL_PAD = 624, UNIT_H - 2×CELL_PAD = 620
 ```
 ┌──────────────────────────────────────────────────────────────┐
 │  Row 0: [ host columns (6×1) | weather in what they leave ]  │
-├──────────────┬──────────────┬────────────────────────────────┤
-│  Row 1:      │  Row 1:      │  (free)                        │
-│  10G card    │  NAS card    │                                │
-│  (2×1)       │  (2×1)       │                                │
-├──────────────┴──────────────┴────────────────────────────────┤
-│  Row 2: (free)                                               │
-├──────────────────────────────────────────────────────────────┤
+├──────────────┬──────────────┬───────────────┬────────────────┤
+│  Row 1:      │  Row 1:      │  korg + klams │  Claude limits │
+│  10G card    │  NAS card    │  (1×1, 038)   │  (1×1, 037)    │
+│  (2×1)       │  (2×1)       │               │                │
+├──────────────┴──────────────┴───────────────┼────────────────┤
+│  Row 2: Agents, last 24 hours (4×1, 041)    │ time + calendar│
+│                                             │ (2×1, 040)     │
+├─────────────────────────────────────────────┴────────────────┤
 │  Footer (276px): service strip + status bar                  │
 └──────────────────────────────────────────────────────────────┘
 ```
 
 Both row-1 cards have fixed slots (sprint 032): the NAS card is hidden until
 `kdash:nas` has published, but its slot stays reserved, so the 10G card never
-moves. What fills the free cells is a later decision.
+moves. Every other cell has a fixed slot too (sprints 037-041).
 
 ## Removed widgets
 
@@ -646,8 +658,65 @@ A 2×1 at the right end of row 2 (columns 4-5; "row 3" counting from one),
   rebuilt every poll and compared; when only the clock changed (once a
   minute) just its rectangle repaints. The date turning, or a new record,
   repaints the card.
-- **Memory.** `calstate` keeps one `kdash_calendar_t` (about 5.8 KB) and one
-  parse scratch, both static; nothing that size is on the stack per frame.
+- **Memory.** `calstate` keeps one `kdash_calendar_t` (19,960 bytes since
+  kdashdata 026 bounded its names in characters) and one parse scratch, both
+  static; nothing that size is on the stack per frame.
+
+## Agents Card (sprint 041)
+
+`src/widgets/agents_card.c`, the "Border colour" view with links "On" of the
+agents mock-ups Ken picked on 2026-11-14
+(`sprints/planning/agents-mockups.html`, function `borders(true)`). A 4×1 in
+row 2, columns 0-3 ("row 3, columns 0-3" counting rows from one), 2520 × 620
+at `CELL_PAD` inside its frame. Always shown. The model is `src/agstate.c`.
+
+- **Bars.** The last 24 hours of agent sessions from `kdash:agents` (CD-31),
+  one bar per stretch of activity, on a time axis from x 36 to the now line at
+  2492. No host lanes: each bar has a 4 px border in its host's colour (cleo
+  blue, kai peach, kubs0 green, anything else mauve). Finished: the host colour
+  pre-mixed 14 % into Base. Working: solid host colour, dark text. Waiting on
+  Ken: yellow, dark text, host border kept. A bar still in progress ends square
+  at the now line (a square patch over its rounded end); a finished one is
+  rounded all round. A ship is a teal diamond on the bar's right end.
+- **Overseers.** An overseer's name is Claude peach, and a working overseer
+  keeps the dark finished fill so the peach stays readable; its square end
+  marks it as working. (A waiting overseer is yellow with a dark name: peach
+  does not read on yellow.)
+- **Packing.** Bars go in the highest row free at their left edge, in start
+  order; an overseer is placed and then each of its legs, each in the highest
+  free row below it, hung by a 4 px stem in the overseer's colour from its
+  bottom edge to the leg's top, at the leg's start. Stems are drawn under bars.
+  Two bars share a row only 16 px apart (room for a diamond).
+- **Rows.** 104 to 556 with 10 px between; a row is 76 px at most and shrinks
+  as rows are added. **Past 10 rows it does not shrink further**: 36 px is the
+  least that holds the bold 20 label (a 25 px line) inside its 4 px border.
+  Instead the bar that ended longest ago is left out (an overseer takes its
+  legs with it) and the rows are packed again, until they fit; the header
+  says "N older not shown" in muted text. The newest work is what the card is
+  for.
+- **Names.** Drawn only when they fit inside the bar (14 px in, 8 px short of
+  the right edge, 18 px with a ship); one that does not is cut with "…" if at
+  least four characters survive, else the bar has no name. Names are any UTF-8
+  (CD-31); a character the bold 20 face lacks is drawn as "?", so nothing
+  draws as a box or logs a warning per redraw (WI #2646).
+- **Grid.** A line every 2 hours with its label, midnight heavier and its
+  label bold, from the panel's local clock (America/Los_Angeles on rpi53).
+- **Time.** The view is a pure function of the record and the minute: `now`
+  is floored to the minute, so the now edge advances once a minute and
+  nothing moves between. The card's window is always 24 hours, whatever the
+  record's `window_s`; a bar that began before it is clipped at the left.
+- **The feed's absence and age** (sprint 035's rule). An absent key or a
+  rejected record keeps the last good record. Past `expected_refresh_s` plus
+  60 s the header shows a muted "as of 12m", and running bars stop at their
+  own `end` (`kdash_agents_bar_end`), so a dead publisher cannot stretch them.
+  With no record at all the plot reads "no agents feed"; with nothing in the
+  window, "no sessions in the last 24 hours".
+- **Repaint cost.** One callback-drawn object, opaque fills only. The view is
+  rebuilt only when the record changes or the minute turns, compared, and the
+  card repainted only if it differs: at most once a minute in steady state.
+- **Memory.** `agstate` keeps one `kdash_agents_t` (21,544 bytes) and one parse
+  scratch, both static. The widget's view and its fitted names are heap,
+  allocated once at creation.
 
 ## Memory Telemetry
 
