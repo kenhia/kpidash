@@ -48,3 +48,21 @@ Positions only. No card changes size or content.
 - The `src/ui.c` header diagram still showed row 2 as "(free)", although
   sprints 040-042 had filled it with the agents and calendar cards. It now
   shows them. The fix is a comment, checked by eye.
+
+## Deployed
+
+Deployed 2026-11-14 at 14:45 PST from the ship turn with `scripts/deploy.sh`
+to rpi53, after the overseer's clearance (korg comment 4743). There is no
+`.sprint-deploy`.
+
+- **`7481afc`** (PR #47). The service is active (NRestarts=0), and the
+  dashboard self-reports `7481afc (2026-11-14)`. The aarch64 link printed no
+  warnings.
+- **Exactly one dashboard on rpi53.** `pgrep -a kpidash` shows `/home/ken/kpidash`
+  and the telemetry client, nothing else.
+- **Live capture** (`krpidss`, from kai). The row crop is attached to
+  korg:4756 as img-1297, and the whole panel at half scale as img-1298. Row 2
+  reads, left to right: Claude (19 % five-hour, 21 % Fable 7-day, "kai · 3m
+  ago"), ALL 10G (five host columns), NAS OK (eight disks), and korg + klams
+  (51 open). No card is clipped or overlapping, and each one fills its own
+  cells.
