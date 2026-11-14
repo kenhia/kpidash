@@ -121,6 +121,8 @@ add_executable(kpidash
     src/widgets/weather_card.c
     src/limstate.c
     src/widgets/limits_card.c
+    src/kkstate.c
+    src/widgets/korg_klams_card.c
     src/icons.c
     fonts/lv_font_montserrat_bold_14.c
     fonts/lv_font_montserrat_bold_16.c
@@ -146,7 +148,7 @@ target_include_directories(kpidash PRIVATE
 add_dependencies(kpidash kpidash_version)
 
 target_link_libraries(kpidash
-    kdash_core  # WI #2244: the apartment-temperature band; WI #4609: claude:limits
+    kdash_core  # WI #2244: the apartment-temperature band; WI #4609: claude:limits; WI #4613: korg pulse, klams status
     lvgl
     hiredis::hiredis
     ${DRM_LIBRARIES}

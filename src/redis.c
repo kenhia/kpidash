@@ -11,6 +11,7 @@
 #include <kdash/kdash_keys.h>
 
 #include "hosthist.h"
+#include "kkstate.h"
 #include "limstate.h"
 #include "memstat.h"
 #include "nasstate.h"
@@ -382,6 +383,8 @@ void redis_poll(void) {
     redis_poll_weather();
     /* Claude limits card (WI #4609) */
     redis_poll_limits();
+    /* korg + klams card (WI #4613) */
+    redis_poll_korg_klams();
     /* Card eviction command (WI #374) */
     redis_poll_evict();
     /* Network-health card (WI #4062) */
@@ -1136,4 +1139,27 @@ void redis_poll_limits(void) {
 }
 #else
 void redis_poll_limits(void) { /* test stub */ }
+#endif
+
+/* WI #4613: one GET each of kdash:korg:pulse and kdash:klams:status, read only
+ * — korg's timer on kai and klams-monitor on kubs0 own them. Both live on this
+ * same Redis (KDASH_KEY_* are central-stem keys). An unchanged value costs one
+ * strcmp in kkstate, not a parse; an absent key or a failed command keeps the
+ * last record; a record libkdash rejects is logged and skipped. */
+#ifndef KPIDASH_TEST_STUBS
+static void poll_status_key(const char *key, int (*observe)(const char *)) {
+    redisReply *r = redisCommand(g_ctx, "GET %s", key);
+    if (!r) return;
+    if (r->type == REDIS_REPLY_STRING && observe(r->str) < 0)
+        fprintf(stderr, "redis: %s is off-contract; keeping the last record\n", key);
+    freeReplyObject(r);
+}
+
+void redis_poll_korg_klams(void) {
+    if (!g_ctx || g_ctx->err) return;
+    poll_status_key(KDASH_KEY_KORG_PULSE, kk_observe_korg);
+    poll_status_key(KDASH_KEY_KLAMS_STATUS, kk_observe_klams);
+}
+#else
+void redis_poll_korg_klams(void) { /* test stub */ }
 #endif
