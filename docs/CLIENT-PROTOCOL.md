@@ -934,6 +934,43 @@ redis-cli -h rpi53 GET kdash:calendar
 
 ---
 
+## 8k. Agents Card (Sprint 041, WI #4695)
+
+| Key | Type | Written by | Read by | TTL |
+|-----|------|-----------|---------|-----|
+| `kdash:agents` | STRING (JSON) | ksitrep's publisher, every 60 s | dashboard | none |
+
+**The contract is kdashdata's** (sprint 026, CD-31): schema
+`lib/kdashdata/contracts/schemas/kdash-agents.schema.json`. One record: `ts`,
+`expected_refresh_s`, `window_s` (86400 from ksitrep), and `bars`, at most 96
+ascending by `start`. Each bar has `id`, `host`, `name` (1-31 UTF-8
+characters), `start`, `end`, `state` (`done`, `working` or `waiting`),
+`shipped`, `overseer`, and an optional `parent` naming another bar whose
+`overseer` is true. A running bar's `end` is the publish time.
+
+**The dashboard only reads it.** Never hand-write a record to the live key;
+`tests/render_agents` draws mock / empty / nofeed / stale / crowded / legs /
+long / live offline, and a test record belongs on a scratch Redis.
+
+**Panel** (`src/agstate.c` model, `src/widgets/agents_card.c`): one `GET` per
+poll, parsed by libkdash (`kdash_parse_agents`). kpidash links `kdash_core`
+only, so it does its own GET rather than libkdash's `kdash_agents()`. hiredis
+returns the whole value (up to 64 KB) and agstate copies it unclamped.
+
+- **Right edges come from `kdash_agents_bar_end()`**, never re-derived: a
+  running bar reaches now only while the record is fresh.
+- **An old `ts` is a muted hint**, "as of 12m", never a reason to blank.
+- **Absent key, rejected record:** the last good record stays.
+- **What the parser dropped** (bad bars, past 96, unresolved parents) is one
+  log line when an adopted record has any, never panel text.
+
+```sh
+# What the card reads (rpi53 Redis needs auth) — read only
+redis-cli -h rpi53 GET kdash:agents
+```
+
+---
+
 ## 9. Dev Commands (Sprint 002)
 
 Command keys enable/disable developer overlay widgets. All keys use JSON

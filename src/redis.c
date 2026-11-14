@@ -13,6 +13,7 @@
 #include "hosthist.h"
 #include "kkstate.h"
 #include "calstate.h"
+#include "agstate.h"
 #include "limstate.h"
 #include "memstat.h"
 #include "nasstate.h"
@@ -388,6 +389,8 @@ void redis_poll(void) {
     redis_poll_korg_klams();
     /* Time and calendar card (WI #4665) */
     redis_poll_calendar();
+    /* Agents card (WI #4695) */
+    redis_poll_agents();
     /* Card eviction command (WI #374) */
     redis_poll_evict();
     /* Network-health card (WI #4062) */
@@ -1181,4 +1184,31 @@ void redis_poll_calendar(void) {
 }
 #else
 void redis_poll_calendar(void) { /* test stub */ }
+#endif
+
+/* WI #4695: one GET of kdash:agents, read only — ksitrep's publisher owns it
+ * (CD-31), on this same Redis like the other central keys. A full-cap record
+ * is about 22 KB with ASCII names and up to 55 KB escaped; hiredis hands back
+ * the whole value and agstate keeps its own copy with no clamp. An unchanged
+ * value costs one strcmp; an absent key or a failed command keeps the last
+ * record; a record libkdash rejects is logged and skipped. What the parser
+ * dropped from an adopted record (bad bars, past 96, unresolved parents) is a
+ * log line on change, never panel text. */
+#ifndef KPIDASH_TEST_STUBS
+static int observe_agents(const char *json) {
+    int r = ag_observe(json);
+    const kdash_agents_t *a = ag_record();
+    if (r == 1 && a && (a->bars_skipped || a->bars_truncated || a->parents_dropped))
+        fprintf(stderr, "redis: " KDASH_KEY_AGENTS " kept %d bar(s); %d skipped, %s, %d parent(s) dropped\n",
+                a->bars_count, a->bars_skipped, a->bars_truncated ? "truncated" : "not truncated",
+                a->parents_dropped);
+    return r;
+}
+
+void redis_poll_agents(void) {
+    if (!g_ctx || g_ctx->err) return;
+    poll_status_key(KDASH_KEY_AGENTS, observe_agents);
+}
+#else
+void redis_poll_agents(void) { /* test stub */ }
 #endif

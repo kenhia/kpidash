@@ -1,0 +1,332 @@
+<meta name="claude:viewport-fit-sides" content="cover">
+<title>kpidash Row 3 Ideas</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;700&display=swap">
+<style>
+/* Same chrome as the other kpidash mock-up pages: one dark Mocha column, figures at real panel
+   pixels. Single dark look by choice, because the subject is a dark panel. */
+:root{
+  color-scheme:dark;
+  --crust:#11111B; --base:#1E1E2E; --s0:#313244; --s1:#45475A;
+  --muted:#6C7086; --sub:#A6ADC8; --fg:#CDD6F4;
+  --teal:#94E2D5; --lav:#B4BEFE; --peach:#FAB387; --yellow:#F9E2AF; --blue:#89B4FA;
+  --font:"Montserrat",system-ui,-apple-system,"Segoe UI",sans-serif;
+}
+body{background:var(--crust);color:var(--fg);font-family:var(--font);font-size:16px;line-height:1.55;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:32px 80px}
+body.solo{padding:0;margin:0;overflow:hidden}
+.wrap{max-width:1920px;margin:0 auto;display:flex;flex-direction:column;gap:48px}
+body.actual{padding-inline:0}
+body.actual .wrap{max-width:none}
+body.actual .wrap>*:not(.figsec){padding-inline:24px}
+body.actual .sechead,body.actual .vhead,body.actual .variant>p{padding-inline:24px}
+h1{font-size:40px;line-height:1.1;margin:0;color:var(--yellow);font-weight:700;text-wrap:balance}
+h2{font-size:28px;margin:0;font-weight:700;text-wrap:balance}
+h3{font-size:20px;margin:0;font-weight:700}
+p{margin:0;max-width:68ch;color:var(--sub)}
+p b,li b{color:var(--fg)}
+a{color:var(--blue)}
+.lede{font-size:18px}
+header{display:flex;flex-direction:column;gap:14px}
+.bar{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--crust);padding-block:10px;
+  display:flex;flex-wrap:wrap;gap:10px 24px;align-items:center;border-bottom:1px solid var(--s0)}
+.seg{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.seg span{font-size:13px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-right:4px}
+button{font:inherit;font-size:14px;font-weight:700;color:var(--fg);background:var(--base);border:1px solid var(--s1);
+  border-radius:999px;padding:6px 14px;cursor:pointer}
+button[aria-pressed="true"]{background:var(--yellow);color:var(--crust);border-color:var(--yellow)}
+button:focus-visible{outline:2px solid var(--lav);outline-offset:2px}
+section{display:flex;flex-direction:column;gap:24px}
+.sechead{display:flex;flex-direction:column;gap:8px}
+#cards{display:flex;flex-direction:column;gap:44px}
+.variant{display:flex;flex-direction:column;gap:12px;min-width:0}
+.vhead{display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 16px}
+.tag{font-size:13px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--crust);background:var(--blue);
+  border-radius:999px;padding:2px 10px}
+.cap{font-size:14px;color:var(--muted)}
+.variant>p{max-width:76ch;font-size:15px}
+.canvas{overflow-x:auto;max-width:100%}
+.canvas svg{display:block;max-width:100%;height:auto}
+body.actual .canvas svg{max-width:none}
+ul{margin:0;padding-left:20px;color:var(--sub);max-width:72ch}
+li{margin-block:4px}
+.open{border-left:3px solid var(--peach);padding-left:14px;display:flex;flex-direction:column;gap:8px}
+.how{border-left:3px solid var(--teal);padding-left:14px;display:flex;flex-direction:column;gap:8px}
+</style>
+
+<div class="wrap" id="page">
+<header>
+  <h1>Ideas for the rest of row 3</h1>
+  <p class="lede">Four cards, each drawn at two cells wide. Row 3 has four free cells left of the calendar, so any two of these fill it. All of them are pictures first and text second.</p>
+  <div class="how">
+    <h3>To see it at the size it will be on the dashboard</h3>
+    <p>Open this page on cleo's monitor 2, press <b>Actual pixels</b>, and set the browser zoom to 50%.</p>
+  </div>
+</header>
+
+<div class="bar">
+  <div class="seg"><span>Sky</span>
+    <button id="st-busy" aria-pressed="true">Evening rush</button>
+    <button id="st-ferries" aria-pressed="false">With ferries</button>
+    <button id="st-quiet" aria-pressed="false">03:10, quiet</button></div>
+  <div class="seg"><span>Scale</span>
+    <button id="sc-fit" aria-pressed="true">Fit to page</button>
+    <button id="sc-actual" aria-pressed="false">Actual pixels</button></div>
+</div>
+
+<section class="figsec">
+  <div id="cards"></div>
+</section>
+
+<section>
+  <div class="sechead"><h2>Where the aircraft would come from</h2></div>
+  <div class="open">
+    <h3>My pick: a free community feed now, your own receiver later</h3>
+    <p>Sites such as <a href="https://airplanes.live/api-guide">airplanes.live</a> and <a href="https://github.com/adsbfi/opendata/blob/main/README.md">adsb.fi</a> answer "every aircraft within N miles of this point" in one request, with no key, for personal use, at up to one request a second. One request every 10 seconds covers both aircraft cards. They promise no uptime, so the card needs a plain "no feed" state.</p>
+    <p>The step up is a $35 radio dongle and a small antenna on any Pi. It hears the aircraft directly, updates every second, costs nothing to run and depends on no one. The collector would read either source the same way, so starting with the free feed loses nothing.</p>
+  </div>
+  <div class="open">
+    <h3>FlightAware's key is the wrong tool for the map, and a good one for the detail</h3>
+    <p>FlightAware <a href="https://flightaware.com/commercial/aeroapi/">charges per query</a>, with $5 a month free and about ten queries a minute on the personal plan. Redrawing a map every 10 seconds is some 260,000 queries a month, so it cannot feed the map. What it has that the free feeds lack is the route: where a flight came from and where it is going. A few lookups an hour for the flight on final would fit inside the free allowance. I have not confirmed the exact price of each query type.</p>
+  </div>
+  <div class="open">
+    <h3>Ferries, tides and daylight are free</h3>
+    <p>Washington State Ferries publishes <a href="https://www.wsdot.wa.gov/ferries/api/vessels/documentation/rest.html">live vessel positions</a> for a free access code. Tide predictions for Seattle come from NOAA with no key. Sunrise, sunset and the moon are arithmetic on the Pi.</p>
+  </div>
+</section>
+
+<section>
+  <div class="sechead"><h2>Things to know before picking</h2></div>
+  <ul>
+    <li><b>Movement.</b> Aircraft would step to a new place every 10 seconds, with no animation between steps. The tide marker moves one pixel a minute. If stepping aircraft still bother you, a 30-second step is the fallback.</li>
+    <li><b>The coastline here is sketched by hand.</b> The real card would bake it once from public map data, so it will look better than this.</li>
+    <li><b>Your location is not on the map.</b> It is centred on the Sound, not on the house. A "nearest to home" marker is possible later, with the coordinates held outside any repo, as for the weather.</li>
+    <li><b>Map colours are height:</b> peach is low, lavender is cruising. On the approach card height is the vertical axis, so colour shows climbing, level or descending.</li>
+    <li><b>The agents card needs a feed that does not exist yet.</b> karc and ksitrep know the current state but keep no day-long history in Redis. It is the largest build of the four after the aircraft collector.</li>
+    <li><b>Aircraft counts, session names and tide heights on this page are made up for the picture.</b></li>
+  </ul>
+</section>
+</div>
+
+<script>
+const C={crust:'#11111B',base:'#1E1E2E',mantle:'#181825',s0:'#313244',s1:'#45475A',muted:'#6C7086',sub:'#A6ADC8',fg:'#CDD6F4',
+  teal:'#94E2D5',lav:'#B4BEFE',peach:'#FAB387',yellow:'#F9E2AF',blue:'#89B4FA',sapphire:'#74C7EC',mauve:'#CBA6F7',green:'#A6E3A1',rose:'#F38BA8'};
+const W=1264,H=628,F='Montserrat, sans-serif';
+/* Opaque pre-mixed colours only: the Pi pays for every translucent fill. */
+function mix(a,b,t){const p=h=>[1,3,5].map(i=>parseInt(h.slice(i,i+2),16));const x=p(a),y=p(b);
+  return '#'+x.map((v,i)=>Math.round(v*t+y[i]*(1-t)).toString(16).padStart(2,'0')).join('');}
+const esc=s=>String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;');
+function T(x,y,s,size,fill,o={}){return `<text x="${x}" y="${y}" font-family="${F}" font-size="${size}" font-weight="${o.b?700:400}" fill="${fill}" text-anchor="${o.a||'start'}"${o.ls?` letter-spacing="${o.ls}"`:''}>${esc(s)}</text>`;}
+function frame(id,inner,over=''){return `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">
+<defs><clipPath id="clip-${id}"><rect x="8" y="8" width="1248" height="612" rx="20"/></clipPath></defs>
+<rect x="8" y="8" width="1248" height="612" rx="20" fill="${C.base}"/><g clip-path="url(#clip-${id})">${inner}</g>${over}</svg>`;}
+
+/* ---------- aircraft, shared by the map and the approach card ---------- */
+const BUSY=[
+ {cs:'ASA512',lat:47.590,lon:-122.311,alt:2700,hdg:163,gs:150,vs:-750,dx:20,dy:7},
+ {cs:'DAL2291',lat:47.700,lon:-122.315,alt:4800,hdg:163,gs:190,vs:-800,dx:20,dy:7},
+ {cs:'ASA88',lat:47.900,lon:-122.300,alt:7000,hdg:172,gs:230,vs:0,dx:20,dy:7},
+ {cs:'HAL22',lat:47.950,lon:-121.850,alt:11000,hdg:238,gs:280,vs:-1200,dx:20,dy:7},
+ {cs:'SKW3401',lat:47.600,lon:-121.930,alt:9000,hdg:352,gs:250,vs:-500,dx:20,dy:7},
+ {cs:'QXE2108',lat:47.410,lon:-121.420,alt:14000,hdg:285,gs:300,vs:-1500,dx:20,dy:7},
+ {cs:'ASA331',lat:47.360,lon:-122.310,alt:4200,hdg:180,gs:210,vs:2400,dx:20,dy:7},
+ {cs:'UAL1740',lat:47.220,lon:-122.200,alt:9500,hdg:140,gs:270,vs:2000,dx:20,dy:7},
+ {cs:'ASA1021',lat:47.220,lon:-122.850,alt:12000,hdg:240,gs:290,vs:1800,dx:20,dy:7},
+ {cs:'KAL20',lat:47.330,lon:-123.250,alt:18000,hdg:292,gs:380,vs:1500,dx:20,dy:7},
+ {cs:'N951AL',lat:47.650,lon:-122.620,alt:900,hdg:20,gs:90,vs:0,dx:20,dy:7},
+ {cs:'BOE041',lat:47.500,lon:-121.850,alt:5000,hdg:300,gs:220,vs:-600,dx:20,dy:7},
+ {cs:'KEN12',lat:47.720,lon:-122.470,alt:1200,hdg:318,gs:105,vs:0,dx:-94,dy:-12},
+ {cs:'ASA2054',lat:47.835,lon:-122.200,alt:3000,hdg:165,gs:140,vs:2600,dx:20,dy:7},
+ {cs:'RCH204',lat:47.180,lon:-122.500,alt:2500,hdg:345,gs:160,vs:-700,dx:20,dy:7},
+ {cs:'ACA554',lat:47.780,lon:-121.450,alt:36000,hdg:160,gs:450,vs:0,dx:20,dy:7},
+ {cs:'UPS72',lat:47.160,lon:-121.800,alt:34000,hdg:95,gs:470,vs:0,dx:20,dy:7}];
+const QUIET=[
+ {cs:'FDX1418',lat:47.740,lon:-122.315,alt:5200,hdg:163,gs:200,vs:-800,dx:20,dy:7},
+ {cs:'UPS2917',lat:47.300,lon:-122.310,alt:6100,hdg:180,gs:230,vs:2600,dx:20,dy:7},
+ {cs:'ABX311',lat:47.900,lon:-121.600,alt:35000,hdg:165,gs:440,vs:0,dx:20,dy:7}];
+const FERRIES=[
+ {n:'Tacoma',lat:47.612,lon:-122.430,a:[47.603,-122.340],b:[47.622,-122.505],dx:-90,dy:7},
+ {n:'Kaleetan',lat:47.585,lon:-122.455,a:[47.602,-122.340],b:[47.572,-122.530],dx:-40,dy:32},
+ {n:'Spokane',lat:47.803,lon:-122.440,a:[47.812,-122.385],b:[47.796,-122.495],dx:-36,dy:-14},
+ {n:'Suquamish',lat:47.957,lon:-122.330,a:[47.949,-122.304],b:[47.974,-122.352],dx:-126,dy:30},
+ {n:'Kittitas',lat:47.517,lon:-122.430,a:[47.523,-122.396],b:[47.512,-122.495],dx:-42,dy:32},
+ {n:'Chetzemoka',lat:47.320,lon:-122.512,a:[47.306,-122.514],b:[47.333,-122.507],dx:-140,dy:8}];
+const altCol=a=>a<3000?C.peach:a<10000?C.yellow:a<20000?C.teal:C.lav;
+const fl=a=>String(Math.round(a/100)).padStart(3,'0');
+
+/* ---------- A: the map ---------- */
+const P=(lat,lon)=>[632+(lon+122.33)*472,314-(lat-47.55)*700];
+const poly=pts=>pts.map(([la,lo],i)=>{const [x,y]=P(la,lo);return (i?'L':'M')+x.toFixed(1)+','+y.toFixed(1);}).join(' ');
+const SOUND=[[48.05,-122.20],[47.98,-122.225],[47.95,-122.30],[47.90,-122.33],[47.85,-122.34],[47.81,-122.385],[47.76,-122.385],[47.72,-122.38],
+ [47.69,-122.405],[47.662,-122.435],[47.645,-122.415],[47.63,-122.385],[47.615,-122.355],[47.60,-122.34],[47.585,-122.345],[47.585,-122.37],
+ [47.59,-122.385],[47.576,-122.42],[47.55,-122.40],[47.523,-122.395],[47.49,-122.375],[47.452,-122.38],[47.42,-122.34],[47.40,-122.33],
+ [47.36,-122.325],[47.335,-122.34],[47.32,-122.40],[47.305,-122.445],[47.285,-122.41],[47.265,-122.415],[47.275,-122.46],[47.30,-122.50],
+ [47.318,-122.535],[47.29,-122.545],[47.25,-122.555],[47.20,-122.56],[47.15,-122.60],[47.10,-122.65],
+ [47.10,-122.72],[47.17,-122.63],[47.22,-122.59],[47.27,-122.575],[47.30,-122.57],[47.335,-122.565],[47.38,-122.545],[47.42,-122.535],
+ [47.47,-122.52],[47.51,-122.495],[47.535,-122.52],[47.555,-122.54],[47.57,-122.555],[47.585,-122.50],[47.60,-122.49],[47.62,-122.50],
+ [47.65,-122.495],[47.70,-122.50],[47.72,-122.51],[47.745,-122.50],[47.795,-122.495],[47.85,-122.51],[47.91,-122.525],[47.935,-122.56],
+ [47.94,-122.61],[48.05,-122.70]];
+const WHIDBEY=[[47.905,-122.385],[47.93,-122.36],[47.98,-122.355],[48.05,-122.38],[48.05,-122.62],[48.0,-122.58],[47.97,-122.53],[47.94,-122.47],[47.915,-122.42]];
+const VASHON=[[47.51,-122.465],[47.49,-122.44],[47.44,-122.435],[47.41,-122.43],[47.40,-122.39],[47.385,-122.375],[47.35,-122.43],[47.335,-122.47],
+ [47.332,-122.505],[47.36,-122.515],[47.40,-122.51],[47.45,-122.515],[47.49,-122.50]];
+const LKWA=[[47.757,-122.26],[47.74,-122.245],[47.70,-122.215],[47.675,-122.21],[47.64,-122.21],[47.62,-122.215],[47.60,-122.205],[47.575,-122.195],
+ [47.54,-122.20],[47.505,-122.20],[47.50,-122.22],[47.52,-122.26],[47.55,-122.255],[47.58,-122.285],[47.62,-122.28],[47.645,-122.275],
+ [47.67,-122.255],[47.70,-122.27],[47.73,-122.28]];
+const MERCER=[[47.595,-122.235],[47.59,-122.215],[47.56,-122.205],[47.53,-122.215],[47.525,-122.235],[47.55,-122.245],[47.58,-122.245]];
+const SAMM=[[47.655,-122.11],[47.64,-122.085],[47.60,-122.07],[47.56,-122.065],[47.555,-122.085],[47.59,-122.095],[47.63,-122.115]];
+const CHANNELS=[
+ [[47.94,-122.63],[47.86,-122.63],[47.80,-122.70],[47.72,-122.76],[47.65,-122.88],[47.60,-122.96],[47.52,-123.04],[47.42,-123.12],[47.36,-123.13],[47.37,-123.0],[47.40,-122.90],[47.44,-122.83]],
+ [[47.22,-122.62],[47.28,-122.68],[47.36,-122.69]],
+ [[47.15,-122.60],[47.13,-122.75],[47.17,-122.85],[47.30,-122.83],[47.38,-122.82]],
+ [[47.585,-122.52],[47.565,-122.58],[47.55,-122.65]],
+ [[47.585,-122.535],[47.64,-122.575],[47.70,-122.565],[47.735,-122.52]]];
+const AIRPORTS=[['SEA',47.449,-122.309,3],['BFI',47.530,-122.302,1],['RNT',47.493,-122.216,1],['PAE',47.906,-122.282,1],['TCM',47.138,-122.476,1],['TIW',47.268,-122.578,1],['PWT',47.490,-122.765,1]];
+const APLBL={SEA:[16,8],BFI:[14,-8],RNT:[14,8],PAE:[-64,8],TCM:[14,2],TIW:[-58,24],PWT:[14,8]};
+
+function plane(x,y,hdg,col,s=1){return `<path d="M0,-14 L10,12 L0,5 L-10,12 Z" fill="${col}" stroke="${C.crust}" stroke-width="2" transform="translate(${x.toFixed(1)},${y.toFixed(1)}) rotate(${hdg}) scale(${s})"/>`;}
+
+function cardMap(state){
+  const water=mix(C.blue,C.base,0.16), list=state==='quiet'?QUIET:BUSY;
+  let g=`<path d="${poly(SOUND)} Z" fill="${water}"/>`;
+  for(const ch of CHANNELS) g+=`<path d="${poly(ch)}" fill="none" stroke="${water}" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/>`;
+  g+=`<path d="${poly(LKWA)} Z" fill="${water}"/><path d="${poly(SAMM)} Z" fill="${water}"/>`;
+  {const [x,y]=P(47.64,-122.335);g+=`<circle cx="${x}" cy="${y}" r="6" fill="${water}"/>`;}
+  for(const land of [WHIDBEY,VASHON,MERCER]) g+=`<path d="${poly(land)} Z" fill="${C.base}"/>`;
+  {const [x,y]=P(47.54,-122.49);g+=`<circle cx="${x}" cy="${y}" r="5" fill="${C.base}"/>`;}
+  /* airports: runway ticks and a name */
+  for(const [n,la,lo,k] of AIRPORTS){const [x,y]=P(la,lo);
+    for(let i=0;i<k;i++){const xx=x+(i-(k-1)/2)*7;g+=`<line x1="${xx}" y1="${y-11}" x2="${xx}" y2="${y+11}" stroke="${C.sub}" stroke-width="3" stroke-linecap="round"/>`;}
+    const [dx,dy]=APLBL[n];g+=T(x+dx,y+dy,n,20,n==='SEA'?C.fg:C.muted,{b:n==='SEA'});}
+  if(state==='ferries'){
+    for(const f of FERRIES){const a=P(...f.a),b=P(...f.b);
+      g+=`<line x1="${a[0]}" y1="${a[1]}" x2="${b[0]}" y2="${b[1]}" stroke="${mix(C.sapphire,C.base,0.45)}" stroke-width="2" stroke-dasharray="6 6"/>`;}
+    for(const f of FERRIES){const [x,y]=P(f.lat,f.lon);
+      g+=`<rect x="${x-8}" y="${y-8}" width="16" height="16" rx="3" fill="${C.sapphire}" stroke="${C.crust}" stroke-width="2" transform="rotate(45 ${x} ${y})"/>`;
+      g+=T(x+f.dx,y+f.dy,f.n,20,C.sapphire);}
+  }
+  /* trails first, then aircraft, then labels */
+  for(const p of list){const [x,y]=P(p.lat,p.lon),len=p.gs/40*11.7,r=p.hdg*Math.PI/180;
+    g+=`<line x1="${x}" y1="${y}" x2="${(x-Math.sin(r)*len).toFixed(1)}" y2="${(y+Math.cos(r)*len).toFixed(1)}" stroke="${mix(altCol(p.alt),C.base,0.42)}" stroke-width="4" stroke-linecap="round"/>`;}
+  for(const p of list){const [x,y]=P(p.lat,p.lon);g+=plane(x,y,p.hdg,altCol(p.alt));}
+  for(const p of list){const [x,y]=P(p.lat,p.lon);
+    g+=`<text x="${x+p.dx}" y="${y+p.dy}" font-family="${F}" font-size="20" fill="${C.fg}"><tspan font-weight="700">${p.cs}</tspan><tspan fill="${altCol(p.alt)}" dx="8">${fl(p.alt)}</tspan></text>`;}
+  /* header and legend sit over empty land on the Olympic side */
+  g+=T(36,56,'AIRSPACE',28,C.peach,{b:1,ls:1});
+  g+=T(36,90,list.length+' aircraft',24,C.fg);
+  g+=T(36,120,'SEA landing south',20,C.sub);
+  const lg=[['under 3,000 ft',C.peach],['to 10,000',C.yellow],['to 20,000',C.teal],['above',C.lav]];
+  lg.forEach(([t,c],i)=>{const y=494+i*30;g+=`<rect x="36" y="${y-15}" width="18" height="18" rx="4" fill="${c}"/>`+T(64,y,t,20,C.sub);});
+  if(state==='ferries'){g+=`<rect x="38" y="${462-13}" width="14" height="14" rx="3" fill="${C.sapphire}" transform="rotate(45 45 ${462-6})"/>`+T(64,464,'ferry',20,C.sub);}
+  return frame('a',g);
+}
+
+/* ---------- B: approach profile ---------- */
+function cardApproach(state){
+  const list=(state==='quiet'?QUIET:BUSY).filter(p=>Math.abs(p.lon+122.31)<0.13&&p.alt<12000);
+  const x0=96,x1=1228,nmN=34,nmS=20,ppn=(x1-x0)/(nmN+nmS),yG=520,yT=120,ppf=(yG-yT)/12000;
+  const X=nm=>x0+(nmN-nm)*ppn, Y=a=>yG-a*ppf;
+  let g=T(36,56,'SEA APPROACH',28,C.peach,{b:1,ls:1});
+  g+=T(1228,56,`${list.length} in the corridor`,24,C.fg,{a:'end'});
+  g+=T(36,90,'looking east, north on the left',20,C.sub);
+  for(const a of [3000,6000,9000,12000]){g+=`<line x1="${x0}" y1="${Y(a)}" x2="${x1}" y2="${Y(a)}" stroke="${C.s0}" stroke-width="2"/>`+T(x0-12,Y(a)+7,(a/1000)+'k',20,C.muted,{a:'end'});}
+  /* 3 degree glide path into SEA, 318 ft per nm */
+  g+=`<line x1="${X(0)}" y1="${yG}" x2="${X(19)}" y2="${Y(19*318)}" stroke="${mix(C.teal,C.base,0.5)}" stroke-width="3" stroke-dasharray="10 10"/>`;
+  g+=T(X(19)-14,Y(19*318)+36,'glide path',20,mix(C.teal,C.base,0.7),{a:'end'});
+  /* ground, with the water crossings north of downtown hinted in the water colour */
+  g+=`<rect x="${x0}" y="${yG}" width="${x1-x0}" height="8" fill="${C.s1}"/>`;
+  g+=`<rect x="${X(0)-22}" y="${yG-3}" width="44" height="14" rx="3" fill="${C.fg}"/>`;
+  const marks=[['PAE',27.4,0],['Edmonds',21.7,1],['Downtown',9.4,1],['BFI',4.9,0],['SEA',0,0],['Federal Way',-7.7,1],['McChord',-18.7,0]];
+  for(const [n,nm,row] of marks){const x=X(nm);
+    if(n!=='SEA')g+=`<line x1="${x}" y1="${yG+8}" x2="${x}" y2="${yG+18+row*28}" stroke="${C.s1}" stroke-width="2"/>`;
+    g+=T(x,yG+42+row*28,n,20,n==='SEA'?C.fg:C.sub,{a:'middle',b:n==='SEA'});}
+  for(const p of list){const nm=(p.lat-47.449)*60,south=Math.cos(p.hdg*Math.PI/180)<0,dir=south?1:-1;
+    const col=p.vs<-200?C.teal:p.vs>200?C.peach:C.lav, x=X(nm),y=Y(p.alt);
+    const past=p.alt-p.vs*2, k=past<0?p.alt/(p.alt-past):1;
+    const bx=x-dir*(p.gs/30)*ppn*k, by=Y(Math.max(past,0));
+    g+=`<line x1="${bx.toFixed(1)}" y1="${by.toFixed(1)}" x2="${x}" y2="${y}" stroke="${mix(col,C.base,0.42)}" stroke-width="4" stroke-linecap="round"/>`;
+    const ang=Math.atan2(y-by,x-bx)*180/Math.PI+90;
+    g+=plane(x,y,ang,col,1.15);
+    g+=`<text x="${x}" y="${y-24}" text-anchor="middle" font-family="${F}" font-size="20" fill="${C.fg}"><tspan font-weight="700">${p.cs}</tspan><tspan fill="${col}" dx="8">${fl(p.alt)}</tspan></text>`;}
+  const lg=[['descending',C.teal],['level',C.lav],['climbing',C.peach]];let lx=470;
+  for(const [t,c] of lg){g+=`<rect x="${lx}" y="74" width="18" height="18" rx="4" fill="${c}"/>`+T(lx+28,90,t,20,C.sub);lx+=t.length*12.4+70;}
+  return frame('b',g);
+}
+
+/* ---------- C: tide and daylight ---------- */
+function cardTide(){
+  const x0=70,x1=1194,yT=160,yB=500,hx=h=>x0+h/24*(x1-x0),fy=f=>yB-(f+2)/15*(yB-yT);
+  const ext=[[-3.8,9.6],[2.17,1.2],[9.33,11.6],[15.08,6.8],[19.67,9.1],[26.9,0.6]];
+  const tide=h=>{for(let i=0;i<ext.length-1;i++){const [a,va]=ext[i],[b,vb]=ext[i+1];if(h>=a&&h<=b){const t=(h-a)/(b-a);return va+(vb-va)*(1-Math.cos(Math.PI*t))/2;}}return 0;};
+  const now=18.7,rise=7.22,set=16.55,water=mix(C.sapphire,C.base,0.28);
+  let g=T(36,56,'TIDE AND DAYLIGHT',28,C.sapphire,{b:1,ls:1});
+  g+=T(36,90,'Seattle, Elliott Bay',20,C.sub);
+  /* moon, waxing crescent: lit limb on the right */
+  const mx=1196,my=62,r=26;
+  g+=`<circle cx="${mx}" cy="${my}" r="${r}" fill="${C.s0}"/><path d="M${mx},${my-r} A${r},${r} 0 0 1 ${mx},${my+r} A${r*0.52},${r} 0 0 0 ${mx},${my-r} Z" fill="${C.yellow}"/>`;
+  g+=T(mx-r-16,56,'moon 24%, waxing',20,C.sub,{a:'end'})+T(mx-r-16,84,'sets 20:05',20,C.muted,{a:'end'});
+  /* night and day behind the curve */
+  g+=`<rect x="${x0}" y="${yT-40}" width="${x1-x0}" height="${yB-yT+40}" fill="${C.mantle}"/>`;
+  g+=`<rect x="${hx(rise)}" y="${yT-40}" width="${hx(set)-hx(rise)}" height="${yB-yT+40}" fill="${mix(C.yellow,C.base,0.13)}"/>`;
+  for(const [h,lbl] of [[rise,'07:13'],[set,'16:33']]){g+=`<circle cx="${hx(h)}" cy="${yT-40}" r="9" fill="${C.yellow}"/>`+T(hx(h),yT-58,lbl,20,C.yellow,{a:'middle'});}
+  g+=T((hx(rise)+hx(set))/2,yT-58,'9 h 20 m of daylight',20,C.sub,{a:'middle'});
+  let d=`M${x0},${yB}`;for(let h=0;h<=24.001;h+=0.1)d+=` L${hx(h).toFixed(1)},${fy(tide(h)).toFixed(1)}`;
+  g+=`<path d="${d} L${x1},${yB} Z" fill="${water}"/>`;
+  let s='';for(let h=0;h<=24.001;h+=0.1)s+=(h?' L':'M')+hx(h).toFixed(1)+','+fy(tide(h)).toFixed(1);
+  g+=`<path d="${s}" fill="none" stroke="${C.sapphire}" stroke-width="4" stroke-linejoin="round"/>`;
+  const names=['02:10','09:20','15:05','19:40'];
+  ext.slice(1,5).forEach(([h,v],i)=>{const hi=i%2===1,x=hx(h),y=fy(v);
+    g+=`<circle cx="${x}" cy="${y}" r="6" fill="${C.fg}"/>`;
+    g+=`<text x="${x+(i===3?46:0)}" y="${hi?y-18:y+34}" text-anchor="middle" font-family="${F}" font-size="20" fill="${C.fg}"><tspan font-weight="700">${v.toFixed(1)} ft</tspan><tspan fill="${C.sub}" dx="8">${names[i]}</tspan></text>`;});
+  for(const h of [0,6,12,18,24]){g+=`<line x1="${hx(h)}" y1="${yB}" x2="${hx(h)}" y2="${yB+10}" stroke="${C.s1}" stroke-width="2"/>`+T(hx(h),yB+36,String(h).padStart(2,'0')+':00',20,C.muted,{a:'middle'});}
+  /* now */
+  const nx=hx(now),ny=fy(tide(now));
+  g+=`<line x1="${nx}" y1="${yT-40}" x2="${nx}" y2="${yB}" stroke="${C.fg}" stroke-width="2"/><circle cx="${nx}" cy="${ny}" r="10" fill="${C.fg}" stroke="${C.crust}" stroke-width="3"/>`;
+  g+=`<text x="36" y="592" font-family="${F}" font-size="28" fill="${C.fg}"><tspan font-weight="700">${tide(now).toFixed(1)} ft</tspan><tspan fill="${C.sub}" font-size="24" dx="14">rising, high water in 58 min</tspan></text>`;
+  return frame('c',g);
+}
+
+/* ---------- D: agents, the last 12 hours ---------- */
+function cardAgents(){
+  const x0=170,x1=1224,t0=6.7,t1=18.7,X=h=>x0+(h-t0)/(t1-t0)*(x1-x0);
+  const lanes=[
+   ['kai',[[0,'kmon',7.17,8.33,'done',0],[0,'korg',9.0,10.75,'done',1],[1,'kdashdata',9.3,11.0,'done',1],[0,'kpidash',11.0,12.83,'done',1],
+           [0,'kweather',14.0,15.5,'done',1],[1,'kfo',15.0,15.9,'done',0],[0,'kloc',16.67,17.5,'done',0]]],
+   ['kubs0',[[0,'klams',8.0,9.67,'done',1],[0,'k-homelab',12.55,14.3,'done',1],[0,'agent-skills',15.7,17.9,'done',1]]],
+   ['cleo',[[0,'kpidash-refresh',8.5,13.17,'done',0],[1,'kctrldeck',13.5,15.1,'done',1],[0,'kvimh',15.33,18.7,'run',0],[1,'khow',17.08,18.7,'ask',0]]]];
+  const fillOf={done:mix(C.lav,C.base,0.28),run:C.lav,ask:C.yellow},textOf={done:C.fg,run:C.crust,ask:C.crust};
+  let g=T(36,56,'AGENTS',28,C.lav,{b:1,ls:1})+T(170,56,'last 12 hours',24,C.sub);
+  let lx=560;for(const [t,c,dia] of [['working',C.lav],['finished',fillOf.done],['needs you',C.yellow],['shipped',C.teal,1]]){
+    g+=dia?`<rect x="${lx+1}" y="39" width="16" height="16" fill="${c}" transform="rotate(45 ${lx+9} 47)"/>`:`<rect x="${lx}" y="38" width="18" height="18" rx="4" fill="${c}"/>`;
+    g+=T(lx+30,55,t,20,C.sub);lx+=t.length*12.4+76;}
+  for(const h of [8,10,12,14,16,18]){g+=`<line x1="${X(h)}" y1="96" x2="${X(h)}" y2="556" stroke="${C.s0}" stroke-width="2"/>`+T(X(h),590,String(h).padStart(2,'0')+':00',20,C.muted,{a:'middle'});}
+  lanes.forEach(([host,blocks],li)=>{const y=104+li*152;
+    g+=`<rect x="${x0}" y="${y}" width="${x1-x0}" height="136" rx="10" fill="${C.mantle}"/>`;
+    for(const h of [8,10,12,14,16,18])g+=`<line x1="${X(h)}" y1="${y}" x2="${X(h)}" y2="${y+136}" stroke="${C.s0}" stroke-width="2"/>`;
+    g+=T(36,y+78,host,28,C.fg,{b:1});
+    for(const [tr,name,a,b,st,ship] of blocks){const bx=X(a),bw=X(b)-X(a),by=y+10+tr*60;
+      g+=`<rect x="${bx.toFixed(1)}" y="${by}" width="${bw.toFixed(1)}" height="54" rx="8" fill="${fillOf[st]}"/>`;
+      if(name.length*12.2+16+(ship?12:0)<bw)g+=T(bx+12,by+34,name,20,textOf[st],{b:1});
+      if(ship){const sx=X(b);g+=`<rect x="${sx-10}" y="${by+17}" width="20" height="20" fill="${C.teal}" stroke="${C.crust}" stroke-width="2" transform="rotate(45 ${sx} ${by+27})"/>`;}}
+  });
+  g+=`<line x1="${x1}" y1="96" x2="${x1}" y2="556" stroke="${C.fg}" stroke-width="2"/>`;
+  return frame('d',g);
+}
+
+/* ---------- page ---------- */
+const CARDS=[
+ ['a','A · Airspace','2 cells, or 3','Every aircraft over the Sound as an arrow with a short trail. Callsign in bold, then height in hundreds of feet. Press "With ferries" to add the state ferries to the same map. At three cells wide the map would reach from the Olympics to past the Cascade crest.',cardMap],
+ ['b','B · SEA approach','2 cells','The same aircraft seen from the side: the line of arrivals stepping down the glide path over Edmonds, downtown and Boeing Field, and departures climbing away to the south. SEA traffic runs north and south, which is why it suits a wide card. It flips left to right when the airport turns round.',cardApproach],
+ ['c','C · Tide and daylight','2 cells, could be 1','Today from midnight to midnight: the tide as a filled curve, daylight as the lighter band behind it, and a marker for now. The moon is top right.',cardTide],
+ ['d','D · Agents','2 cells','What ran on each host over the last 12 hours. A block is a session or a leg, a diamond is a ship, and a yellow block is waiting on you.',cardAgents]];
+let state='busy';
+function render(){
+  const solo=location.hash.match(/^#([abcd])-(busy|ferries|quiet)$/);
+  if(solo){document.body.className='solo';document.body.innerHTML=CARDS.find(c=>c[0]===solo[1])[4](solo[2]);return;}
+  document.getElementById('cards').innerHTML=CARDS.map(([id,name,size,blurb,fn])=>
+   `<div class="variant"><div class="vhead"><span class="tag">${name}</span><span class="cap">${size} · 1264 × 628</span></div><p>${blurb}</p><div class="canvas">${fn(state)}</div></div>`).join('');
+}
+for(const s of ['busy','ferries','quiet'])document.getElementById('st-'+s).onclick=()=>{state=s;
+  for(const t of ['busy','ferries','quiet'])document.getElementById('st-'+t).setAttribute('aria-pressed',t===s);render();};
+const setScale=a=>{document.body.classList.toggle('actual',a);document.getElementById('sc-fit').setAttribute('aria-pressed',!a);document.getElementById('sc-actual').setAttribute('aria-pressed',a);};
+document.getElementById('sc-fit').onclick=()=>setScale(false);document.getElementById('sc-actual').onclick=()=>setScale(true);
+render();
+</script>
