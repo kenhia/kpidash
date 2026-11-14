@@ -2,7 +2,8 @@
  * 037). Not a test: a review tool, built with the full native tree (it needs
  * LVGL), so the card can be compared with the mock-up without a Pi.
  *
- *   render_limits <out.bmp> [ok|warn|stale|bare|live]
+ *   render_limits <out.bmp> [ok|warn|stale|bare|live037|nofive-ok|nofive-warn|
+ *                            nofive-stale|nofive-long|seven|live]
  *
  * ok, warn and stale are the mock-up's three states (row2-cards-mockups.html,
  * `limits()`, data D.ok / D.warn / D.stale), built as claude:limits hashes
@@ -12,7 +13,16 @@
  *   stale  the ok record read 22 minutes on: every gauge grey
  * and two more the mock-up does not draw:
  *   bare   a statusline write with no scoped set: no bar
- *   live   the record kai published on 2026-11-14, read 47 s on
+ *   live037 the record kai published on 2026-11-14 00:42Z, read 47 s on
+ * Sprint 039 (WI #4631) adds the layouts for a record that says there is no
+ * five-hour window (five_hour_none 1), which no mock-up draws:
+ *   nofive-ok     7 DAY 61 % and FABLE · 7 DAY 38 %, both peach, ticks at 0.72
+ *   nofive-warn   7 DAY 78 % (yellow), Fable 91 % (red)
+ *   nofive-stale  nofive-ok read 22 minutes on: both rings grey
+ *   seven         no five-hour window and no scoped set: one 7 DAY ring
+ *   nofive-long   nofive-ok with the schema's example model, "claude-opus-5",
+ *                 whose ring label is too wide with the window: model alone
+ *   live          the record kai published at 2026-11-14 02:44Z, read 47 s on
  * Times are drawn in America/Los_Angeles, rpi53's zone. The canvas is the
  * whole 632 x 628 cell, the card at CELL_PAD inside it, on the panel's crust. */
 #include <stdio.h>
@@ -43,10 +53,11 @@ static time_t local_time(int y, int mo, int d, int h, int mi) {
     return mktime(&t);
 }
 
-#define MAXF 16
+#define MAXF 20
 static const char *F[MAXF], *V[MAXF];
 static char store[MAXF][32];
 static int nf;
+static const char *g_model = "Fable";
 
 static void put(const char *f, const char *fmt, double v) {
     snprintf(store[nf], sizeof(store[nf]), fmt, v);
@@ -67,15 +78,18 @@ static void build(double now, double age, const char *host, double p5, double k5
                   double k7, double ps, double ks, bool scoped, double five_reset) {
     nf = 0;
     double obs = now - age;
-    put("five_hour_pct", "%.0f", p5);
+    put("five_hour_pct", "%.0f", p5 < 0 ? 0 : p5);
     put("seven_day_pct", "%.0f", p7);
-    put("five_hour_resets_at", "%.0f", five_reset > 0 ? five_reset : now + (1 - k5) * LIM_FIVE_HOUR_S);
+    if (p5 < 0) /* no five-hour window, as CD-29's writers publish it */
+        put("five_hour_none", "%.0f", 1);
+    put("five_hour_resets_at", "%.0f",
+        p5 < 0 ? 0 : five_reset > 0 ? five_reset : now + (1 - k5) * LIM_FIVE_HOUR_S);
     put("seven_day_resets_at", "%.0f", now + (1 - k7) * LIM_SEVEN_DAY_S);
     put("updated_at", "%.0f", obs);
     put("expected_refresh_s", "%.0f", 300);
     put_s("host", host);
     if (scoped) {
-        put_s("scoped_model", "Fable");
+        put_s("scoped_model", g_model);
         put("scoped_pct", "%.0f", ps);
         put("scoped_resets_at", "%.0f", now + (1 - ks) * LIM_SEVEN_DAY_S);
         put("scoped_updated_at", "%.0f", obs);
@@ -85,7 +99,7 @@ static void build(double now, double age, const char *host, double p5, double k5
 
 int main(int argc, char **argv) {
     if (argc < 2) {
-        fprintf(stderr, "usage: %s out.bmp [ok|warn|stale|bare|live]\n", argv[0]);
+        fprintf(stderr, "usage: %s out.bmp [ok|warn|stale|bare|live037|nofive-ok|nofive-warn|nofive-stale|nofive-long|seven|live]\n", argv[0]);
         return 2;
     }
     const char *state = argc > 2 ? argv[2] : "ok";
@@ -101,7 +115,33 @@ int main(int argc, char **argv) {
         now = mon - (1 - 0.60) * LIM_SEVEN_DAY_S;
         /* "resets in 2h 36m": 1 - 156/300 = 0.48, the mock-up's tick. */
         build(now, 120, "kai", 91, 0, 78, 0.60, 84, 0.60, true, now + 156 * 60 - 30);
+    } else if (strncmp(state, "nofive-", 7) == 0 || strcmp(state, "seven") == 0) {
+        bool warn = strcmp(state, "nofive-warn") == 0;
+        if (strcmp(state, "nofive-long") == 0)
+            g_model = "claude-opus-5";
+        now = mon - (1 - 0.72) * LIM_SEVEN_DAY_S;
+        if (warn)
+            build(now, 120, "kai", -1, 0, 78, 0.72, 91, 0.72, true, 0);
+        else
+            build(now, 40, "kai", -1, 0, 61, 0.72, 38, 0.72, strcmp(state, "seven") != 0, 0);
+        if (strcmp(state, "nofive-stale") == 0)
+            now += 22 * 60;
     } else if (strcmp(state, "live") == 0) {
+        static const char *lf[] = {
+            "five_hour_pct", "seven_day_pct", "updated_at", "host", "source",
+            "expected_refresh_s", "ts", "five_hour_resets_at", "seven_day_resets_at",
+            "scoped_model", "scoped_pct", "scoped_active", "scoped_count", "scoped_updated_at",
+            "scoped_expected_refresh_s", "scoped_resets_at", "five_hour_none",
+        };
+        static const char *lv[] = {
+            "0", "11", "1794621843", "kai", "oauth", "300", "1794621844", "0",
+            "1795089599", "Fable", "13", "1", "1", "1794621843", "300", "1795089599", "1",
+        };
+        nf = (int)(sizeof(lf) / sizeof(lf[0]));
+        memcpy(F, lf, sizeof(lf));
+        memcpy(V, lv, sizeof(lv));
+        now = 1794621843 + 47;
+    } else if (strcmp(state, "live037") == 0) {
         static const char *lf[] = {
             "five_hour_pct", "seven_day_pct", "updated_at", "host", "source",
             "expected_refresh_s", "ts", "five_hour_resets_at", "seven_day_resets_at",
@@ -125,7 +165,7 @@ int main(int argc, char **argv) {
         if (stale)
             now += 22 * 60;
     }
-    if (lim_observe(F, V, nf) != 1) {
+    if (lim_observe(F, V, nf, now) != 1) {
         fprintf(stderr, "cannot build the %s record\n", state);
         return 1;
     }

@@ -814,7 +814,7 @@ redis-cli -h rpi53 GET kdash:weather:home
 
 ---
 
-## 8h. Claude Limits Card (Sprint 037, WI #4609)
+## 8h. Claude Limits Card (Sprints 037 and 039, WI #4609, #4631)
 
 | Key | Type | Written by | Read by | TTL |
 |-----|------|-----------|---------|-----|
@@ -829,7 +829,9 @@ a second connection**: kpidash links `kdash_core` only, not libkdash's
 stem-resolving I/O shell.
 
 **The dashboard only reads it.** Never hand-write a fake record to the live
-key; `tests/render_limits` draws ok / warn / stale / bare / live offline.
+key; `tests/render_limits` draws ok / warn / stale / bare / live037 and, for a
+record with no five-hour window, nofive-ok / nofive-warn / nofive-stale /
+nofive-long / seven / live offline.
 
 **Panel** (`src/limstate.c` model, `src/widgets/limits_card.c`): one
 `HGETALL` per poll, parsed by libkdash (`kdash_parse_claude_limits`).
@@ -839,6 +841,11 @@ key; `tests/render_limits` draws ok / warn / stale / bare / live offline.
 - **Absent key, rejected record:** the last record stays. A write with no
   scoped set keeps the last scoped set (greying by its own stamp).
 - **Never seen** this run: not drawn.
+- **`five_hour_none 1`** (CD-29) draws 7 DAY and the scoped window as the two
+  rings (7 DAY alone with no scoped set); absent or `0` draws the 5 HOUR /
+  7 DAY layout. The panel switches only after three consecutive new, fresh
+  records agree (the first record sets it), so a mix of writers with and
+  without the flag does not flap it.
 
 ```sh
 # What the card reads (rpi53 Redis needs auth) — read only
