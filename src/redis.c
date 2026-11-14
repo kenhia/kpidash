@@ -8,7 +8,10 @@
 #include <time.h>
 #include <unistd.h>
 
+#include <kdash/kdash_keys.h>
+
 #include "hosthist.h"
+#include "limstate.h"
 #include "memstat.h"
 #include "nasstate.h"
 #include "netstate.h"
@@ -377,6 +380,8 @@ void redis_poll(void) {
     redis_poll_nas();
     /* Weather filler (WI #4576) */
     redis_poll_weather();
+    /* Claude limits card (WI #4609) */
+    redis_poll_limits();
     /* Card eviction command (WI #374) */
     redis_poll_evict();
     /* Network-health card (WI #4062) */
@@ -1101,4 +1106,34 @@ void redis_poll_weather(void) {
 }
 #else
 void redis_poll_weather(void) { /* test stub */ }
+#endif
+
+/* WI #4609: one HGETALL of claude:limits, read only — several hosts write it
+ * and the panel never does. It lives on this same Redis: KDASH_CLAUDE_REDIS
+ * and the central stem both answer rpi53:6379 (verified 2026-11-14), so no
+ * second connection. An empty reply (key absent) and a failed command both
+ * keep the last record; a record libkdash rejects is logged and skipped. */
+#ifndef KPIDASH_TEST_STUBS
+void redis_poll_limits(void) {
+    if (!g_ctx || g_ctx->err) return;
+    redisReply *r = redisCommand(g_ctx, "HGETALL " KDASH_KEY_CLAUDE_LIMITS);
+    if (!r) return;
+    if (r->type == REDIS_REPLY_ARRAY && r->elements >= 2) {
+        enum { MAXF = 32 };
+        const char *f[MAXF], *v[MAXF];
+        int n = 0;
+        for (size_t i = 0; i + 1 < r->elements && n < MAXF; i += 2) {
+            const redisReply *k = r->element[i], *x = r->element[i + 1];
+            if (k->type != REDIS_REPLY_STRING || x->type != REDIS_REPLY_STRING) continue;
+            f[n] = k->str;
+            v[n] = x->str;
+            n++;
+        }
+        if (lim_observe(f, v, n) < 0)
+            fprintf(stderr, "redis: " KDASH_KEY_CLAUDE_LIMITS " is off-contract; keeping the last record\n");
+    }
+    freeReplyObject(r);
+}
+#else
+void redis_poll_limits(void) { /* test stub */ }
 #endif

@@ -170,6 +170,12 @@ LVGL/DRM/KMS with no mouse or keyboard interaction.
     poll into `wxstate.c` (pure model; an unchanged value is one strcmp) and
     draws `widgets/weather_card.c` in the host row's spare columns. Read only:
     kweather owns the key. See CLIENT-PROTOCOL.md §8g (sprint 034).
+14. **Claude limits card**: Claude Code's statusline and oauth poll write
+    `claude:limits` (a HASH, no TTL, several writers) from every host that
+    runs it. Dashboard HGETALLs it each poll into `limstate.c` (libkdash's
+    parser and per-gauge staleness, plus the card's own pace, bands and
+    strings) and, once it has published, draws `widgets/limits_card.c` in
+    row 1, column 5. Read only. See CLIENT-PROTOCOL.md §8h (sprint 037).
 
 ## Source Structure
 
@@ -192,6 +198,7 @@ kpidash/
 │   ├── hosthist.{h,c}          # Per-host 10-min CPU/top-core/GPU ring (sprint 029)
 │   ├── hostcols.{h,c}          # Host columns fill rule, order, attention (pure)
 │   ├── wxstate.{h,c}           # Weather filler: parse, trust, space, scale (pure, sprint 034)
+│   ├── limstate.{h,c}          # Claude limits card: pace, bands, strings, carry (pure, 037)
 │   ├── redis.{h,c}             # hiredis poll cycle + JSON parsing (cJSON)
 │   ├── status.{h,c}            # In-memory status message FIFO queue
 │   ├── ui.{h,c}                # Screen layout + redis error overlay
@@ -203,6 +210,7 @@ kpidash/
 │       ├── net_card.{h,c}      # 10G network-health card (row 1, sprint 024)
 │       ├── nas_card.{h,c}      # NAS big panel (row 1, sprint 028; restyled 033)
 │       ├── weather_card.{h,c}  # Weather filler in the host row's spare columns (034)
+│       ├── limits_card.{h,c}   # Claude limits, row 1 column 5 (037)
 │       ├── service_card.{h,c}  # Service status card + host staleness card
 │       ├── apt_temps_card.{h,c}# Per-zone temp/humidity card (footer, WI #364)
 │       ├── status_bar.{h,c}    # Bottom status bar (warning/error)
@@ -220,10 +228,12 @@ kpidash/
 │   ├── test_hostcols.c         # Fill-rule table, host order, attention levels
 │   ├── test_nasstate.c         # NAS model against the kdash-nas schema (sprint 028)
 │   ├── test_wxstate.c          # Weather model against the kdash-weather schema (034)
+│   ├── test_limstate.c         # Claude limits model: pace, bands, strings, carry (037)
 │   ├── test_widget_leak.c      # Widget leak regression (needs LVGL)
 │   ├── render_host_columns.c   # Offline render of the host columns to BMP (tool)
 │   ├── render_nas_card.c       # Offline render of the NAS card, four states (tool)
-│   └── render_weather.c        # Offline render of the weather filler, 4 states × 4 widths (tool)
+│   ├── render_weather.c        # Offline render of the weather filler, 4 states × 4 widths (tool)
+│   └── render_limits.c         # Offline render of the Claude limits card, 5 states (tool)
 ├── clients/
 │   └── kpidash-client/         # Python 3.13+ daemon + CLI (psutil, pynvml)
 ├── scripts/
@@ -481,6 +491,39 @@ nothing depends on it.
   record, width or stale flip repaints the card; otherwise only the age line
   (once a minute) or a strip around the day bar's marker (when its minute
   moves) is invalidated.
+
+## Claude Limits Card (sprint 037)
+
+`src/widgets/limits_card.c`, the "CLAUDE LIMITS" card Ken picked on
+2026-11-13 (`sprints/planning/row2-cards-mockups.html`, function `limits()`).
+A 1×1 in row 1, column 5 (Ken's "row 2", counting from one); column 4 is held
+for the korg + klams card.
+
+- **Layout.** "Claude" in peach and, at the right, the writing host and the
+  record's age. Two rings, 5 HOUR and 7 DAY, each with its percentage in the
+  96 px digits and a 36 px "%", its label and its reset ("resets in 2h 14m"
+  under a day away, else "resets Mon 09:00" in the panel's local time). Below,
+  one bar for the model-scoped weekly window ("Fable, 7 day"), left out
+  entirely when the record has never carried a scoped set.
+- **The pace tick** (`lim_pace`) is the fraction of the window already
+  elapsed, from the reset time and the window's length (5 h, 7 d). A ring past
+  its tick is burning faster than the clock. No tick when the reset is unknown,
+  or further away than the window is long (no consistent record says that).
+- **Colour** (Ken's ruling): peach below 75 %, yellow from 75, red from 90,
+  banded on the percentage as drawn. Ring tracks are Surface0, opaque.
+- **Staleness is per gauge, and libkdash's** (`kdash_claude_limits_stale`,
+  `kdash_claude_limits_scoped_stale`): the rings share the headline stamp, the
+  bar has its own, each greys at its writer's cadence plus 60 s (an hour for a
+  pre-cadence writer). A stale headline greys the title and reads "no data
+  22m" in yellow; a stale gauge keeps its last number.
+- **Anti-flicker** (sprint 035's rule). An absent key or a rejected record keeps
+  the last record. A write with no scoped set (a statusline write) keeps the
+  last scoped set, which then greys by its own stamp instead of vanishing and
+  reflowing the card.
+- **Repaint cost.** One callback-drawn object. A change to any gauge (a
+  number, a tick's half-degree step, a reset string's minute, a stale flip)
+  repaints the card; the header age, which moves every second, repaints only
+  its strip.
 
 ## Memory Telemetry
 
