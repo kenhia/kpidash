@@ -137,7 +137,20 @@ prints the reset it was given.
 
 ## Repaired in passing
 
-Nothing. The gate was green before and after.
+- **The gates compiled at `-O2`; the deploy compiles at `-O3`.** The first Pi
+  build (ship turn, `30c8594`) printed `-Wformat-truncation` in
+  `lim_fmt_header`: the 16-byte duration buffer could not be proven to hold a
+  20-digit `%ld`. It is harmless at runtime, since real durations are a few
+  characters. Neither gate saw it. Both machines run the same GCC 13.3, so the
+  optimisation level was the whole difference: `deploy.sh` builds CMake
+  `Release`, which is `-O3` (`build-pi/CMakeCache.txt`), and the warning
+  appears only at `-O3`.
+  - Fixed both halves. The buffer is now 24 bytes. `check-release` and
+    `check-warnings-full` now compile at `-O3 -Werror`, and CLAUDE.md,
+    copilot-instructions and the justfile say so.
+  - Proof: the pre-fix `limstate.c` fails `-O3 -Werror` (2 errors), and both
+    gates pass on the fixed tree. The whole tree, render tools included, is
+    clean at `-O3 -Werror`.
 
 ## Pre-ship reading
 

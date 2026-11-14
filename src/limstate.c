@@ -167,7 +167,7 @@ void lim_fmt_dur(double secs, char *buf, size_t n) {
 }
 
 void lim_fmt_header(const lim_record_t *r, double now, bool stale, char *buf, size_t n) {
-    char d[16];
+    char d[24]; /* a long's 20 digits and a unit: -O3 range analysis wants it */
     lim_fmt_dur(now - r->l.updated_at, d, sizeof(d));
     if (stale)
         snprintf(buf, n, "no data %s", d);

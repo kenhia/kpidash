@@ -34,7 +34,11 @@ check-dashboard: _kdash
     # so without this the gate would pass loudest when there is least to check.
     ctest --test-dir build-tests --output-on-failure --no-tests=error
 
-# Gate: the same sources again at -O2, warnings fatal (WI #1934).
+# Gate: the same sources again at -O3, warnings fatal (WI #1934).
+#
+# -O3 because that is what CMake's Release means, and Release is what
+# scripts/deploy.sh builds. Until sprint 037 this pinned -O2, and an -O3-only
+# -Wformat-truncation in limstate.c reached the Pi build unseen by either gate.
 #
 # scripts/deploy.sh builds -DCMAKE_BUILD_TYPE=Release, and GCC's flow-sensitive
 # warnings (-Wstringop-truncation, -Wunused-result, the -Wmaybe-* family) only
@@ -51,16 +55,16 @@ check-dashboard: _kdash
 # src/widgets/*), which need LVGL and libpng and so cannot be
 # compiled on a bare dev host. Those stay covered by the deploy's own Release
 # build. See CLAUDE.md's note on the warning-clean claim.
-[doc("The same sources again at -O2, warnings fatal (partial coverage)")]
+[doc("The same sources again at -O3, warnings fatal (partial coverage)")]
 check-release: _kdash
     #!/usr/bin/env bash
     set -euo pipefail
     cmake -S . -B build-release-check -DTESTS_ONLY=ON \
         -DCMAKE_BUILD_TYPE=Release \
-        -DCMAKE_C_FLAGS_RELEASE="-O2 -DNDEBUG -Wall -Wextra -Werror"
+        -DCMAKE_C_FLAGS_RELEASE="-O3 -DNDEBUG -Wall -Wextra -Werror"
     cmake --build build-release-check
 
-# Gate (opt-in): the WHOLE tree at -O2, warnings fatal — including the
+# Gate (opt-in): the WHOLE tree at -O3 (the deploy's Release), warnings fatal — including the
 # dashboard-only sources check-release cannot reach (WI #2307).
 #
 # check-release is scoped to TESTS_ONLY, which is five files, and NOT the five
@@ -76,7 +80,7 @@ check-release: _kdash
 # particular. The exec-stack warning fixed in sprint 019 was invisible here —
 # native x86_64 links clean while the Pi cross-link warns. Read the deploy
 # output too; this gate narrows that duty, it does not retire it.
-[doc("Opt-in: the WHOLE tree at -O2, warnings fatal (needs lib/lvgl + libpng)")]
+[doc("Opt-in: the WHOLE tree at -O3, warnings fatal (needs lib/lvgl + libpng)")]
 check-warnings-full: _kdash
     #!/usr/bin/env bash
     set -euo pipefail
@@ -89,7 +93,7 @@ check-warnings-full: _kdash
     fi
     cmake -S . -B build-warnings-full \
         -DCMAKE_BUILD_TYPE=Release \
-        -DCMAKE_C_FLAGS_RELEASE="-O2 -DNDEBUG -Wall -Wextra -Werror"
+        -DCMAKE_C_FLAGS_RELEASE="-O3 -DNDEBUG -Wall -Wextra -Werror"
     cmake --build build-warnings-full
 
 # Gate: the systemd units this repo authors read the ONE per-host password
