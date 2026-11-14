@@ -176,3 +176,29 @@ this figure.
   mock-up. It should show the real tags if korg's publisher is live, or an
   untagged grid and "no calendar feed" if it is not.
 - Panel CPU after the deploy, measured the same way, against 7.2 %.
+
+## Deployed
+
+Deployed 2026-11-14 from the ship turn with `scripts/deploy.sh` to rpi53,
+after the overseer's clearance (korg comment 4699). There is no
+`.sprint-deploy`.
+
+- **`5af1edd`** (PR #44). The service is active (NRestarts=0), and the
+  dashboard self-reports `5af1edd (2026-11-14)`. The aarch64 build printed
+  **zero** warnings, and the link printed nothing.
+- **Live capture** (`krpidss`, 01:20:30 PST). The card crop is attached to
+  korg:4668 as img-124d, and the whole panel at half scale as img-124e.
+  - The card is at row 3, columns 4-5. It reads 01:20, Saturday, November
+    14. The 14th is solid blue, earlier days are dimmed, and weekends are
+    grey.
+  - **`kdash:calendar` was absent.** `GET` returned nothing at 01:20:21 PST,
+    because korg:4667 was still mid-ship. So the card shows the untagged grid
+    and "no calendar feed", which is the designed no-feed state. The tags
+    were proved before the ship against a scratch Redis (see "Proof against
+    a Redis" above). The overseer does the final check of the live tags.
+  - The rest of the panel is unchanged: hosts, weather, 10G, NAS, korg +
+    klams, limits, and the footer.
+- **Panel CPU**, measured on rpi53 itself as before (utime + stime over
+  120 s, pid 327432, ending 01:22 PST): **6.0 %** of a core, against 7.2 %
+  before the ship. Not above it. The clock repaints only its own rectangle,
+  once a minute.
