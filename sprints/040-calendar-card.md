@@ -99,7 +99,10 @@ mock-up source is committed as `planning/calendar-mockups.html`, and its
 
 ## Renders
 
-Every render was compared with `cardA` by its coordinates and colours, and
+All renders are 1264 × 628, the card's whole frame. now (img-1246), d27
+(img-1247) and six (img-1248) are attached to korg:4668, and so is the
+scratch-Redis proof (img-1249). Every render was compared with `cardA` by its
+coordinates and colours, and
 with `cal-A-24h.png` and `cal-d27.png` (ignoring the AM/PM in the second).
 
 - **now**: Friday 13 November 18:42. The 11th has a dimmed rose number
