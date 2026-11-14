@@ -172,3 +172,25 @@ read through Redis, as `scripts/deploy.sh` does, not from a flag.
   the aarch64 link output by eye (the linker class neither gate sees).
 - `krpidss` capture of row 2: the card at column 5 with live numbers.
 - Panel CPU after the deploy, measured the same way, against 6.7 %.
+
+## Deployed
+
+2026-11-13, from the ship turn, with `scripts/deploy.sh` to rpi53 (no
+`.sprint-deploy`; the overseer's clearance, korg comment 4656, named the deploy).
+
+- **First deploy, `30c8594`** (PR #40). The service came up active
+  (NRestarts=0), and the dashboard self-reported `30c8594`. The aarch64 build
+  printed the `-Wformat-truncation` described under "Repaired in passing". The
+  link printed nothing.
+- **Second deploy, `7af8a1e`** (PR #41, the repair). The service is active
+  (NRestarts=0), the dashboard self-reports `7af8a1e`, and the aarch64 build
+  printed **zero** warnings. The link printed nothing (no `ld` output).
+- **Live capture** (`krpidss`, 17:00 PST, cropped to row 2): the card is at
+  column 5 with live numbers, 5 HOUR 9 %, 7 DAY 9 %, Fable 11 %, all peach,
+  "kai · 3m ago". The 7-day tick and the scoped bar's tick are in place. The
+  five-hour ring has no tick and reads "resets Thu 04:00", which is the record
+  kdeskdash WI 4623 is about, handled as ruled. Column 4 is empty as intended;
+  10G and NAS are unchanged.
+- **Panel CPU**, measured as before on rpi53 itself (utime + stime over
+  120 s, pid 284797, from 17:00 PST): **5.0 %** of a core, against 6.7 %
+  before the ship. Not measurably above.
