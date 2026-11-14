@@ -230,3 +230,31 @@ to 96 small opaque rectangles.
 - Deploy with `scripts/deploy.sh`, and read the aarch64 link output by eye.
 - A `krpidss` capture of row 3.
 - Panel CPU after the deploy, against 9.0 %.
+
+## Deployed
+
+Deployed 2026-11-14 from the ship turn with `scripts/deploy.sh` to rpi53,
+after the overseer's clearance (korg comment 4735). There is no
+`.sprint-deploy`.
+
+- **`cdfdd3b`** (PR #46). The service is active (NRestarts=0), and the
+  dashboard self-reports `cdfdd3b (2026-11-14)`. The aarch64 Release build
+  printed **zero** warnings, and the link printed nothing.
+- **Live capture** (`krpidss`, 14:02:38 PST). The card crop is attached to
+  korg:4734 as img-128c, and the whole panel at half scale as img-128d. It
+  shows:
+  - "last 3 hours", the half-hour grid from 11:30 to 14:00, and the day strip
+    with its band over the last 3 hours;
+  - the cleo overseer `kpidash-refresh` (program korg:4699's overseer) with
+    this program's legs hung under it by stems: `k-homelab`, `ksitrep`,
+    `k-homelab` and this leg's own `kpidash` (working, solid peach, running to
+    now);
+  - the three short legs named whole on their left;
+  - the cleo overseer "Stale apt-temps on rpi53 dashb…" as two bars, with its
+    `apt-temps` leg.
+
+  The strip is empty before 12:24, because that is when the feed started. The
+  rest of the panel is unchanged.
+- **Panel CPU**, measured on rpi53 itself as before (utime + stime over
+  120 s, pid 391649, ending 14:04 PST): **6.8 %** of a core, against 9.0 %
+  before the ship. Not above it.
