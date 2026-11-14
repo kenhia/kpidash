@@ -176,6 +176,14 @@ LVGL/DRM/KMS with no mouse or keyboard interaction.
     parser and per-gauge staleness, plus the card's own pace, bands and
     strings) and, once it has published, draws `widgets/limits_card.c` in
     row 1, column 5. Read only. See CLIENT-PROTOCOL.md §8h (sprint 037).
+15. **korg + klams card**: korg's `bin/korg-pulse` on kai writes
+    `kdash:korg:pulse` every 5 min, and klams-monitor on kubs0 writes
+    `kdash:klams:status` every 60 s (kdashdata CD-28: one JSON document each,
+    ts-owned, cadence-declared, no TTL). Dashboard GETs both each poll into
+    `kkstate.c` (libkdash's parsers and cadence staleness, plus the card's
+    debounce, scanner verdict and 30-day line) and draws
+    `widgets/korg_klams_card.c` in row 1, column 4. Read only. See
+    CLIENT-PROTOCOL.md §8i (sprint 038).
 
 ## Source Structure
 
@@ -199,6 +207,7 @@ kpidash/
 │   ├── hostcols.{h,c}          # Host columns fill rule, order, attention (pure)
 │   ├── wxstate.{h,c}           # Weather filler: parse, trust, space, scale (pure, sprint 034)
 │   ├── limstate.{h,c}          # Claude limits card: pace, bands, strings, carry (pure, 037)
+│   ├── kkstate.{h,c}           # korg + klams card: debounce, scanners, 30-day line (pure, 038)
 │   ├── redis.{h,c}             # hiredis poll cycle + JSON parsing (cJSON)
 │   ├── status.{h,c}            # In-memory status message FIFO queue
 │   ├── ui.{h,c}                # Screen layout + redis error overlay
@@ -210,6 +219,7 @@ kpidash/
 │       ├── net_card.{h,c}      # 10G network-health card (row 1, sprint 024)
 │       ├── nas_card.{h,c}      # NAS big panel (row 1, sprint 028; restyled 033)
 │       ├── weather_card.{h,c}  # Weather filler in the host row's spare columns (034)
+│       ├── korg_klams_card.{h,c} # korg + klams, row 1 column 4 (038)
 │       ├── limits_card.{h,c}   # Claude limits, row 1 column 5 (037)
 │       ├── service_card.{h,c}  # Service status card + host staleness card
 │       ├── apt_temps_card.{h,c}# Per-zone temp/humidity card (footer, WI #364)
@@ -229,11 +239,13 @@ kpidash/
 │   ├── test_nasstate.c         # NAS model against the kdash-nas schema (sprint 028)
 │   ├── test_wxstate.c          # Weather model against the kdash-weather schema (034)
 │   ├── test_limstate.c         # Claude limits model: pace, bands, strings, carry (037)
+│   ├── test_kkstate.c          # korg + klams model against both schemas (038)
 │   ├── test_widget_leak.c      # Widget leak regression (needs LVGL)
 │   ├── render_host_columns.c   # Offline render of the host columns to BMP (tool)
 │   ├── render_nas_card.c       # Offline render of the NAS card, four states (tool)
 │   ├── render_weather.c        # Offline render of the weather filler, 4 states × 4 widths (tool)
-│   └── render_limits.c         # Offline render of the Claude limits card, 5 states (tool)
+│   ├── render_limits.c         # Offline render of the Claude limits card, 5 states (tool)
+│   └── render_korg_klams.c     # Offline render of the korg + klams card, 6 states (tool)
 ├── clients/
 │   └── kpidash-client/         # Python 3.13+ daemon + CLI (psutil, pynvml)
 ├── scripts/
@@ -496,8 +508,8 @@ nothing depends on it.
 
 `src/widgets/limits_card.c`, the "CLAUDE LIMITS" card Ken picked on
 2026-11-13 (`sprints/planning/row2-cards-mockups.html`, function `limits()`).
-A 1×1 in row 1, column 5 (Ken's "row 2", counting from one); column 4 is held
-for the korg + klams card.
+A 1×1 in row 1, column 5 (Ken's "row 2", counting from one), beside the
+korg + klams card in column 4.
 
 - **Layout.** "Claude" in peach and, at the right, the writing host and the
   record's age. Two rings, 5 HOUR and 7 DAY, each with its percentage in the
@@ -524,6 +536,47 @@ for the korg + klams card.
   number, a tick's half-degree step, a reset string's minute, a stale flip)
   repaints the card; the header age, which moves every second, repaints only
   its strip.
+
+## korg + klams Card (sprint 038)
+
+`src/widgets/korg_klams_card.c`, the "KORG + KLAMS" card Ken picked on
+2026-11-13 (`sprints/planning/row2-cards-mockups.html`, function `combo()`).
+A 1×1 in row 1, column 4. Two feeds share the cell, and **each half lives on
+its own feed**: it greys on its own stamp, and before its feed has ever
+published it draws its title and "no feed", so the other half never moves.
+The card itself is always shown.
+
+- **korg (lavender, top).** The open count in the 96 px digits and "open";
+  the 30-day line at the right (pre-mixed opaque area fill; placed by date, so
+  a missing day leaves a gap; fewer than two points draws no line, and the
+  line moves right of a three-digit count); Awaiting Ken (peach above zero)
+  and active; the top project's name and count at the right, its name cut
+  until it clears the lanes; and a bar with one segment per project, widths by
+  open count, the first lavender, the next three half-mixed, the rest
+  Surface1, and `other_open` as one last Surface0 segment when above zero.
+- **klams (sapphire, bottom).** The health dot (green ok, yellow degraded,
+  red down) and the knowledge-chunk count; up to two scanner rows; the
+  subsystem dots with names.
+- **Scanner rows** (korg:4618 comment 4672). "Last wrote" is not a health
+  signal — an idle scanner runs hourly and writes nothing for days. A scanner
+  whose `last_ran_at` is inside its interval plus 60 s is healthy: the bar
+  drains from `last_ran_at` and the write age is secondary text ("wrote 3d
+  ago"). A stale `last_ran_at` is stalled: a red-outlined bar and "ran 5h
+  ago" in red. A null `last_ran_at` is neutral, never red: a write-age bar in
+  a half-mixed sapphire and the write age as text.
+- **klams down vs. publisher down.** A fresh record with health `down`: red
+  dot, "down" at the right, no values. A stale record: the grey treatment,
+  last values kept, and "no data 14m" in yellow where the dot was.
+- **Anti-flicker** (sprint 035's rule). An absent key or rejected record keeps
+  the last record. A subsystem turns red only once the same miss is seen on
+  two consecutive records (distinct `ts`), and klams's own `degraded`/`down`
+  verdict is held to the same rule; a single `down` record is not adopted at
+  all, since blanking the half for one record is the flash the rule forbids.
+  Recovery shows at once.
+- **Repaint cost.** One callback-drawn object, opaque fills only. A change
+  repaints only the half it is in: the scanner bars drain a pixel every ~14 s
+  and must not repaint korg's line; a korg write every 5 min must not repaint
+  klams.
 
 ## Memory Telemetry
 

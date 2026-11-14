@@ -847,6 +847,46 @@ redis-cli -h rpi53 HGETALL claude:limits
 
 ---
 
+## 8i. korg + klams Card (Sprint 038, WI #4613)
+
+| Key | Type | Written by | Read by | TTL |
+|-----|------|-----------|---------|-----|
+| `kdash:korg:pulse` | STRING (JSON) | korg's `bin/korg-pulse` timer on kai, every 5 min | dashboard | none |
+| `kdash:klams:status` | STRING (JSON) | klams-monitor on kubs0, every 60 s | dashboard | none |
+
+**The contracts are kdashdata's** (sprint 023, CD-28): schemas
+`lib/kdashdata/contracts/schemas/kdash-korg-pulse.schema.json` and
+`kdash-klams-status.schema.json`. Both are ts-owned and cadence-declared:
+each record carries its writer's `expected_refresh_s`, and the panel judges
+it stale past that plus `KDASH_CADENCE_GRACE_S` (60 s). Null counts read as
+`KDASH_COUNT_NULL`, null stamps as 0; over-long arrays are truncated and
+flagged, not rejected.
+
+**The dashboard only reads them.** Never hand-write a fake record to a live
+key; `tests/render_korg_klams` draws ok / warn / stale / down / nofeed / live
+offline.
+
+**Panel** (`src/kkstate.c` model, `src/widgets/korg_klams_card.c`): one `GET`
+of each per poll, parsed by libkdash (`kdash_parse_korg_pulse`,
+`kdash_parse_klams_status`). kpidash links `kdash_core` only, so it does its
+own GET rather than libkdash's `kdash_korg_pulse()`.
+
+- **Each half is stale on its own feed.** A fresh klams record with health
+  `down` means klams is down; a stale one means its publisher is.
+- **Scanner rows are judged by `last_ran_at`**, not the write: see
+  ARCHITECTURE.md's card section for the three states.
+- **Absent key, rejected record:** the last record stays. A subsystem miss or
+  a non-ok verdict shows only on two consecutive records.
+- **Never seen** this run: the half draws its title and "no feed".
+
+```sh
+# What the card reads (rpi53 Redis needs auth) — read only
+redis-cli -h rpi53 GET kdash:korg:pulse
+redis-cli -h rpi53 GET kdash:klams:status
+```
+
+---
+
 ## 9. Dev Commands (Sprint 002)
 
 Command keys enable/disable developer overlay widgets. All keys use JSON

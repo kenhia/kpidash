@@ -242,6 +242,28 @@ if(TARGET lvgl)
     target_link_libraries(render_limits lvgl kdash_core ${PNG_TEST_LIBRARIES} pthread m)
     target_compile_options(render_limits PRIVATE -Wall -Wextra -Wno-unused-parameter)
     target_compile_definitions(render_limits PRIVATE LV_FONT_MONTSERRAT_BOLD_96_DIGITS=1)
+
+    # Sprint 038: offline render of the korg + klams card in the mock-up's
+    # ok / warn / stale states (and down, nofeed, live), for review against
+    # sprints/planning/row2-cards-mockups.html (`combo()`).
+    add_executable(render_korg_klams
+        ${CMAKE_CURRENT_SOURCE_DIR}/render_korg_klams.c
+        ${CMAKE_SOURCE_DIR}/src/widgets/korg_klams_card.c
+        ${CMAKE_SOURCE_DIR}/src/kkstate.c
+        ${CMAKE_SOURCE_DIR}/src/bmp_write.c
+        ${CMAKE_SOURCE_DIR}/fonts/lv_font_montserrat_bold_24.c
+        ${CMAKE_SOURCE_DIR}/fonts/lv_font_montserrat_bold_28.c
+        ${CMAKE_SOURCE_DIR}/fonts/lv_font_montserrat_bold_36.c
+        ${CMAKE_SOURCE_DIR}/fonts/lv_font_montserrat_bold_96_digits.c
+    )
+    target_include_directories(render_korg_klams PRIVATE
+        ${CMAKE_SOURCE_DIR}
+        ${CMAKE_SOURCE_DIR}/src
+        ${CMAKE_SOURCE_DIR}/fonts
+    )
+    target_link_libraries(render_korg_klams lvgl kdash_core ${PNG_TEST_LIBRARIES} pthread m)
+    target_compile_options(render_korg_klams PRIVATE -Wall -Wextra -Wno-unused-parameter)
+    target_compile_definitions(render_korg_klams PRIVATE LV_FONT_MONTSERRAT_BOLD_96_DIGITS=1)
 endif()
 
 # WI #4062: the network card's model. Pure — no LVGL, no Redis — and held to
@@ -318,3 +340,21 @@ target_include_directories(test_limstate PRIVATE ${CMAKE_SOURCE_DIR}/src)
 target_link_libraries(test_limstate kdash_core m)
 target_compile_options(test_limstate PRIVATE -Wall -Wextra -Wno-unused-parameter)
 add_test(NAME test_limstate COMMAND test_limstate)
+
+# WI #4613: the korg + klams card's model. Parsing and cadence staleness are
+# libkdash's (kdash_core); this holds the card's own rules — the debounce, the
+# scanner verdict, the 30-day line's points, the strings — against both
+# schemas' examples and counterexamples and the two records live on 2026-11-14.
+add_executable(test_kkstate
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_kkstate.c
+    ${CMAKE_SOURCE_DIR}/src/kkstate.c
+)
+target_include_directories(test_kkstate PRIVATE ${CMAKE_SOURCE_DIR}/src ${CJSON_INCLUDE_DIRS})
+target_link_libraries(test_kkstate kdash_core ${CJSON_LIBRARIES} m)
+target_compile_options(test_kkstate PRIVATE -Wall -Wextra -Wno-unused-parameter)
+target_compile_definitions(test_kkstate PRIVATE
+    KDASH_KORG_SCHEMA="${CMAKE_SOURCE_DIR}/lib/kdashdata/contracts/schemas/kdash-korg-pulse.schema.json"
+    KDASH_KLAMS_SCHEMA="${CMAKE_SOURCE_DIR}/lib/kdashdata/contracts/schemas/kdash-klams-status.schema.json"
+    KORG_LIVE_FIXTURE="${CMAKE_CURRENT_SOURCE_DIR}/fixtures/korg-pulse-2026-11-14.json"
+    KLAMS_LIVE_FIXTURE="${CMAKE_CURRENT_SOURCE_DIR}/fixtures/klams-status-2026-11-14.json")
+add_test(NAME test_kkstate COMMAND test_kkstate)
