@@ -6,7 +6,10 @@
 
 ## Now
 
-- **042 — Agents card v2** (korg proposal 4734, slice 7 of program 4699). The
+- **043 — Row 2 order: Claude usage first** (korg proposal 4756, WI 4752).
+  Ken's request: row 1 in code (his "row 2") now reads Claude limits
+  (column 0), 10G (1-2), NAS (3-4), korg + klams (5). Positions only.
+- **042** (shipped). Agents card v2 (korg proposal 4734, slice 7 of program 4699). The
   first live day showed 10-30 minute sessions as 25 px bars with no room for
   a name, so the card now shows the last 3 hours in detail (names inside the
   bar or just left of it) over a thin 24-hour strip, one lane per host. View B

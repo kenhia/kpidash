@@ -19,8 +19,8 @@ plus network, NAS and service status for the homelab.
 │  Host columns: the whole top row (one column per    │
 │  host, tiles past ten; free columns empty for now)  │
 ├─────────────────────────────────────────────────────┤
-│  Row 1: 10G network card, NAS panel, korg + klams,  │
-│  Claude limits                                      │
+│  Row 1: Claude limits, 10G network card, NAS panel, │
+│  korg + klams                                       │
 ├─────────────────────────────────────────────────────┤
 │  Row 2: agents (3 h + day strip), time and calendar │
 ├─────────────────────────────────────────────────────┤

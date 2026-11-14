@@ -9,12 +9,13 @@
  *   │  Host columns — Row 0, cols 0-5, 6×1 units  │
  *   │  (the whole row; sprint 030, WI #4543), the │
  *   │  weather filler in what they leave (034)    │
- *   ├──────────┬──────────┬───────────┬───────────┤
- *   │ 10G card │ NAS card │  korg +   │  Claude   │
- *   │  2×1     │  2×1     │  klams    │  limits   │
- *   ├──────────┴──────────┴───────────┴───────────┤
- *   │  (free)                                     │
- *   ├─────────────────────────────────────────────┤
+ *   ├───────────┬──────────┬──────────┬───────────┤
+ *   │  Claude   │ 10G card │ NAS card │  korg +   │
+ *   │  limits   │  2×1     │  2×1     │  klams    │
+ *   ├───────────┴──────────┴──────────┼───────────┤
+ *   │  Agents, 3 h + day strip        │  time +   │
+ *   │  4×1 (041/042)                  │  calendar │
+ *   ├─────────────────────────────────┴───────────┤
  *   │  Footer: service strip, status bar          │
  *   └─────────────────────────────────────────────┘
  */
@@ -53,8 +54,8 @@ static lv_obj_t *g_host_columns = NULL; /* WI #4526: replaces the client card gr
 static lv_obj_t *g_weather = NULL;      /* WI #4576: the filler in the hosts' spare columns */
 static lv_obj_t *g_netcard = NULL;
 static lv_obj_t *g_nascard = NULL; /* WI #3956 */
-static lv_obj_t *g_korgklams = NULL; /* WI #4613: korg + klams; "row 2, column 4" counts rows from 1 */
-static lv_obj_t *g_limits = NULL;  /* WI #4609: Claude limits; "row 2, column 5" counts rows from 1 */
+static lv_obj_t *g_korgklams = NULL; /* WI #4613: korg + klams; "row 2, column 5" counts rows from 1 */
+static lv_obj_t *g_limits = NULL;  /* WI #4609: Claude limits; "row 2, column 0" counts rows from 1 */
 static lv_obj_t *g_agents = NULL;   /* WI #4695: agents timeline; "row 3, columns 0-3" counts rows from 1 */
 static lv_obj_t *g_calendar = NULL; /* WI #4665: time and calendar; "row 3, columns 4-5" counts rows from 1 */
 static lv_obj_t *g_service_strip = NULL;  /* T013: footer Service-Strip container */
@@ -144,24 +145,25 @@ void ui_init(void) {
     lv_obj_set_y(g_weather, ROW_Y(0) + HOSTCOLS_Y0);
     lv_obj_add_flag(g_weather, LV_OBJ_FLAG_HIDDEN);
 
-    /* ---- Row 1: the 10G card in columns 0-1, then the NAS card in columns
-     * 2-3 (sprint 032). The NAS card is shown only once kdash:nas has
-     * published, but its slot is fixed, so the 10G card never moves.
-     * The korg + klams card takes column 4 (sprint 038) and the Claude
-     * limits card column 5 (sprint 037). ---- */
+    /* ---- Row 1 (sprint 043, WI #4752): the Claude limits card in column 0
+     * (sprint 037), the 10G card in columns 1-2, the NAS card in columns 3-4
+     * (sprint 032) and the korg + klams card in column 5 (sprint 038). The
+     * limits card is shown only once claude:limits has published and the
+     * NAS card only once kdash:nas has, but every slot is fixed, so no card
+     * moves when another appears. ---- */
+    g_limits = limits_card_create(g_screen); /* WI #4609 */
+    lv_obj_set_pos(g_limits, COL_X(0) + CELL_PAD, ROW_Y(1) + CELL_PAD);
+    lv_obj_add_flag(g_limits, LV_OBJ_FLAG_HIDDEN);
+
     g_netcard = net_card_create(g_screen); /* WI #4062 */
-    lv_obj_set_pos(g_netcard, COL_X(0), ROW_Y(1));
+    lv_obj_set_pos(g_netcard, COL_X(1), ROW_Y(1));
 
     g_nascard = nas_card_create(g_screen); /* WI #3956 */
-    lv_obj_set_pos(g_nascard, COL_X(2) + CELL_PAD, ROW_Y(1) + CELL_PAD);
+    lv_obj_set_pos(g_nascard, COL_X(3) + CELL_PAD, ROW_Y(1) + CELL_PAD);
     lv_obj_add_flag(g_nascard, LV_OBJ_FLAG_HIDDEN);
 
     g_korgklams = korg_klams_card_create(g_screen); /* WI #4613 */
-    lv_obj_set_pos(g_korgklams, COL_X(4) + CELL_PAD, ROW_Y(1) + CELL_PAD);
-
-    g_limits = limits_card_create(g_screen); /* WI #4609 */
-    lv_obj_set_pos(g_limits, COL_X(5) + CELL_PAD, ROW_Y(1) + CELL_PAD);
-    lv_obj_add_flag(g_limits, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_set_pos(g_korgklams, COL_X(5) + CELL_PAD, ROW_Y(1) + CELL_PAD);
 
     /* ---- Row 2: the Agents card, a 4×1 in columns 0-3 (sprint 041), then
      * the time and calendar card, a 2×1 in columns 4-5 (sprint 040). Both

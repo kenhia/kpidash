@@ -9,7 +9,7 @@
  * A verdict headline and three tiles over a backplane rail, then one column
  * per host: speed numeral, a 60-minute throughput sparkline with link-drop
  * ticks, LFC / rx errors, UDM · PEERS · WAN pills and the feed's age. Fixed
- * in row 1, columns 0-1 (sprint 032). Draws whatever netstate.c holds; it
+ * in row 1, columns 1-2 (sprint 032; moved one column right in sprint 043). Draws whatever netstate.c holds; it
  * owns no state of its own beyond its LVGL objects.
  */
 
