@@ -125,7 +125,8 @@ the main thing it changed.
 
 ## Renders
 
-All renders are 632 × 628, the whole cell, and are attached to korg:4618.
+All renders are 632 × 628, the whole cell, and are attached to korg:4618:
+ok (img-1223), warn (img-1224), stale (img-1225) and live (img-1226).
 Compared with `combo()` by its coordinates and colours. kai has no SVG
 rasteriser (no chromium, rsvg or playwright), so the mock-up was read rather
 than rasterised.
