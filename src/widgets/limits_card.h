@@ -4,7 +4,7 @@
 /**
  * limits_card.h — the Claude limits card (WI #4609, sprint 037).
  *
- * A 1×1 in row 2, column 5: two rings for the 5-hour and 7-day windows with a
+ * A 1×1 in row 2, column 0 (column 5 until sprint 043): two rings for the 5-hour and 7-day windows with a
  * pace tick each, and a bar for the model-scoped weekly window. The model is
  * limstate; this only draws it. One object, drawn in a single DRAW_MAIN pass
  * with opaque fills only. A change repaints the card; the header age, which

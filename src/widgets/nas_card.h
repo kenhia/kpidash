@@ -4,7 +4,8 @@
 #include "lvgl.h"
 
 /* WI #3956: the NAS big panel — a 2×1 card for KPIDASH_NAS_HOST, fixed in
- * row 1, columns 2-3, next to the 10G card (sprint 032). Since sprint 033
+ * row 1, columns 3-4, next to the 10G card (sprint 032; moved one column
+ * right in sprint 043). Since sprint 033
  * (WI #4566) it is "A · Rail" in mauve: a state headline and three stat
  * boxes, the pool and root bars, and eight disk tiles on a bus, in Ken's
  * order with a use label above each (nas_disk_uses.h). Reads nasstate

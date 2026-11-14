@@ -131,7 +131,7 @@ LVGL/DRM/KMS with no mouse or keyboard interaction.
 6a. **Network health** (sprint 024): each Linux client writes
    `kdash:net:{host}` (kdashdata CD-27) every ~5 s, EX 15; the dashboard MGETs
    the configured hosts each poll into `netstate.c` (pure model) and draws
-   `widgets/net_card.c` in row 1, columns 0-1. The same MGET
+   `widgets/net_card.c` in row 1, columns 1-2. The same MGET
    reads each host's `kdash:net:ack:{host}` (sprint 027), which the panel
    applies to clear a reviewed warning; hosts that have ever published are
    persisted as the `[net]` section of the admitted-hosts file, so they read
@@ -162,7 +162,7 @@ LVGL/DRM/KMS with no mouse or keyboard interaction.
 12. **NAS big panel**: kpidash-client on gratch projects gratch-ui's collector
     file into `kdash:nas:gratch` (EX 15, kdashdata v1). Dashboard GETs it each
     poll into `nasstate.c` (pure model) and, once it has published, draws
-    `widgets/nas_card.c` in row 1, columns 2-3 — a state headline, pool
+    `widgets/nas_card.c` in row 1, columns 3-4 — a state headline, pool
     and root bars, eight disk tiles labelled by use (sprint 033, "A · Rail"
     in mauve). See CLIENT-PROTOCOL.md §8f (sprint 028).
 13. **Weather filler**: kweather on kai writes `kdash:weather:home` about every
@@ -175,7 +175,7 @@ LVGL/DRM/KMS with no mouse or keyboard interaction.
     runs it. Dashboard HGETALLs it each poll into `limstate.c` (libkdash's
     parser and per-gauge staleness, plus the card's own pace, bands and
     strings) and, once it has published, draws `widgets/limits_card.c` in
-    row 1, column 5, in the layout the record calls for (sprint 039). Read
+    row 1, column 0, in the layout the record calls for (sprint 039). Read
     only. See CLIENT-PROTOCOL.md §8h (sprint 037).
 15. **korg + klams card**: korg's `bin/korg-pulse` on kai writes
     `kdash:korg:pulse` every 5 min, and klams-monitor on kubs0 writes
@@ -183,7 +183,7 @@ LVGL/DRM/KMS with no mouse or keyboard interaction.
     ts-owned, cadence-declared, no TTL). Dashboard GETs both each poll into
     `kkstate.c` (libkdash's parsers and cadence staleness, plus the card's
     debounce, scanner verdict and 30-day line) and draws
-    `widgets/korg_klams_card.c` in row 1, column 4. Read only. See
+    `widgets/korg_klams_card.c` in row 1, column 5. Read only. See
     CLIENT-PROTOCOL.md §8i (sprint 038).
 16. **Time and calendar card**: korg's publisher on kai writes
     `kdash:calendar` hourly and on every change to the tagged-days list
@@ -239,8 +239,8 @@ kpidash/
 │       ├── net_card.{h,c}      # 10G network-health card (row 1, sprint 024)
 │       ├── nas_card.{h,c}      # NAS big panel (row 1, sprint 028; restyled 033)
 │       ├── weather_card.{h,c}  # Weather filler in the host row's spare columns (034)
-│       ├── korg_klams_card.{h,c} # korg + klams, row 1 column 4 (038)
-│       ├── limits_card.{h,c}   # Claude limits, row 1 column 5 (037)
+│       ├── korg_klams_card.{h,c} # korg + klams, row 1 column 5 (038)
+│       ├── limits_card.{h,c}   # Claude limits, row 1 column 0 (037)
 │       ├── calendar_card.{h,c} # Time and calendar, row 2 columns 4-5 (040)
 │       ├── agents_card.{h,c}   # Agents, last 3 hours + 24 h strip, row 2 columns 0-3 (041/042)
 │       ├── service_card.{h,c}  # Service status card + host staleness card
@@ -324,11 +324,11 @@ Widget content (1×1): UNIT_W - 2×CELL_PAD = 624, UNIT_H - 2×CELL_PAD = 620
 ```
 ┌──────────────────────────────────────────────────────────────┐
 │  Row 0: [ host columns (6×1) | weather in what they leave ]  │
-├──────────────┬──────────────┬───────────────┬────────────────┤
-│  Row 1:      │  Row 1:      │  korg + klams │  Claude limits │
-│  10G card    │  NAS card    │  (1×1, 038)   │  (1×1, 037)    │
-│  (2×1)       │  (2×1)       │               │                │
-├──────────────┴──────────────┴───────────────┼────────────────┤
+├───────────────┬──────────────┬──────────────┬────────────────┤
+│ Claude limits │  Row 1:      │  Row 1:      │  korg + klams  │
+│ (1×1, 037)    │  10G card    │  NAS card    │  (1×1, 038)    │
+│               │  (2×1)       │  (2×1)       │                │
+├───────────────┴──────────────┴──────────────┼────────────────┤
 │  Row 2: Agents, 3 h + day (4×1, 041/042)    │ time + calendar│
 │                                             │ (2×1, 040)     │
 ├─────────────────────────────────────────────┴────────────────┤
@@ -336,9 +336,11 @@ Widget content (1×1): UNIT_W - 2×CELL_PAD = 624, UNIT_H - 2×CELL_PAD = 620
 └──────────────────────────────────────────────────────────────┘
 ```
 
-Both row-1 cards have fixed slots (sprint 032): the NAS card is hidden until
-`kdash:nas` has published, but its slot stays reserved, so the 10G card never
-moves. Every other cell has a fixed slot too (sprints 037-041).
+Row 1 reads Claude limits, 10G, NAS, korg + klams (sprint 043, WI #4752;
+until then the limits card was last and the 10G card first). Every row-1 card
+has a fixed slot: the limits card is hidden until `claude:limits` has published
+and the NAS card until `kdash:nas` has, but their slots stay reserved, so the
+10G card never moves. Every other cell has a fixed slot too (sprints 037-041).
 
 ## Removed widgets
 
@@ -535,8 +537,8 @@ nothing depends on it.
 
 `src/widgets/limits_card.c`, the "CLAUDE LIMITS" card Ken picked on
 2026-11-13 (`sprints/planning/row2-cards-mockups.html`, function `limits()`).
-A 1×1 in row 1, column 5 (Ken's "row 2", counting from one), beside the
-korg + klams card in column 4.
+A 1×1 in row 1, column 0 (Ken's "row 2", counting from one), at the start
+of the row: Ken moved it there from column 5 in sprint 043 (WI #4752).
 
 - **Layout.** "Claude" in peach and, at the right, the writing host and the
   record's age. Two rings, 5 HOUR and 7 DAY, each with its percentage in the
@@ -582,7 +584,7 @@ korg + klams card in column 4.
 
 `src/widgets/korg_klams_card.c`, the "KORG + KLAMS" card Ken picked on
 2026-11-13 (`sprints/planning/row2-cards-mockups.html`, function `combo()`).
-A 1×1 in row 1, column 4. Two feeds share the cell, and **each half lives on
+A 1×1 in row 1, column 5 (column 4 until sprint 043). Two feeds share the cell, and **each half lives on
 its own feed**: it greys on its own stamp, and before its feed has ever
 published it draws its title and "no feed", so the other half never moves.
 The card itself is always shown.

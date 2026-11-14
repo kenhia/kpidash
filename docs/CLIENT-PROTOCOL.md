@@ -732,8 +732,8 @@ source  = "/run/gratch-ui/privileged.json"
 
 **Panel** (`src/nasstate.c` model, `src/widgets/nas_card.c`): one `GET
 kdash:nas:gratch` per poll. The host is the constant `KPIDASH_NAS_HOST`.
-The panel has a fixed slot in row 1, columns 2-3, next to the 10G card
-(sprint 032). It is hidden until the key has published this run, and its slot
+The panel has a fixed slot in row 1, columns 3-4, next to the 10G card
+(sprint 032; columns 2-3 until sprint 043). It is hidden until the key has published this run, and its slot
 stays reserved either way, so the 10G card never moves.
 
 Since sprint 033 the card is "A · Rail" in mauve (design:

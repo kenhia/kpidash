@@ -4,7 +4,7 @@
 /**
  * korg_klams_card.h — korg and klams sharing one 1×1 (WI #4613, sprint 038).
  *
- * Row 2, column 4 (ROW_Y(1), COL_X(4) in code). The top half is korg
+ * Row 2, column 5 (ROW_Y(1), COL_X(5) in code; column 4 until sprint 043). The top half is korg
  * (lavender): the open count, its 30-day line, Awaiting Ken and active, the
  * top project and a bar with one segment per project. The bottom half is
  * klams (sapphire): its health dot and knowledge-chunk count, one row per
