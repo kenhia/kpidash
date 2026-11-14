@@ -364,8 +364,18 @@ static void test_full_cap(void) {
     cal_view_t v;
     cal_view(local(2026, 11, 13, 12, 0, 0, -1), &v);
     CHECK(v.nup == 4 && v.up[0].mday == 13);
-    /* The special name wins the label. */
+    /* The special name wins the label, and the model passes all 31
+     * characters through: cutting to the column is the card's job. */
     CHECK(STREQ(v.up[0].label, "Special name at thirty-one ch12"));
+    CHECK(strlen(v.up[0].label) == 31);
+
+    /* The observed-holiday spelling CD-30 fixes, whole. */
+    cal_reset();
+    CHECK(cal_observe("{\"ts\":1794643200,\"expected_refresh_s\":3600,\"from\":\"2026-11-01\","
+                      "\"to\":\"2027-02-14\",\"days\":[{\"date\":\"2026-11-16\",\"off\":true,"
+                      "\"holiday\":\"Independence Day (observed)\"}]}") == 1);
+    cal_view(local(2026, 11, 13, 12, 0, 0, -1), &v);
+    CHECK(v.nup == 1 && STREQ(v.up[0].label, "Independence Day (observed)"));
 
     /* Past 64, the earliest are kept. */
     len = full_cap(buf, sizeof(buf), 66);

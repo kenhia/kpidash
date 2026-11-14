@@ -60,8 +60,15 @@ mock-up source is committed as `planning/calendar-mockups.html`, and its
   on card A. The list runs past the end of the month, as far as the window
   goes (WI 4665: "Unlike the mock-up").
 - **A label too wide for the column** (names can be 31 characters) is cut
-  with "…" at 350 px, so it stays clear of the grid at x = 480.
-  "Martin Luther King Jr. Day" fits uncut.
+  with "…" (U+2026, in the bold faces' range) so it ends at x = 456, 24 px
+  clear of the grid at 480. The sub-line under it is held to the same width.
+  Nothing wraps or scrolls. "Martin Luther King Jr. Day" fits uncut;
+  "Independence Day (observed)" (27) is cut. This was tightened from 466 on
+  the overseer's review of korg:4682, which also asked for a render and a
+  check: `render_calendar long` draws four names at the bound, and it fails
+  if any pixel lands in the 24 px gap. The full tree's ctest runs it as
+  `render_calendar_long_names`. Lifting the limit to 600 made it report 668
+  stray pixels.
 - **The middle dot in "Thu · in 13 days"** comes from the bold 20 face. The
   sub-line is regular 20, and LVGL's built-in regular face has no U+00B7: it
   would draw a box and log a warning on every redraw (WI #2646). Splitting
@@ -85,7 +92,7 @@ mock-up source is committed as `planning/calendar-mockups.html`, and its
 - `src/redis.c`: `redis_poll_calendar()`, one read-only GET per poll through
   the same `poll_status_key()` the korg + klams card uses. `src/ui.c`: the
   slot at `COL_X(4)`, `ROW_Y(2)`, always shown.
-- `tests/test_calstate.c` (161 checks). It covers the schema's examples and
+- `tests/test_calstate.c` (164 checks). It covers the schema's examples and
   counterexamples; the mock-up's 13th and 27th; midnight; a month end and a
   year end; both DST changes, including the repeated 01:30 and the
   01:59 → 03:00 jump; no feed; holding through an absent key and a rejected
@@ -101,7 +108,7 @@ mock-up source is committed as `planning/calendar-mockups.html`, and its
 
 All renders are 1264 × 628, the card's whole frame. now (img-1246), d27
 (img-1247) and six (img-1248) are attached to korg:4668, and so is the
-scratch-Redis proof (img-1249). Every render was compared with `cardA` by its
+scratch-Redis proof (img-1249), and long (img-124b). Every render was compared with `cardA` by its
 coordinates and colours, and
 with `cal-A-24h.png` and `cal-d27.png` (ignoring the AM/PM in the second).
 
@@ -118,6 +125,9 @@ with `cal-A-24h.png` and `cal-d27.png` (ignoring the AM/PM in the second).
 - **outdated**: 20 February 2027, past the window. The grid and weekends are
   untagged, and the list reads "calendar out of date".
 - **nofeed**: the grid and weekends, and "no calendar feed".
+- **long**: the 13th with "Independence Day (observed)", a joined 31-character
+  special name, 31 W's and "New Year's Day (observed)". The first three are
+  cut with "…" before the grid.
 
 ## Proof against a Redis
 
@@ -138,7 +148,7 @@ final live capture once korg's publisher is writing.
   (159), units, scripts and fonts (24) checks pass.
 - `just check-warnings-full` builds the whole tree at `-O3 -Werror`,
   including `calendar_card.c`, `ui.c`, `redis.c` and `render_calendar`, and
-  its ctest passes 20/20.
+  its ctest passes 21/21, including `render_calendar_long_names`.
 - The first `-O3` build caught three `-Wformat-truncation` warnings in
   calstate's date, age and day-count strings. They were fixed before
   anything was committed by bounding each field with a modulo.

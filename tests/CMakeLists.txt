@@ -287,6 +287,11 @@ if(TARGET lvgl)
     target_link_libraries(render_calendar lvgl kdash_core ${PNG_TEST_LIBRARIES} pthread m)
     target_compile_options(render_calendar PRIVATE -Wall -Wextra -Wno-unused-parameter)
     target_compile_definitions(render_calendar PRIVATE LV_FONT_MONTSERRAT_BOLD_96_DIGITS=1)
+    # The one render that is also a test: names at the contract's 31-character
+    # bound must be cut before the grid. render_calendar exits non-zero when a
+    # pixel lands in the 24 px gap. Runs under check-warnings-full's ctest.
+    add_test(NAME render_calendar_long_names
+        COMMAND render_calendar ${CMAKE_CURRENT_BINARY_DIR}/render_calendar_long.bmp long)
 endif()
 
 # WI #4062: the network card's model. Pure — no LVGL, no Redis — and held to

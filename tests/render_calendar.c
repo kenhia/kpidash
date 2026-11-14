@@ -14,6 +14,11 @@
  *   nofeed   the key has never published: grid and weekends only
  *   stale    November's record read 3 hours after its ts: the muted hint
  *   outdated November's record on 2027-02-20, past its window: untagged
+ *   long     the 13th with names at the contract's 31-character bound,
+ *            "Independence Day (observed)" and a 31-W worst case: each cut
+ *            with an ellipsis before the grid
+ * Every state checks the 24 px gap between the coming-up text and the grid:
+ * a pixel there that is not the card's background fails the run.
  * live reads a record from a file and draws it at the given time (default:
  * the clock). The zone is pinned to America/Los_Angeles, rpi53's. The canvas
  * is the card's whole 1264 × 628 frame, the card at CELL_PAD inside it, on
@@ -87,10 +92,28 @@ static const char *AUG =
     "{\"date\":\"2026-08-28\",\"off\":false,\"special\":\"Example day\",\"short\":\"Example\"},"
     "{\"date\":\"2026-09-07\",\"off\":true,\"holiday\":\"Labor Day\",\"short\":\"Labor Day\"}]}";
 
+/* Names at the contract's bounds (31 characters for holiday and special).
+ * The dates are made up; 2026-11-16 is the WI's own "Independence Day
+ * (observed)" spelling, moved into the window for the picture. */
+static const char *LONG =
+    "{\"ts\":%.1f,\"expected_refresh_s\":3600,\"from\":\"2026-11-01\","
+    "\"to\":\"2027-02-14\",\"days\":["
+    "{\"date\":\"2026-11-16\",\"off\":true,\"holiday\":\"Independence Day (observed)\"},"
+    "{\"date\":\"2026-11-17\",\"off\":false,\"special\":\"Mother's Day; Ken's anniversary\"},"
+    "{\"date\":\"2026-11-18\",\"off\":false,\"holiday\":\"WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW\"},"
+    "{\"date\":\"2026-11-19\",\"off\":true,\"holiday\":\"New Year's Day (observed)\"}]}";
+
+/* Frame x of the end of the coming-up text and of the grid: nothing may be
+ * drawn between them (calendar_card.c UP_TEXT_MAX, GRID_X). */
+#define GAP_X0 456
+#define GAP_X1 480
+#define LIST_Y0 346
+#define LIST_Y1 (346 + 4 * 62)
+
 int main(int argc, char **argv) {
     if (argc < 2) {
         fprintf(stderr,
-                "usage: %s out.bmp [now|d27|six|nofeed|stale|outdated]\n"
+                "usage: %s out.bmp [now|d27|six|nofeed|stale|outdated|long]\n"
                 "       %s out.bmp live calendar.json [unix-time]\n",
                 argv[0], argv[0]);
         return 2;
@@ -118,6 +141,13 @@ int main(int argc, char **argv) {
         now = local(2026, 8, 14, 18, 42);
         snprintf(rec, sizeof(rec), AUG, (double)now - 600);
         cal_observe(rec);
+    } else if (strcmp(state, "long") == 0) {
+        now = local(2026, 11, 13, 18, 42);
+        snprintf(rec, sizeof(rec), LONG, (double)now - 600);
+        if (cal_observe(rec) != 1) {
+            fprintf(stderr, "the built-in record was rejected\n");
+            return 1;
+        }
     } else if (strcmp(state, "nofeed") == 0) {
         now = local(2026, 11, 13, 18, 42);
     } else {
@@ -158,6 +188,19 @@ int main(int argc, char **argv) {
         fprintf(stderr, "snapshot failed\n");
         return 1;
     }
+    /* The card sits CELL_PAD inside the frame and the canvas IS the frame, so
+     * frame coordinates are snapshot coordinates. */
+    int stray = 0;
+    for (int y = LIST_Y0; y < LIST_Y1; y++)
+        for (int x = GAP_X0; x < GAP_X1; x++) {
+            const uint8_t *p = snap->data + (size_t)y * snap->header.stride + (size_t)x * 4;
+            if (p[0] != 0x2E || p[1] != 0x1E || p[2] != 0x1E) /* B, G, R of Base */
+                stray++;
+        }
+    if (stray)
+        fprintf(stderr, "%d pixels drawn in the gap before the grid (x %d-%d)\n", stray, GAP_X0,
+                GAP_X1 - 1);
+
     FILE *f = fopen(argv[1], "wb");
     bool ok = f && bmp_write_xrgb8888(f, snap->data, (int)snap->header.w, (int)snap->header.h,
                                       (int)snap->header.stride);
@@ -165,5 +208,5 @@ int main(int argc, char **argv) {
         fclose(f);
     lv_draw_buf_destroy(snap);
     cal_reset();
-    return ok ? 0 : 1;
+    return ok && !stray ? 0 : 1;
 }

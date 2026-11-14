@@ -51,7 +51,11 @@
 #define UP_Y0 346
 #define UP_DY 62
 #define UP_TEXT_X 116
-#define UP_TEXT_MAX 466 /* a label's right limit: clear of the grid at 480 */
+/* The name and the line under it end here, 24 px clear of the grid at 480.
+ * Names can be 31 characters ("Independence Day (observed)" is 27); one too
+ * wide is cut with an ellipsis, never wrapped or scrolled. render_calendar
+ * fails if any pixel lands in the gap. */
+#define UP_TEXT_MAX 456
 #define NOTE_BASE 376
 #define CHIP_W 64
 #define CHIP_H 48
@@ -198,18 +202,23 @@ static void draw_clock(lv_layer_t *layer, int32_t ox, int32_t oy, const cal_view
             LV_TEXT_ALIGN_LEFT, 0);
 }
 
-/* "Thu · in 13 days": the middle dot from the bold face, which carries it. */
-static void draw_sub(lv_layer_t *layer, int32_t x, int32_t base, const char *s) {
+/* "Thu · in 13 days": the middle dot from the bold face, which carries it.
+ * Held to `max` px like the name above it, the tail cut if it would not fit. */
+static void draw_sub(lv_layer_t *layer, int32_t x, int32_t base, const char *s, int32_t max) {
+    char cut[48];
     const char *dot = strstr(s, "\xC2\xB7");
     if (!dot) {
-        text_at(layer, FONT_SUB, x, base, s, CAL_SUBTEXT0, LV_TEXT_ALIGN_LEFT, 0);
+        fit(FONT_SUB, s, max, cut, sizeof(cut));
+        text_at(layer, FONT_SUB, x, base, cut, CAL_SUBTEXT0, LV_TEXT_ALIGN_LEFT, 0);
         return;
     }
+    const int32_t end = x + max;
     char head[16];
     snprintf(head, sizeof(head), "%.*s", (int)(dot - s), s);
     x += text_at(layer, FONT_SUB, x, base, head, CAL_SUBTEXT0, LV_TEXT_ALIGN_LEFT, 0);
     x += text_at(layer, FONT_SUB_B, x, base, "\xC2\xB7", CAL_SUBTEXT0, LV_TEXT_ALIGN_LEFT, 0);
-    text_at(layer, FONT_SUB, x, base, dot + 2, CAL_SUBTEXT0, LV_TEXT_ALIGN_LEFT, 0);
+    fit(FONT_SUB, dot + 2, end - x, cut, sizeof(cut));
+    text_at(layer, FONT_SUB, x, base, cut, CAL_SUBTEXT0, LV_TEXT_ALIGN_LEFT, 0);
 }
 
 static void draw_left(lv_layer_t *layer, int32_t ox, int32_t oy, const cal_view_t *v) {
@@ -238,7 +247,7 @@ static void draw_left(lv_layer_t *layer, int32_t ox, int32_t oy, const cal_view_
         fit(FONT_LABEL, u->label, UP_TEXT_MAX - UP_TEXT_X, label, sizeof(label));
         text_at(layer, FONT_LABEL, ox + UP_TEXT_X, y + 22, label, WS_COLOR_FG,
                 LV_TEXT_ALIGN_LEFT, 0);
-        draw_sub(layer, ox + UP_TEXT_X, y + 46, u->sub);
+        draw_sub(layer, ox + UP_TEXT_X, y + 46, u->sub, UP_TEXT_MAX - UP_TEXT_X);
     }
 }
 
