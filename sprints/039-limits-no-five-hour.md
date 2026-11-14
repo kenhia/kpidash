@@ -147,3 +147,23 @@ None. The gates were green at the start and stayed green.
   Today that is SCOPED (`five_hour_none 1`): 7 DAY and FABLE · 7 DAY rings.
   The new binary starts fresh, so its first record sets the mode at once.
 - Panel CPU after the deploy, measured the same way, against 7.6 %.
+
+## Deployed
+
+2026-11-13, from the ship turn, using `scripts/deploy.sh` to rpi53. There is no
+`.sprint-deploy`; the overseer's clearance (korg comment 4688) named this
+deploy.
+
+- **`503c4e3`** (PR #43). The service is active with NRestarts=0, and the
+  dashboard self-reports `503c4e3`. The aarch64 build printed no warnings, and
+  the link printed nothing (no `ld` output).
+- **Live capture** (`krpidss`, 18:15 PST, cropped to row 2, attached to
+  korg:4635 as img-1235). The card shows the two-ring layout that the live
+  record (`five_hour_none 1`) calls for:
+  - 7 DAY 11 % and FABLE · 7 DAY 13 %, both peach, both reading "resets Thu
+    03:59";
+  - ticks on both rings, no bar, header "kai · 1m ago".
+  It matches the `live` render. 10G, NAS and korg + klams are unchanged.
+- **Panel CPU**, measured as before on rpi53 itself: utime + stime over 120 s,
+  pid 291964, from 18:15:46 PST, 653 ticks at 100 Hz. That is **5.4 %** of a
+  core, against 7.6 % before the ship, so not measurably above.
