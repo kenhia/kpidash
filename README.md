@@ -22,7 +22,7 @@ plus network, NAS and service status for the homelab.
 │  Row 1: 10G network card, NAS panel, korg + klams,  │
 │  Claude limits                                      │
 ├─────────────────────────────────────────────────────┤
-│  Row 2: agents (last 24 hours), time and calendar   │
+│  Row 2: agents (3 h + day strip), time and calendar │
 ├─────────────────────────────────────────────────────┤
 │  Footer: service, staleness, update, apt-temp cards │
 └─────────────────────────────────────────────────────┘

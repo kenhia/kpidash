@@ -2,23 +2,29 @@
 #define AGSTATE_H
 
 /**
- * agstate.h — the Agents card's model (WI #4695, sprint 041).
+ * agstate.h — the Agents card's model (WI #4695, sprint 041; v2 WI #4733,
+ * sprint 042).
  *
  * One input, kdash:agents (kdashdata CD-31): the last 24 hours of agent
  * sessions as bars, written by ksitrep. libkdash parses the record
  * (kdash_parse_agents) and says where a bar's right edge is
  * (kdash_agents_bar_end); this module turns the bars into the card's
- * geometry — the time axis, the row packing with legs hung under their
- * overseer, the row height, the hour grid — and holds the record through a
- * gap.
+ * geometry and holds the record through a gap.
+ *
+ * Since sprint 042 (WI #4733) the card has two parts. The detail area shows
+ * the last 3 hours: the time axis, each name inside its bar or left of it,
+ * the row packing with legs hung under their overseer, the row height, the
+ * half-hour grid. The day strip under it shows all 24 hours as thin lanes,
+ * one per host, with no names, and a lighter band where the 3 hours are.
  *
  * Pure — no LVGL, no Redis, the clock passed in by the caller — so all of it
  * is reachable from the gate. Text width is the one thing it cannot know, so
- * the label fit takes a measuring callback (the widget passes the font's).
+ * the view takes a measuring callback (the widget passes the font's).
  *
- * Geometry is in the mock-up's 2528 × 628 frame (agents-mockups.html,
- * `borders(true)`): the plot runs from x 36 to 2492, rows from y 104 to 556
- * with 10 px between them. The right edge of the plot is the now line.
+ * Geometry is in the mock-up's 2528 × 628 frame (agents-mockups-v2.html,
+ * `focus(3)`): the plot runs from x 36 to 2492, detail rows from y 104 to
+ * 430 with 8 px between them, the strip's lanes from y 486. The right edge
+ * of both is the now line.
  *
  * Anti-flicker (sprint 035's rule):
  *   - an absent key or a rejected record keeps the last good record;
@@ -40,24 +46,32 @@
 
 #include <kdash/kdash_payload.h>
 
-/* ---- Geometry, in the card's frame (the mock-up's coordinates) ---- */
+/* ---- Geometry, in the card's frame (agents-mockups-v2.html, `focus(3)`) ---- */
 #define AG_FRAME_W 2528
 #define AG_FRAME_H 628
 #define AG_PLOT_X0 36
-#define AG_PLOT_X1 2492 /* the now line */
+#define AG_PLOT_X1 2492 /* the now line, in the detail area and the strip */
+
+/* The detail area: the last AG_DETAIL_S seconds, bars with names. */
+#define AG_DETAIL_S 10800 /* 3 hours (Ken, 2026-11-14: "B, last 3 hours") */
+#define AG_PLOT_Y0 96     /* the backdrop and the grid lines: rows' top less 8 */
+#define AG_PLOT_Y1 438    /* rows' bottom plus 8 */
 #define AG_ROW_TOP 104
-#define AG_ROW_BOT 556
-#define AG_ROW_GAP 10
-#define AG_ROW_H_MAX 76
+#define AG_ROW_BOT 430
+#define AG_ROW_GAP 8
+#define AG_ROW_H_MAX 64
 /* The smallest row that still holds a 20 px label inside a 4 px border: the
  * bold 20 face's line is 25 px, plus the border and a 3 px margin each side.
- * (452 + 10) / (36 + 10) gives 10 rows. Past 10, rows do not shrink further:
+ * (326 + 8) / (36 + 8) gives 7 rows. Past 7, rows do not shrink further:
  * the oldest bars are left out instead and the header counts them (see
  * ag_view). */
 #define AG_ROW_H_MIN 36
 #define AG_ROWS_MAX ((AG_ROW_BOT - AG_ROW_TOP + AG_ROW_GAP) / (AG_ROW_H_MIN + AG_ROW_GAP))
+#define AG_TICK_S 1800 /* detail grid: every 30 minutes, the hours heavier */
+#define AG_TICKS_MAX (AG_DETAIL_S / AG_TICK_S + 1)
 /* Two bars share a row only this far apart: room for the ship diamond, which
- * reaches 14 px past its bar's end. */
+ * reaches 14 px past its bar's end. A name written left of a bar counts as
+ * part of the bar, so the gap holds before the name too. */
 #define AG_PACK_GAP_PX 16
 /* A bar is never drawn narrower than this: the rounded border needs it. */
 #define AG_BAR_MIN_W 16
@@ -68,19 +82,31 @@
 #define AG_LABEL_PAD_R 8
 #define AG_LABEL_SHIP 18
 /* A cut name keeps at least this many characters before its ellipsis;
- * fewer than that and the bar carries no name at all. */
+ * fewer than that and the name goes outside the bar. */
 #define AG_LABEL_MIN_CHARS 4
+/* A name that will not go inside is written left of the bar, right-aligned
+ * this far from its left edge; if it would cross AG_PLOT_X0, it is dropped. */
+#define AG_LABEL_OUT_GAP 8
 
-#define AG_WINDOW_S 86400 /* the card's window: last 24 hours, whatever the record's */
-#define AG_HOURS_MAX 13   /* grid lines every 2 hours across 24 */
+/* The day strip: all of AG_WINDOW_S, one thin lane per host slot. */
+#define AG_WINDOW_S 86400 /* last 24 hours, whatever the record's window */
+#define AG_HOURS_MAX 13   /* strip grid lines every 2 hours across 24 */
+#define AG_STRIP_Y 486    /* top of the first lane */
+#define AG_LANE_H 14
+#define AG_LANE_GAP 4
+#define AG_LANES 4
+#define AG_STRIP_PAD 8    /* the band reaches this far above and below the lanes */
+#define AG_STRIP_Y1 (AG_STRIP_Y + AG_LANES * AG_LANE_H + (AG_LANES - 1) * AG_LANE_GAP)
+#define AG_STRIP_MIN_W 4
 
 /* Host colour slot. Anything not named is AG_HOST_OTHER. */
 enum { AG_HOST_CLEO = 0, AG_HOST_KAI, AG_HOST_KUBS0, AG_HOST_OTHER };
 
 enum {
-    AG_NOFEED = 0, /* the key has never published: no record at all */
-    AG_EMPTY,      /* a record, with nothing in the last 24 hours    */
-    AG_BARS,       /* a record with bars to draw                     */
+    AG_NOFEED = 0, /* the key has never published: no record at all     */
+    AG_EMPTY,      /* a record, with nothing in the last 24 hours        */
+    AG_QUIET,      /* bars in the strip, none in the last 3 hours        */
+    AG_BARS,       /* bars in the detail area (and so in the strip)      */
 };
 
 typedef struct {
@@ -93,14 +119,30 @@ typedef struct {
     bool running;       /* still open and running to now: square right end */
     bool shipped;
     bool overseer;
+    bool label_out;     /* the label is left of the bar, right-aligned at
+                           x0 - AG_LABEL_OUT_GAP; else inside             */
     char name[KDASH_AGENTS_NAME_MAX];
+    char label[KDASH_AGENTS_NAME_MAX + 4]; /* "" when no name is drawn   */
 } ag_bar_t;
+
+/* One bar of the day strip: no name, no border, no links. */
+typedef struct {
+    int32_t x0, x1;     /* frame x, x1 exclusive */
+    uint8_t lane;       /* AG_HOST_*: lane y is AG_STRIP_Y + lane * (H + GAP) */
+    bool waiting;       /* yellow */
+} ag_strip_t;
 
 typedef struct {
     int32_t x;     /* frame x of the line */
     int hour;      /* local hour, 0..23 (even) */
     bool midnight;
 } ag_hour_t;
+
+typedef struct {
+    int32_t x;     /* frame x of the line */
+    int hour, min; /* local time on the half hour */
+    bool on_hour;
+} ag_tick_t;
 
 typedef struct {
     int status;   /* AG_NOFEED / AG_EMPTY / AG_BARS */
@@ -110,9 +152,14 @@ typedef struct {
     int hidden;   /* bars left out because the rows ran out */
     int rows;     /* rows used, 0..AG_ROWS_MAX */
     int32_t row_h;
-    int nbars;
+    int nbars;      /* the detail area */
     ag_bar_t bars[KDASH_AGENTS_BARS_MAX];
-    int nhours;
+    int nticks;     /* the detail area's grid */
+    ag_tick_t ticks[AG_TICKS_MAX];
+    int nstrip;     /* the day strip */
+    ag_strip_t strip[KDASH_AGENTS_BARS_MAX];
+    int32_t band_x0; /* strip x where the detail window opens: the lighter band */
+    int nhours;     /* the strip's grid */
     ag_hour_t hours[AG_HOURS_MAX];
 } ag_view_t;
 
@@ -124,9 +171,14 @@ const kdash_agents_t *ag_record(void); /* NULL before the first record */
 /* Bumped on every adopted record: with the minute, the view's whole key. */
 unsigned ag_generation(void);
 
+/* Measures a string's width in px (the widget passes the bar face's). */
+typedef int32_t (*ag_measure_fn)(const char *s, void *ctx);
+
 /* Everything the card draws at `now`, in the process's local timezone (the
- * hour labels). Deterministic in (record, now floored to the minute). */
-void ag_view(time_t now, ag_view_t *out);
+ * grid labels). Deterministic in (record, now floored to the minute,
+ * measure). `measure` decides where each name goes, which the packing needs,
+ * so it is the one input from the font. */
+void ag_view(time_t now, ag_measure_fn measure, void *ctx, ag_view_t *out);
 
 /* Host colour slot for a hostname. */
 uint8_t ag_host_slot(const char *host);
@@ -136,7 +188,6 @@ uint8_t ag_host_slot(const char *host);
  * at least AG_LABEL_MIN_CHARS characters survive, else "" (no label).
  * `measure` returns a string's width in px. Returns true when `out` is
  * non-empty. */
-typedef int32_t (*ag_measure_fn)(const char *s, void *ctx);
 bool ag_fit_label(const char *name, int32_t avail, ag_measure_fn measure, void *ctx, char *out,
                   size_t n);
 

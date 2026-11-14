@@ -1,5 +1,5 @@
 /**
- * agstate.c — the Agents card's model (WI #4695). See the header.
+ * agstate.c — the Agents card's model (WI #4695, v2 #4733). See the header.
  */
 #include "agstate.h"
 
@@ -113,8 +113,9 @@ static void fmt_hint(double secs, char *buf, size_t n) {
     snprintf(buf, n, "as of %u%c", (unsigned)(val % 1000u), unit);
 }
 
-static int32_t xof(double t, double ws) {
-    double f = (t - ws) / AG_WINDOW_S;
+/* Frame x of time `t` on an axis `span` seconds long ending at ws + span. */
+static int32_t xof(double t, double ws, double span) {
+    double f = (t - ws) / span;
     if (f < 0)
         f = 0;
     if (f > 1)
@@ -128,13 +129,17 @@ typedef struct {
     int parent;   /* index in the candidates, or -1 */
     double end;   /* where its right edge is, in time: drops oldest first */
     int32_t x0, x1;
+    int32_t left; /* x0, or the left edge of a name written outside */
     int row;
     bool keep;
     bool running;
+    bool label_out;
+    char label[KDASH_AGENTS_NAME_MAX + 4];
 } cand_t;
 
 /* Pack the kept candidates into rows. Every root (a bar with no parent) in
- * start order goes in the highest row free at its left edge; an overseer's
+ * start order goes in the highest row free at its left edge (the name's,
+ * when the name is outside); an overseer's
  * legs follow it at once, each in the highest free row BELOW it (and a leg's
  * own legs below that). A row is free when its last bar ended AG_PACK_GAP_PX
  * before this one starts; each bar placed in a row starts after the last one
@@ -146,7 +151,7 @@ typedef struct {
 
 static void place(cand_t *c, int n, int i, int minrow, packer_t *p) {
     int t = minrow;
-    while (t < p->rows && p->rowend[t] > c[i].x0)
+    while (t < p->rows && p->rowend[t] > c[i].left)
         t++;
     if (t == p->rows)
         p->rowend[p->rows++] = 0;
@@ -172,6 +177,7 @@ static int pack(cand_t *c, int n) {
     return p.rows;
 }
 
+/* The strip's grid: every even local hour inside (ws, now). */
 static void hours(time_t ws, time_t now, ag_view_t *v) {
     time_t t = ws - (ws % 3600) + (ws % 3600 ? 3600 : 0);
     for (; t < now && v->nhours < AG_HOURS_MAX; t += 3600) {
@@ -181,18 +187,79 @@ static void hours(time_t ws, time_t now, ag_view_t *v) {
         if (!localtime_r(&t, &tm) || tm.tm_min != 0 || tm.tm_hour % 2)
             continue;
         ag_hour_t *h = &v->hours[v->nhours++];
-        h->x = xof((double)t, (double)ws);
+        h->x = xof((double)t, (double)ws, AG_WINDOW_S);
         h->hour = tm.tm_hour;
         h->midnight = tm.tm_hour == 0;
     }
 }
 
-void ag_view(time_t now, ag_view_t *v) {
+/* The detail grid: every local half hour inside (ds, now]. */
+static void ticks(time_t ds, time_t now, ag_view_t *v) {
+    time_t t = ds - (ds % 60) + 60;
+    for (; t <= now && v->nticks < AG_TICKS_MAX; t += 60) {
+        struct tm tm;
+        if (!localtime_r(&t, &tm) || tm.tm_min % 30)
+            continue;
+        ag_tick_t *k = &v->ticks[v->nticks++];
+        k->x = xof((double)t, (double)ds, AG_DETAIL_S);
+        k->hour = tm.tm_hour;
+        k->min = tm.tm_min;
+        k->on_hour = tm.tm_min == 0;
+    }
+}
+
+/* Where a bar's name goes. Inside, by ag_fit_label's rule (cut with "…" if
+ * at least AG_LABEL_MIN_CHARS survive). Otherwise whole, left of the bar,
+ * unless it would cross the plot's left edge: then nowhere. */
+static void place_label(cand_t *k, const kdash_agent_bar_t *b, ag_measure_fn measure, void *ctx) {
+    k->left = k->x0;
+    k->label_out = false;
+    k->label[0] = '\0';
+    if (!measure || !b->name[0])
+        return;
+    const int32_t avail =
+        (k->x1 - k->x0) - AG_LABEL_PAD - (b->shipped ? AG_LABEL_SHIP : AG_LABEL_PAD_R);
+    if (ag_fit_label(b->name, avail, measure, ctx, k->label, sizeof(k->label)))
+        return;
+    const int32_t lx = k->x0 - AG_LABEL_OUT_GAP - measure(b->name, ctx);
+    if (lx < AG_PLOT_X0)
+        return;
+    snprintf(k->label, sizeof(k->label), "%s", b->name);
+    k->label_out = true;
+    k->left = lx;
+}
+
+/* The day strip: every bar still in the 24 hours, in its host's lane. */
+static void strip(const kdash_agents_t *rec, time_t ws, time_t now, ag_view_t *v) {
+    for (int i = 0; i < rec->bars_count && i < KDASH_AGENTS_BARS_MAX; i++) {
+        const kdash_agent_bar_t *b = &rec->bars[i];
+        double e = kdash_agents_bar_end(rec, b, (long long)now);
+        double s = b->start < (double)now ? b->start : (double)now;
+        if (e < (double)ws || e < s)
+            continue;
+        ag_strip_t *k = &v->strip[v->nstrip++];
+        k->x0 = xof(s, (double)ws, AG_WINDOW_S);
+        k->x1 = xof(e, (double)ws, AG_WINDOW_S);
+        if (k->x1 - k->x0 < AG_STRIP_MIN_W) {
+            k->x1 = k->x0 + AG_STRIP_MIN_W;
+            if (k->x1 > AG_PLOT_X1) {
+                k->x1 = AG_PLOT_X1;
+                k->x0 = k->x1 - AG_STRIP_MIN_W;
+            }
+        }
+        k->lane = ag_host_slot(b->host);
+        k->waiting = b->state == KDASH_AGENT_WAITING;
+    }
+}
+
+void ag_view(time_t now, ag_measure_fn measure, void *ctx, ag_view_t *v) {
     memset(v, 0, sizeof(*v));
     const time_t nowm = now - (now % 60 + 60) % 60;
-    const time_t ws = nowm - AG_WINDOW_S;
+    const time_t ws = nowm - AG_WINDOW_S, ds = nowm - AG_DETAIL_S;
     v->now = nowm;
+    v->band_x0 = xof((double)ds, (double)ws, AG_WINDOW_S);
     hours(ws, nowm, v);
+    ticks(ds, nowm, v);
 
     const kdash_agents_t *rec = ag_record();
     if (!rec) {
@@ -203,8 +270,10 @@ void ag_view(time_t now, ag_view_t *v) {
                                    KDASH_CADENCE_GRACE_S);
     if (v->stale)
         fmt_hint((double)nowm - rec->ts, v->hint, sizeof(v->hint));
+    strip(rec, ws, nowm, v);
 
-    /* The candidates: every bar whose right edge is still in the window. */
+    /* The candidates: every bar whose right edge is still in the detail
+     * window; one that started before it is clipped at the left edge. */
     static cand_t c[KDASH_AGENTS_BARS_MAX];
     int map[KDASH_AGENTS_BARS_MAX]; /* record index -> candidate, or -1 */
     int n = 0;
@@ -213,14 +282,14 @@ void ag_view(time_t now, ag_view_t *v) {
         const kdash_agent_bar_t *b = &rec->bars[i];
         double e = kdash_agents_bar_end(rec, b, (long long)nowm);
         double s = b->start < (double)nowm ? b->start : (double)nowm;
-        if (e < (double)ws || e < s)
+        if (e < (double)ds || e < s)
             continue;
         cand_t *k = &c[n];
         k->src = i;
         k->end = e;
         k->running = b->state != KDASH_AGENT_DONE && e >= (double)nowm;
-        k->x0 = xof(s, (double)ws);
-        k->x1 = xof(e, (double)ws);
+        k->x0 = xof(s, (double)ds, AG_DETAIL_S);
+        k->x1 = xof(e, (double)ds, AG_DETAIL_S);
         if (k->x1 - k->x0 < AG_BAR_MIN_W) {
             k->x1 = k->x0 + AG_BAR_MIN_W;
             if (k->x1 > AG_PLOT_X1) {
@@ -228,6 +297,7 @@ void ag_view(time_t now, ag_view_t *v) {
                 k->x0 = k->x1 - AG_BAR_MIN_W;
             }
         }
+        place_label(k, b, measure, ctx);
         k->keep = true;
         map[i] = n++;
     }
@@ -278,10 +348,12 @@ void ag_view(time_t now, ag_view_t *v) {
         a->running = c[j].running;
         a->shipped = b->shipped;
         a->overseer = b->overseer;
+        a->label_out = c[j].label_out;
         snprintf(a->name, sizeof(a->name), "%s", b->name);
+        snprintf(a->label, sizeof(a->label), "%s", c[j].label);
     }
     for (int j = 0; j < n; j++)
         if (out[j] >= 0)
             v->bars[out[j]].parent = c[j].parent >= 0 ? out[c[j].parent] : -1;
-    v->status = v->nbars ? AG_BARS : AG_EMPTY;
+    v->status = v->nbars ? AG_BARS : v->nstrip ? AG_QUIET : AG_EMPTY;
 }
