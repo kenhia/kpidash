@@ -129,34 +129,70 @@ typedef struct {
     int parent;   /* index in the candidates, or -1 */
     double end;   /* where its right edge is, in time: drops oldest first */
     int32_t x0, x1;
-    int32_t left; /* x0, or the left edge of a name written outside */
     int row;
     bool keep;
     bool running;
-    bool label_out;
-    char label[KDASH_AGENTS_NAME_MAX + 4];
+    /* The name's forms, measured once (see name_forms); place() picks one. */
+    bool in_whole;        /* the whole name fits inside */
+    int in_chars;         /* characters `in_cut` keeps, 0 when there is none */
+    int32_t out_w;        /* the whole name's width, 0 with no name */
+    int32_t cut_w;        /* `out_cut`'s width, 0 when the name is short enough */
+    char in_cut[KDASH_AGENTS_NAME_MAX + 4];
+    char out_cut[KDASH_AGENTS_NAME_MAX + 4];
+    /* The choice, made as the bar is packed. */
+    uint8_t form;         /* NAME_* */
 } cand_t;
 
-/* Pack the kept candidates into rows. Every root (a bar with no parent) in
- * start order goes in the highest row free at its left edge (the name's,
- * when the name is outside); an overseer's
- * legs follow it at once, each in the highest free row BELOW it (and a leg's
- * own legs below that). A row is free when its last bar ended AG_PACK_GAP_PX
- * before this one starts; each bar placed in a row starts after the last one
- * there ended, so the last is also the rightmost. Returns the rows used. */
+enum { NAME_NONE = 0, NAME_IN_WHOLE, NAME_OUT_WHOLE, NAME_OUT_CUT, NAME_IN_CUT };
+
+/* Pack the kept candidates into rows, choosing each name as its bar is
+ * placed. Every root (a bar with no parent) in start order goes in the
+ * highest row free at its left edge; an overseer's legs follow it at once,
+ * each in the highest free row BELOW it (and a leg's own legs below that).
+ * A row is free when its last bar ended AG_PACK_GAP_PX before this one
+ * starts; each bar placed in a row starts after the last one there ended, so
+ * the last is also the rightmost. A name written outside must fit in the
+ * room left of its bar in that row; it never moves the bar. Returns the rows
+ * used. */
 typedef struct {
     int32_t rowend[KDASH_AGENTS_BARS_MAX];
     int rows;
 } packer_t;
 
-static void place(cand_t *c, int n, int i, int minrow, packer_t *p) {
+/* The first row at or below `minrow` free at x: a new one when none is. */
+static int free_row(const packer_t *p, int minrow, int32_t x) {
     int t = minrow;
-    while (t < p->rows && p->rowend[t] > c[i].left)
+    while (t < p->rows && p->rowend[t] > x)
         t++;
+    return t;
+}
+
+/* An outside form of width `w` fits when it stays right of the plot's left
+ * edge and the row the bar takes anyway has room for it: a name never
+ * pushes its bar down a row. */
+static bool out_fits(const cand_t *k, const packer_t *p, int row, int32_t w) {
+    const int32_t lx = k->x0 - AG_LABEL_OUT_GAP - w;
+    return w > 0 && lx >= AG_PLOT_X0 && (row == p->rows || p->rowend[row] <= lx);
+}
+
+static void place(cand_t *c, int n, int i, int minrow, packer_t *p) {
+    cand_t *k = &c[i];
+    const int t = free_row(p, minrow, k->x0);
+    /* The name, in the header's order of preference (AG_LABEL_*). */
+    if (k->in_whole)
+        k->form = NAME_IN_WHOLE;
+    else if (out_fits(k, p, t, k->out_w))
+        k->form = NAME_OUT_WHOLE;
+    else if (k->cut_w && k->in_chars < AG_LABEL_OUT_MAX && out_fits(k, p, t, k->cut_w))
+        k->form = NAME_OUT_CUT;
+    else if (k->in_chars)
+        k->form = NAME_IN_CUT;
+    else
+        k->form = NAME_NONE;
     if (t == p->rows)
         p->rowend[p->rows++] = 0;
-    c[i].row = t;
-    p->rowend[t] = c[i].x1 + AG_PACK_GAP_PX;
+    k->row = t;
+    p->rowend[t] = k->x1 + AG_PACK_GAP_PX;
     for (int j = 0; j < n; j++)
         if (c[j].keep && c[j].row < 0 && c[j].parent == i)
             place(c, n, j, t + 1, p);
@@ -208,25 +244,48 @@ static void ticks(time_t ds, time_t now, ag_view_t *v) {
     }
 }
 
-/* Where a bar's name goes. Inside, by ag_fit_label's rule (cut with "…" if
- * at least AG_LABEL_MIN_CHARS survive). Otherwise whole, left of the bar,
- * unless it would cross the plot's left edge: then nowhere. */
-static void place_label(cand_t *k, const kdash_agent_bar_t *b, ag_measure_fn measure, void *ctx) {
-    k->left = k->x0;
-    k->label_out = false;
-    k->label[0] = '\0';
+/* Code points in s. */
+static int chars(const char *s) {
+    int n = 0;
+    for (; *s; s++)
+        if (((unsigned char)*s & 0xC0) != 0x80)
+            n++;
+    return n;
+}
+
+/* The forms a bar's name can take, measured once per view; place() picks
+ * among them against the row the bar lands in. */
+static void name_forms(cand_t *k, const kdash_agent_bar_t *b, ag_measure_fn measure, void *ctx) {
+    k->in_whole = false;
+    k->in_chars = 0;
+    k->out_w = k->cut_w = 0;
+    k->in_cut[0] = k->out_cut[0] = '\0';
+    k->form = NAME_NONE;
     if (!measure || !b->name[0])
         return;
     const int32_t avail =
         (k->x1 - k->x0) - AG_LABEL_PAD - (b->shipped ? AG_LABEL_SHIP : AG_LABEL_PAD_R);
-    if (ag_fit_label(b->name, avail, measure, ctx, k->label, sizeof(k->label)))
+    k->out_w = measure(b->name, ctx);
+    if (k->out_w <= avail) {
+        k->in_whole = true;
         return;
-    const int32_t lx = k->x0 - AG_LABEL_OUT_GAP - measure(b->name, ctx);
-    if (lx < AG_PLOT_X0)
-        return;
-    snprintf(k->label, sizeof(k->label), "%s", b->name);
-    k->label_out = true;
-    k->left = lx;
+    }
+    if (ag_fit_label(b->name, avail, measure, ctx, k->in_cut, sizeof(k->in_cut)))
+        k->in_chars = chars(k->in_cut) - 1; /* less the ellipsis */
+    /* A long name's outside form: its first AG_LABEL_OUT_MAX - 1 characters
+     * and "…", no space before it. */
+    if (chars(b->name) > AG_LABEL_OUT_MAX) {
+        size_t end = 0;
+        for (int n = 0; b->name[end] && n < AG_LABEL_OUT_MAX - 1; n++)
+            do
+                end++;
+            while (((unsigned char)b->name[end] & 0xC0) == 0x80);
+        while (end > 0 && b->name[end - 1] == ' ')
+            end--;
+        memcpy(k->out_cut, b->name, end);
+        memcpy(k->out_cut + end, "\xE2\x80\xA6", 4); /* … and the NUL */
+        k->cut_w = measure(k->out_cut, ctx);
+    }
 }
 
 /* The day strip: every bar still in the 24 hours, in its host's lane. */
@@ -297,7 +356,7 @@ void ag_view(time_t now, ag_measure_fn measure, void *ctx, ag_view_t *v) {
                 k->x0 = k->x1 - AG_BAR_MIN_W;
             }
         }
-        place_label(k, b, measure, ctx);
+        name_forms(k, b, measure, ctx);
         k->keep = true;
         map[i] = n++;
     }
@@ -348,9 +407,13 @@ void ag_view(time_t now, ag_measure_fn measure, void *ctx, ag_view_t *v) {
         a->running = c[j].running;
         a->shipped = b->shipped;
         a->overseer = b->overseer;
-        a->label_out = c[j].label_out;
+        a->label_out = c[j].form == NAME_OUT_WHOLE || c[j].form == NAME_OUT_CUT;
         snprintf(a->name, sizeof(a->name), "%s", b->name);
-        snprintf(a->label, sizeof(a->label), "%s", c[j].label);
+        const char *lbl = c[j].form == NAME_IN_WHOLE || c[j].form == NAME_OUT_WHOLE ? b->name
+                          : c[j].form == NAME_IN_CUT ? c[j].in_cut
+                          : c[j].form == NAME_OUT_CUT ? c[j].out_cut
+                                                      : "";
+        snprintf(a->label, sizeof(a->label), "%s", lbl);
     }
     for (int j = 0; j < n; j++)
         if (out[j] >= 0)

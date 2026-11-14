@@ -701,13 +701,21 @@ columns 0-3 ("row 3, columns 0-3" counting rows from one), 2520 × 620 at
   legs with it) and the rows are packed again, until they fit; the header
   says "N older not shown" in muted text. The newest work is what the card is
   for.
-- **Names.** Inside the bar when they fit (14 px in, 8 px short of the right
-  edge, 18 px with a ship), cut with "…" if at least four characters survive
-  (041's rule). Otherwise the whole name is written **left of the bar**,
+- **Names.** A name is never shortened while there is room to write it whole
+  (the overseer's ruling on korg:4734). Inside means 14 px in and 8 px short
+  of the right edge, or 18 px with a ship. Outside means **left of the bar**,
   right-aligned 8 px from it, bold 20 in the bar's host colour (peach for an
-  overseer), and the packing counts it as part of the bar, so nothing
-  overlaps it. A name that would cross the plot's left edge is not drawn.
-  The model decides all of this with the font's own measure, which the
+  overseer). Each bar takes the first of these that fits:
+  1. the whole name inside;
+  2. the whole name outside, when it stays right of the plot's left edge and
+     the row the bar takes has room for it (a name never pushes its bar down
+     a row);
+  3. a name over 20 characters, cut to 20 with "…", outside on the same
+     terms, unless the inside cut would keep 20 or more;
+  4. cut with "…" inside, keeping at least four characters (041's rule);
+  5. no name.
+
+  The model chooses as it packs, with the font's own measure, which the
   widget passes to `ag_view`. Names are any UTF-8
   (CD-31); a character the bold 20 face lacks is drawn as "?", so nothing
   draws as a box or logs a warning per redraw (WI #2646).

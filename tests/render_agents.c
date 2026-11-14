@@ -19,9 +19,10 @@
  *            then the oldest are left out and counted in the header
  *   legs     a working overseer with two running legs (and a finished one)
  *   long     names at the contract's 31-character bound, one in Cyrillic
- *            (no glyphs in the panel's face: drawn as '?'), cut to fit; and two
- *            bars too narrow for a name inside: one named on its left, one
- *            whose name would cross the plot's edge, unnamed
+ *            (no glyphs in the panel's face: drawn as '?'), cut to fit; one cut
+ *            to 20 left of its bar; and two bars too narrow for a name
+ *            inside: one named on its left, one whose name would cross the
+ *            plot's edge, unnamed
  * live reads a record from a file and draws it at the given time (default:
  * the clock). The zone is pinned to America/Los_Angeles, rpi53's. The canvas
  * is the card's whole 2528 × 628 frame, the card at CELL_PAD inside it, on
@@ -186,7 +187,7 @@ static const spec_t LONG[] = {
      "kdashdata contract",
      16.5, 17.3, "done", 1, 0, "o"},
     {"c", "thrall", "Caf\xC3\xA9 menu \xE2\x80\x94 d\xC3\xAD" "a dos", 17.0, 17.8, "done", 0, 0, NULL},
-    {"d", "kai", "low-hanging-fruit sweep, round 2", 17.9, 18.1, "done", 1, 0, NULL},
+    {"d", "kai", "low-hanging-fruit sweep round 2", 17.9, 18.1, "done", 1, 0, NULL},
     {"e", "kimac", "abcdefghijklmnopqrstuvwxyz01234", 18.2, NOW_H, "waiting", 0, 0, NULL},
     {"f", "kubs0", "k-homelab", 18.08, 18.14, "done", 1, 0, NULL},
 };

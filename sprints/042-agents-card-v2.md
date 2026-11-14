@@ -35,19 +35,30 @@ render is `kai:/scratch/kpidash-agents/agents-card-target-v2.png`.
   `agents_card_measure`, which swaps in the '?' glyphs and then measures, so
   the width it reports is the width that is drawn. The tests pass a 12 px
   per-character measure. With no measure, the view draws no names.
-- **The name rule, as the WI states it.**
-  - A name goes inside its bar by 041's rule, which includes the "…" cut at
-    four or more characters.
-  - Otherwise the whole name is written left of the bar, right-aligned 8 px
-    from it, in the bar's host colour (peach for an overseer). Packing counts
-    it as part of the bar.
-  - If it would cross the plot's left edge, it is not drawn.
+- **The name rule: never shortened while there is room to write it whole.**
+  The first round built the WI's literal order, which tries the "…" cut
+  inside before going outside. The live render then drew two short legs as
+  "ksit…" and "k-home…", with room on their left for both names whole. I
+  flagged it, and the overseer ruled for this order, which is what Ken was
+  shown:
+  1. the whole name inside;
+  2. the whole name left of the bar (right-aligned 8 px, host colour, peach
+     for an overseer), when it stays right of the plot's edge **and the row
+     the bar takes has room**;
+  3. a name over 20 characters cut to 20 with "…", outside on the same
+     terms, unless the inside cut keeps 20 or more;
+  4. the "…" cut inside, at four or more characters (041's rule);
+  5. no name.
 
-  The mock-up instead puts any name that does not fit *whole* outside. On
-  the live record the WI's rule draws two short legs as "ksit…" and
-  "k-home…", where the mock-up's rule would have written "ksitrep" and
-  "k-homelab" whole to their left. **This is flagged for the overseer** (see
-  below). Switching rules is one condition in `place_label()`.
+  Two consequences of how it is built:
+  - **The name is chosen during packing, not before it.** Step 2's "the row
+    has room" depends on which row the bar lands in. `name_forms()` measures
+    each bar's forms once per view; `place()` picks among them against the
+    row it is about to use.
+  - **A name never moves its bar.** The first round let an outside name push
+    its bar down a row. Under the ruling, a name with no room in the bar's
+    own row falls to step 3, 4 or 5 instead. So the extent check now guards
+    the room on the left, and nothing overlaps.
 - **Packing keeps 041's 16 px row gap.** The mock-up uses 12 px, plus 12 px
   after a shipped bar. So on the target day `kpidash` shares row 1 with
   `kdashdata` (as close as 16 px after its end, past the diamond), where the
@@ -89,19 +100,24 @@ render is `kai:/scratch/kpidash-agents/agents-card-target-v2.png`.
   - `draw_strip()`;
   - the quiet message;
   - `agents_card_measure()`, exported for the render tool.
-- `tests/test_agstate.c`, 545 checks:
+- `tests/test_agstate.c`, 557 checks:
   - the target day, by x position, window, ticks, band and strip lanes;
-  - outside names, including the name that pushes its bar down a row, the
-    name dropped at the left edge, the "…" cut preferred over going outside,
-    and no measure;
+  - names, by the ruling's order:
+    - whole outside preferred to the "…" cut inside;
+    - a name with no room in its row left unnamed rather than moving its bar;
+    - the inside cut when the left is blocked;
+    - a 31-character name cut to 20 outside when the inside cut keeps only
+      5, but cut inside when that keeps 24;
+    - the left edge;
+    - no measure;
   - the strip on its own: the quiet status, the minimum width, lanes, and a
     sliver at the now edge;
   - clipping on both axes;
   - crowding re-anchored to 7 rows;
   - the leg floor and the working overseer re-anchored into the 3 hours.
 
-  **Eight defects were planted, one at a time, and the tests fail on every
-  one:**
+  **Defects were planted one at a time, and the tests fail on every one.**
+  First round, eight:
   - packing that ignores the outside name;
   - no drop at the left edge;
   - no detail clip;
@@ -110,6 +126,15 @@ render is `kai:/scratch/kpidash-agents/agents-card-target-v2.png`.
   - the band in the wrong place;
   - no quiet state;
   - a whole-name-only inside rule.
+
+  After the ruling, seven more:
+  - no whole-outside step;
+  - no row-room check;
+  - no left-edge check;
+  - no cut-to-20 outside;
+  - cut-to-20 even when the inside cut keeps more;
+  - no inside-cut fallback;
+  - no packing gap.
 - `tests/render_agents.c`:
   - new `target` and `quiet` states;
   - `crowded`, `legs` and `long` moved into the 3-hour window, and `long`
@@ -133,10 +158,10 @@ All renders are 2528 × 628. They are in
 
 | render | image |
 |---|---|
-| target | img-127f |
-| live (rpi53, 13:51 PST) | img-1280 |
+| target | img-128a (first round img-127f) |
+| live (rpi53, 13:59 PST) | img-1288 (first round, 13:51: img-1280) |
 | quiet | img-1281 |
-| long | img-1282 |
+| long | img-1289 (first round img-1282) |
 | crowded | img-1283 |
 | legs | img-1284 |
 | nofeed | img-1285 |
@@ -152,22 +177,27 @@ All renders are 2528 × 628. They are in
 
   Bars, x positions, colours, stems, diamonds, the band and the grid all
   line up.
-- **live** is rpi53's `kdash:agents`, read at 13:51 PST and drawn at that
+- **live** is rpi53's `kdash:agents`, read at 13:59 PST and drawn at that
   minute. It shows:
-  - the waiting cleo overseer "Stale apt-temps on rpi53 dashb…" in yellow,
-    running to now, with its `apt-temps` leg;
   - the finished `kpidash-refresh` overseer with four legs, including this
     leg's `kpidash` (working, solid peach, square end);
-  - a 2-minute `k-homelab` leg named on its left;
-  - two 6-to-9-minute legs cut to "ksit…" and "k-home…" (the flagged rule).
+  - the 2-minute `k-homelab`, 6-minute `ksitrep` and 9-minute `k-homelab`
+    legs all named whole on their left. In the first round, at 13:51, the
+    last two were "ksit…" and "k-home…";
+  - the cleo overseer "Stale apt-temps on rpi53 dashb…" (the publisher's own
+    cut), now two bars, 12:24-12:47 with its `apt-temps` leg and a sliver at
+    13:58, each named whole on its left.
 
   The strip holds only the last 1.5 hours, because the feed's first bar is at
   12:24 today.
+- **long** shows step 3: "low-hanging-fruit sweep round 2" (31 characters)
+  has no room for its whole name left of its bar, so it reads
+  "low-hanging-fruit s…" there.
 
 ## Gate
 
 - `just check` passes:
-  - ctest 20/20, including `test_agstate` (545);
+  - ctest 20/20, including `test_agstate` (557);
   - `check-release` builds `agstate.c` at `-O3 -Werror`;
   - client, units, scripts 12, fonts 24.
 - `just check-warnings-full` builds the whole tree at `-O3 -Werror` with
@@ -183,12 +213,13 @@ kai, with no second process started. This is 041's live build with real bars
 still repaints at most once a minute, and it gains one band, a grid and up
 to 96 small opaque rectangles.
 
-## For the overseer
+## Repaired in passing
 
-- **The name rule.** As written in the WI, the "…" cut inside wins over
-  going outside. The mock-up's rule is the other way round. The live render
-  shows the difference ("ksit…" against "ksitrep"). Either rule is one
-  condition in `place_label()`.
+- **The `long` render's 32-character name.** "low-hanging-fruit sweep,
+  round 2" is one character past the contract's 31, so the parser skipped
+  that bar and `long` has drawn without it since 041. It is now "low-hanging-
+  fruit sweep round 2" (31). Gate: the bar appears in the `long` render
+  (img-1289), which the `render_agents_long_names` ctest runs.
 
 ## Left for the ship turn
 

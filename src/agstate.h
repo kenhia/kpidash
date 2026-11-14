@@ -81,12 +81,20 @@
 #define AG_LABEL_PAD 14
 #define AG_LABEL_PAD_R 8
 #define AG_LABEL_SHIP 18
-/* A cut name keeps at least this many characters before its ellipsis;
- * fewer than that and the name goes outside the bar. */
+/* A name is never shortened while there is room to write it whole (the
+ * overseer's ruling on korg:4734). In order of preference:
+ *   1. whole, inside the bar;
+ *   2. whole, left of the bar, right-aligned AG_LABEL_OUT_GAP from it, when
+ *      it stays right of AG_PLOT_X0 and the row the bar takes has room (a
+ *      name never pushes its bar down a row);
+ *   3. a name longer than AG_LABEL_OUT_MAX characters, cut to that many
+ *      with "…", left of the bar on the same terms, unless the inside cut
+ *      keeps at least AG_LABEL_OUT_MAX characters;
+ *   4. cut with "…" inside, keeping at least AG_LABEL_MIN_CHARS (041's rule);
+ *   5. no name. */
 #define AG_LABEL_MIN_CHARS 4
-/* A name that will not go inside is written left of the bar, right-aligned
- * this far from its left edge; if it would cross AG_PLOT_X0, it is dropped. */
 #define AG_LABEL_OUT_GAP 8
+#define AG_LABEL_OUT_MAX 20 /* characters, the ellipsis included */
 
 /* The day strip: all of AG_WINDOW_S, one thin lane per host slot. */
 #define AG_WINDOW_S 86400 /* last 24 hours, whatever the record's window */

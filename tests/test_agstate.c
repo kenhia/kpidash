@@ -306,22 +306,28 @@ static void test_target(void) {
 
 /* ---- names that do not fit inside ---- */
 
+/* The overseer's ruling on korg:4734: a name is never shortened while there
+ * is room to write it whole. Inside whole, else outside whole (left of the
+ * bar, in the row the bar takes anyway), else a long name cut to 20 outside
+ * unless the inside cut keeps 20, else the inside cut, else nothing. */
 static void test_outside_name(void) {
     g_midnight = local(2026, 11, 13, 0, 0, 0);
     const time_t now = local(2026, 11, 13, 13, 0, 0); /* detail from 10:00 */
     /* 818.67 px an hour. "long" holds row 0 from 10:30 to 11:30 (x 445 to
-     * 1264). "k-homelab" is 5 minutes from 11:33 (x 1305): too narrow for
-     * even "k-ho…", so its name (108 px) goes left of it, from x 1189 — over
-     * "long"'s row, so the bar drops to row 1 although the bar alone would
-     * fit in row 0. */
+     * 1264, free again from 1280). "k-homelab" is 5 minutes from 11:33
+     * (x 1305): too narrow inside even for "k-ho…", and its whole name
+     * (108 px, from x 1189) would cross into "long"'s room. A name never
+     * pushes its bar down a row, so it stays in row 0, unnamed. */
     const spec_t S[] = {
         /* Starts 3 minutes in: its name would cross the plot's left edge. */
         {"c", "kai", "k-homelab", 10.05, 10.10, "done", 0, 0, NULL},
         {"a", "kai", "long", 10.5, 11.5, "done", 0, 0, NULL},
         {"b", "kubs0", "k-homelab", 11.55, 11.55 + 5.0 / 60, "done", 1, 0, NULL},
-        /* 8 minutes (109 px): "kdashdata" is cut inside, not moved out. */
+        /* 8 minutes (109 px): "kdashdata" would be "kdashd…" inside, but
+         * there is room on its left, so it is written there whole. */
         {"d", "cleo", "kdashdata", 12.0, 12.0 + 8.0 / 60, "done", 0, 0, NULL},
-        /* Narrow, overseer, room on its left: outside, whole. */
+        /* Narrow, an overseer with a 24-character name: whole it would run
+         * into "kdashdata"'s room, cut to 20 it fits. */
         {"o", "cleo", "Stale apt-temps on rpi53", 12.5, 12.55, "done", 0, 1, NULL},
     };
     ag_reset();
@@ -334,20 +340,77 @@ static void test_outside_name(void) {
                    *o = find(&g_v, "Stale apt-temps on rpi53", 0);
     CHECK(a && a->row == 0 && a->x1 == 36 + 1228);
     CHECK(b && b->x0 == 36 + 1269);
-    CHECK(b->label_out && STREQ(b->label, "k-homelab"));
-    CHECK(b->row == 1);
+    CHECK(b->row == 0 && b->label[0] == '\0' && !b->label_out);
     CHECK(c && c->label[0] == '\0' && !c->label_out && c->row == 0);
-    CHECK(d && !d->label_out && STREQ(d->label, "kdashd\xE2\x80\xA6"));
-    CHECK(o && o->label_out && STREQ(o->label, "Stale apt-temps on rpi53"));
+    CHECK(d && d->row == 0 && d->label_out && STREQ(d->label, "kdashdata"));
+    CHECK(o && o->row == 0 && o->label_out && STREQ(o->label, "Stale apt-temps on\xE2\x80\xA6"));
+    CHECK(g_v.rows == 1);
     CHECK(!overlaps(&g_v));
 
-    /* With nothing to its left, the same bar takes row 0. */
+    /* With nothing to its left, the same 5-minute bar is named whole. */
     ag_reset();
     s = build((double)now, &S[2], 1);
     CHECK(ag_observe(s) == 1);
     free(s);
     view(now);
     CHECK(find(&g_v, "k-homelab", 0)->row == 0 && find(&g_v, "k-homelab", 0)->label_out);
+    CHECK(STREQ(find(&g_v, "k-homelab", 0)->label, "k-homelab"));
+
+    /* No room on the left, but room inside for a cut: "k-homelab" over 8
+     * minutes right after "long" (87 px inside) is "k-home…", not unnamed. */
+    const spec_t T[] = {
+        {"a", "kai", "long", 10.5, 11.5, "done", 0, 0, NULL},
+        {"e", "kai", "k-homelab", 11.55, 11.55 + 8.0 / 60, "done", 0, 0, NULL},
+    };
+    ag_reset();
+    s = build((double)now, T, 2);
+    CHECK(ag_observe(s) == 1);
+    free(s);
+    view(now);
+    const ag_bar_t *e = find(&g_v, "k-homelab", 0);
+    CHECK(e && e->row == 0 && !e->label_out && STREQ(e->label, "k-home\xE2\x80\xA6"));
+
+    /* A 31-character name, after a blocker ending at x 461: whole (372 px)
+     * it would run into the blocker; cut to 20 (240 px) it fits. On a narrow
+     * bar the inside cut keeps 5 characters, so the outside cut wins; on a
+     * wide one the inside cut keeps 24, so it stays inside. */
+    const char *w31 = "abcdefghijklmnopqrstuvwxyzABCDE";
+    const spec_t U[] = {
+        {"k", "kai", "blk", 10.0, 10.5, "done", 0, 0, NULL},
+        {"n", "kai", "abcdefghijklmnopqrstuvwxyzABCDE", 10.875, 10.875 + 0.125, "done", 0, 0, NULL},
+    };
+    ag_reset();
+    s = build((double)now, U, 2);
+    CHECK(ag_observe(s) == 1);
+    free(s);
+    view(now);
+    const ag_bar_t *u = find(&g_v, w31, 0);
+    CHECK(u && u->row == 0 && u->label_out);
+    CHECK(STREQ(u->label, "abcdefghijklmnopqrs\xE2\x80\xA6"));
+    CHECK(!overlaps(&g_v));
+    spec_t V[2];
+    memcpy(V, U, sizeof(V));
+    V[1].b = 10.875 + 0.4;
+    ag_reset();
+    s = build((double)now, V, 2);
+    CHECK(ag_observe(s) == 1);
+    free(s);
+    view(now);
+    u = find(&g_v, w31, 0);
+    CHECK(u && u->row == 0 && !u->label_out);
+    CHECK(STREQ(u->label, "abcdefghijklmnopqrstuvwx\xE2\x80\xA6"));
+
+    /* At the left edge nothing goes outside: the 31-character name is cut
+     * inside, as 041 did. */
+    const spec_t W[] = {{"n", "kai", "abcdefghijklmnopqrstuvwxyzABCDE", 9.0, 10.2, "done", 0, 0, NULL}};
+    ag_reset();
+    s = build((double)now, W, 1);
+    ag_observe(s);
+    free(s);
+    view(now);
+    u = find(&g_v, w31, 0);
+    CHECK(u && !u->label_out && u->x0 == AG_PLOT_X0);
+    CHECK(STREQ(u->label, "abcdefghij\xE2\x80\xA6")); /* 142 px: 10 and "…" */
 
     /* No measure (no font): no names, and the bars alone are packed. */
     ag_reset();
