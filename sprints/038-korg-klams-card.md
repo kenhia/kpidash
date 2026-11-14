@@ -180,3 +180,36 @@ this. Sprint 037 measured 6.7 % before its ship and 5.0 % after.
   card, with live numbers checked against korg's board and klams-view at
   capture time.
 - Panel CPU after the deploy, measured the same way, against 7.3 %.
+
+## Deployed
+
+Deployed 2026-11-13 from the ship turn with `scripts/deploy.sh` to rpi53. There
+is no `.sprint-deploy`; the overseer's clearance (korg comment 4678) named the
+deploy.
+
+- **`972a45d`** (PR #42). The service is active (NRestarts=0), and the
+  dashboard self-reports `972a45d (2026-11-14)`. The aarch64 build printed
+  **zero** warnings and the link printed nothing (no `ld` output).
+- **Live capture** (`krpidss`, 17:53:21 PST, cropped to row 2 and attached to
+  korg:4618 as img-1228). Row 2 shows 10G, NAS, this card at column 4 and the
+  limits card at column 5. The card's numbers match the records read in the
+  same second:
+  - korg (193 s old): 35 open, "1 awaiting Ken", "1 active", "kligd 5", and
+    an 18-segment bar.
+  - klams (47 s old): green dot, 229,395 chunks, and four green subsystems.
+    kai is neutral ("wrote 33m ago", a write-age bar). kubs0 ran and wrote two
+    minutes earlier, so its bar is nearly full and the text reads "wrote 2m
+    ago".
+- **Against the sources.**
+  - korg's board: 35 non-terminal work items, and one item in the Awaiting Ken
+    lane, which matches. "active" was 1 at capture because this sprint's own
+    proposal was still active then; marking it done right after leaves the
+    board at 0, and the next 5-minute write will say so.
+  - klams's `/healthz` on kubs0 reads Ok for postgres, qdrant, embeddings and
+    the reranker, matching the dot and the four subsystems.
+  - The chunk count was **not** cross-checked against klams-view: from a
+    shell, its HTTPS page gave nothing to scrape. The number shown is the
+    publisher's record.
+- **Panel CPU**, measured on rpi53 itself as before (utime + stime over
+  120 s, pid 289663, ending 17:55 PST): **5.6 %** of a core, against 7.3 %
+  before the ship. Not above it.
