@@ -186,7 +186,7 @@ package that feeds it (the telemetry daemon + CLI). Its repo scanner and the
   - `just check-release` compiles at `-O3 -Werror`, but **only what TESTS_ONLY
     compiles**: `config.c`, `redis.c`, `registry.c`, `hosthist.c`, `hostcols.c`,
     `icons.c`, `admitted.c`, `logfilter.c`, `netstate.c`, `nasstate.c`,
-    `wxstate.c`, `limstate.c`, `kkstate.c` (`memstat.c` links only into the LVGL
+    `wxstate.c`, `limstate.c`, `kkstate.c`, `calstate.c` (`memstat.c` links only into the LVGL
     leak test).
     Worth knowing why that is not enough: neither of the two warnings it was
     written in response to was in those files, so on its own it could not have

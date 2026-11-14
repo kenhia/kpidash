@@ -37,6 +37,7 @@
 #include "widgets/dev_textsize.h"
 #include "widgets/host_columns.h"
 #include "widgets/korg_klams_card.h"
+#include "widgets/calendar_card.h"
 #include "widgets/limits_card.h"
 #include "widgets/nas_card.h"
 #include "widgets/net_card.h"
@@ -53,6 +54,7 @@ static lv_obj_t *g_netcard = NULL;
 static lv_obj_t *g_nascard = NULL; /* WI #3956 */
 static lv_obj_t *g_korgklams = NULL; /* WI #4613: korg + klams; "row 2, column 4" counts rows from 1 */
 static lv_obj_t *g_limits = NULL;  /* WI #4609: Claude limits; "row 2, column 5" counts rows from 1 */
+static lv_obj_t *g_calendar = NULL; /* WI #4665: time and calendar; "row 3, columns 4-5" counts rows from 1 */
 static lv_obj_t *g_service_strip = NULL;  /* T013: footer Service-Strip container */
 static lv_obj_t *g_status_bar = NULL;
 static lv_obj_t *g_redis_err = NULL;
@@ -144,7 +146,7 @@ void ui_init(void) {
      * 2-3 (sprint 032). The NAS card is shown only once kdash:nas has
      * published, but its slot is fixed, so the 10G card never moves.
      * The korg + klams card takes column 4 (sprint 038) and the Claude
-     * limits card column 5 (sprint 037). Row 2 stays empty. ---- */
+     * limits card column 5 (sprint 037). ---- */
     g_netcard = net_card_create(g_screen); /* WI #4062 */
     lv_obj_set_pos(g_netcard, COL_X(0), ROW_Y(1));
 
@@ -158,6 +160,12 @@ void ui_init(void) {
     g_limits = limits_card_create(g_screen); /* WI #4609 */
     lv_obj_set_pos(g_limits, COL_X(5) + CELL_PAD, ROW_Y(1) + CELL_PAD);
     lv_obj_add_flag(g_limits, LV_OBJ_FLAG_HIDDEN);
+
+    /* ---- Row 2: the time and calendar card, a 2×1 in columns 4-5 (sprint
+     * 040). Always shown: the clock and grid come from the panel's own
+     * clock, so it draws with no feed at all. Columns 0-3 stay free. ---- */
+    g_calendar = calendar_card_create(g_screen); /* WI #4665 */
+    lv_obj_set_pos(g_calendar, COL_X(4) + CELL_PAD, ROW_Y(2) + CELL_PAD);
 
     /* ---- Footer (FR-005): Service-Strip container ---- */
     g_service_strip = lv_obj_create(g_screen);
@@ -221,6 +229,11 @@ void ui_refresh(void) {
          * and "no feed" before that feed has ever published, so the slot is
          * never empty and neither half moves when the other arrives. */
         korg_klams_card_update(g_korgklams, now_s);
+
+        /* WI #4665: always drawn. The clock repaints on the minute, the rest
+         * only when the date or the tags change; the last good calendar
+         * record is held through any gap, so nothing here flashes. */
+        calendar_card_update(g_calendar, (time_t)now_s);
 
         /* WI #4609: not drawn before claude:limits has ever published. Once
          * it has, it stays — limstate keeps the last record through a gap and

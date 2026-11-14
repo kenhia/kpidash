@@ -185,6 +185,15 @@ LVGL/DRM/KMS with no mouse or keyboard interaction.
     debounce, scanner verdict and 30-day line) and draws
     `widgets/korg_klams_card.c` in row 1, column 4. Read only. See
     CLIENT-PROTOCOL.md §8i (sprint 038).
+16. **Time and calendar card**: korg's publisher on kai writes
+    `kdash:calendar` hourly and on every change to the tagged-days list
+    (kdashdata CD-30: one JSON document, ts-owned, no TTL, concrete
+    America/Los_Angeles dates). Dashboard GETs it each poll into `calstate.c`
+    (libkdash's parser and window, plus the month grid, cell flags and
+    coming-up list) and draws `widgets/calendar_card.c` in row 2, columns
+    4-5. The clock and grid come from the panel's own local clock, so the
+    card draws with no feed. Read only. See CLIENT-PROTOCOL.md §8j (sprint
+    040).
 
 ## Source Structure
 
@@ -196,7 +205,7 @@ kpidash/
 │   ├── lvgl/                   # LVGL 9.2.2 — needed by a Pi/native build only
 │   └── kdashdata/              # libkdash; the GATE needs this one (registry.c calls it)
 ├── fonts/
-│   ├── generate.sh             # lv_font_conv: Montserrat Bold 14-48px, 96px digits, NF icons
+│   ├── generate.sh             # lv_font_conv: Montserrat Bold 14-48px, 96px digits + colon, NF icons
 │   ├── lv_font_custom.h        # Extern declarations for generated bold fonts
 │   ├── lv_font_montserrat_bold_*.c  # Generated font sources (7 sizes + 96px digits)
 │   └── ttf/                    # Source TTF files (Montserrat-Bold, SymbolsNerdFont)
@@ -209,6 +218,7 @@ kpidash/
 │   ├── wxstate.{h,c}           # Weather filler: parse, trust, space, scale (pure, sprint 034)
 │   ├── limstate.{h,c}          # Claude limits card: pace, bands, strings, carry (pure, 037)
 │   ├── kkstate.{h,c}           # korg + klams card: debounce, scanners, 30-day line (pure, 038)
+│   ├── calstate.{h,c}          # Time and calendar card: month grid, tags, coming up (pure, 040)
 │   ├── redis.{h,c}             # hiredis poll cycle + JSON parsing (cJSON)
 │   ├── status.{h,c}            # In-memory status message FIFO queue
 │   ├── ui.{h,c}                # Screen layout + redis error overlay
@@ -222,6 +232,7 @@ kpidash/
 │       ├── weather_card.{h,c}  # Weather filler in the host row's spare columns (034)
 │       ├── korg_klams_card.{h,c} # korg + klams, row 1 column 4 (038)
 │       ├── limits_card.{h,c}   # Claude limits, row 1 column 5 (037)
+│       ├── calendar_card.{h,c} # Time and calendar, row 2 columns 4-5 (040)
 │       ├── service_card.{h,c}  # Service status card + host staleness card
 │       ├── apt_temps_card.{h,c}# Per-zone temp/humidity card (footer, WI #364)
 │       ├── status_bar.{h,c}    # Bottom status bar (warning/error)
@@ -241,12 +252,14 @@ kpidash/
 │   ├── test_wxstate.c          # Weather model against the kdash-weather schema (034)
 │   ├── test_limstate.c         # Claude limits model: pace, bands, strings, carry (037)
 │   ├── test_kkstate.c          # korg + klams model against both schemas (038)
+│   ├── test_calstate.c         # Calendar model: schema, full-cap record, midnight, DST (040)
 │   ├── test_widget_leak.c      # Widget leak regression (needs LVGL)
 │   ├── render_host_columns.c   # Offline render of the host columns to BMP (tool)
 │   ├── render_nas_card.c       # Offline render of the NAS card, four states (tool)
 │   ├── render_weather.c        # Offline render of the weather filler, 4 states × 4 widths (tool)
 │   ├── render_limits.c         # Offline render of the Claude limits card, 5 states (tool)
-│   └── render_korg_klams.c     # Offline render of the korg + klams card, 6 states (tool)
+│   ├── render_korg_klams.c     # Offline render of the korg + klams card, 6 states (tool)
+│   └── render_calendar.c       # Offline render of the time and calendar card, 7 states (tool)
 ├── clients/
 │   └── kpidash-client/         # Python 3.13+ daemon + CLI (psutil, pynvml)
 ├── scripts/
@@ -592,6 +605,49 @@ The card itself is always shown.
   repaints only the half it is in: the scanner bars drain a pixel every ~14 s
   and must not repaint korg's line; a korg write every 5 min must not repaint
   klams.
+
+## Time and Calendar Card (sprint 040)
+
+`src/widgets/calendar_card.c`, card A of the calendar mock-ups Ken picked on
+2026-11-14 (`sprints/planning/calendar-mockups.html`, functions `cardA`,
+`sideClock`, `grid`, `cell`, `chip`), with his one change: a 24-hour clock.
+A 2×1 at the right end of row 2 (columns 4-5; "row 3" counting from one),
+1256 × 620 at `CELL_PAD` inside its frame. Always shown.
+
+- **Left.** The clock, HH:MM, 24-hour, zero-padded, in the 96 px digits
+  (sprint 040 added the colon to that font). No seconds and no blinking
+  colon. The weekday in bold blue, the date, a rule, then COMING UP: up to
+  four tagged days from today forward, past the end of the month as far as
+  the feed's window runs. Each has a chip drawn like its calendar cell, the
+  full `special` or `holiday` name (special first) or "day off", and "Thu ·
+  in 13 days" / "today" / "tomorrow". A name too wide for the column is cut
+  with an ellipsis.
+- **Right.** "November 2026", S M T W T F S, and the month grid. Five- and
+  six-row months share the same 748 × 484 box; the rows get shorter.
+- **Cell encoding, which stacks.** Weekend: grey background. Day off: a
+  blue-tinted background. Holiday: rose number. Special day: a 4 px yellow
+  ring. Today: a solid blue cell with a dark number, which keeps its ring.
+  Past days are dimmed. Every colour is pre-mixed once and drawn opaque.
+- **`off` is Ken's day off only.** A holiday he works has `off` false, so its
+  cell has a rose number and no tint.
+- **Time.** "Today" is the panel's LOCAL date, and rpi53's zone is
+  America/Los_Angeles, the zone every date in the feed is written in. The
+  "in N days" count is by date number, not by seconds, so a 23- or 25-hour
+  DST day cannot round it wrong. `test_calstate` injects the clock across
+  midnight, a month end, a year end and both DST changes.
+- **The feed's absence and age** (CD-30, sprint 035's rule). An absent key or
+  a rejected record keeps the last good record. An old `ts` (past
+  `expected_refresh_s` plus 60 s) adds only a muted "as of 3h" at the right
+  of the COMING UP line. When the record's window no longer covers today, the
+  grid and weekends draw untagged and the list reads "calendar out of date";
+  with no record at all it reads "no calendar feed". The card never blanks
+  or reflows.
+- **Repaint cost.** One callback-drawn object, opaque fills only. The view is
+  rebuilt every poll and compared; when only the clock changed (once a
+  minute) just its rectangle repaints. The date turning, or a new record,
+  repaints the card.
+- **Memory.** `calstate` keeps one `kdash_calendar_t` (about 5.8 KB) and one
+  parse scratch, both static; nothing that size is on the stack per frame.
 
 ## Memory Telemetry
 

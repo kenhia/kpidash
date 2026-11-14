@@ -894,6 +894,46 @@ redis-cli -h rpi53 GET kdash:klams:status
 
 ---
 
+## 8j. Time and Calendar Card (Sprint 040, WI #4665)
+
+| Key | Type | Written by | Read by | TTL |
+|-----|------|-----------|---------|-----|
+| `kdash:calendar` | STRING (JSON) | korg's calendar publisher on kai, hourly and on every change | dashboard | none |
+
+**The contract is kdashdata's** (sprint 025, CD-30): schema
+`lib/kdashdata/contracts/schemas/kdash-calendar.schema.json`. One record:
+`ts`, `expected_refresh_s`, a window `from`..`to`, and `days`, at most 64
+entries ascending by date, each with a required boolean `off` and optional
+`holiday`, `special` and `short`. Every date is an America/Los_Angeles local
+date. Inside the window a date with no entry is untagged; outside it a date is
+unknown.
+
+**The dashboard only reads it.** Never hand-write a record to the live key;
+`tests/render_calendar` draws now / d27 / six / nofeed / stale / outdated /
+live offline, and a test record belongs on a scratch Redis.
+
+**Panel** (`src/calstate.c` model, `src/widgets/calendar_card.c`): one `GET`
+per poll, parsed by libkdash (`kdash_parse_calendar`). kpidash links
+`kdash_core` only, so it does its own GET rather than libkdash's
+`kdash_calendar()`. hiredis returns the whole value and calstate copies it
+unclamped, so a full-cap record (about 9.4 KB) is read intact.
+
+- **The clock and grid need no feed.** They come from the panel's own local
+  clock.
+- **Tags only while the window covers today** (`kdash_calendar_covers`).
+  Otherwise the grid and weekends draw untagged.
+- **An old `ts` is a muted hint**, "as of 3h", never a reason to blank.
+- **Absent key, rejected record:** the last good record stays.
+- **The coming-up list** uses the full `special` name, else `holiday`, else
+  "day off". `short` is not used on this card.
+
+```sh
+# What the card reads (rpi53 Redis needs auth) — read only
+redis-cli -h rpi53 GET kdash:calendar
+```
+
+---
+
 ## 9. Dev Commands (Sprint 002)
 
 Command keys enable/disable developer overlay widgets. All keys use JSON

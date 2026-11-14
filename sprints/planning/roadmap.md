@@ -6,12 +6,15 @@
 
 ## Now
 
-- **036 — retire the client's unread producers** (korg proposal 4596, slice 1
-  of program 4599). kpidash-client 2.0.0 drops repo scanning, `activity` and
-  `fortune push`, and `clients/kpidash-mcp` is deleted; every reachable client
-  host is upgraded and the orphaned Redis keys deleted. k-homelab (drop the
-  rendered `[repos]` settings, raise the version floor) and kdashdata (registry)
-  follow as slices 2 and 3.
+- **040 — time and calendar card** (korg proposal 4668, slice 3 of program
+  4669). A 2×1 at the right end of row 2 (columns 4-5): a 24-hour clock, the
+  date, the next tagged days, and the month marking weekends, Ken's days off,
+  holidays and special days from `kdash:calendar` (kdashdata CD-30, written
+  by korg). Card A of `planning/calendar-mockups.html`.
+- **036-039** (shipped). 036 retired the client's unread producers
+  (kpidash-client 2.0.0). 037 and 039 built the Claude limits card in row 1,
+  column 5; 038 the korg + klams card in column 4
+  (`planning/row2-cards-mockups.html`, program korg:4619).
 - **035** (shipped). Host column hold and NO PATH debounce: two timing rules
   that stopped the host row and the 10G card flickering.
 - **034** (shipped). Weather filler in the host row's spare columns,
@@ -27,11 +30,10 @@
 
 ## Next
 
-- **What fills the free cells** — row 2 has been empty since sprint 032
-  removed the dev graphs. Row 1 columns 4-5 were filled from program
-  korg:4619 (`planning/row2-cards-mockups.html`): Claude limits in column 5
-  (sprint 037), korg + klams sharing column 4 (sprint 038). Row 2 is still
-  open.
+- **What fills the free cells.** Row 1, columns 4-5, came from program
+  korg:4619: Claude limits (037) and korg + klams (038). Row 2, columns 4-5,
+  is the calendar card (040, program korg:4669). Row 2, columns 0-3, is still
+  open, and ideas for it are still owed.
 - **Service card: kmon status with staleness alerting** (korg #902, M) — the
   card should distinguish "kmon says everything is fine" from "kmon has not
   said anything in a while", which currently look the same.

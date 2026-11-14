@@ -264,6 +264,34 @@ if(TARGET lvgl)
     target_link_libraries(render_korg_klams lvgl kdash_core ${PNG_TEST_LIBRARIES} pthread m)
     target_compile_options(render_korg_klams PRIVATE -Wall -Wextra -Wno-unused-parameter)
     target_compile_definitions(render_korg_klams PRIVATE LV_FONT_MONTSERRAT_BOLD_96_DIGITS=1)
+
+    # Sprint 040: offline render of the time and calendar card in the
+    # mock-up's now / d27 / six states (and nofeed, stale, outdated, live),
+    # for review against sprints/planning/calendar-mockups.html (`cardA`).
+    add_executable(render_calendar
+        ${CMAKE_CURRENT_SOURCE_DIR}/render_calendar.c
+        ${CMAKE_SOURCE_DIR}/src/widgets/calendar_card.c
+        ${CMAKE_SOURCE_DIR}/src/calstate.c
+        ${CMAKE_SOURCE_DIR}/src/bmp_write.c
+        ${CMAKE_SOURCE_DIR}/fonts/lv_font_montserrat_bold_20.c
+        ${CMAKE_SOURCE_DIR}/fonts/lv_font_montserrat_bold_24.c
+        ${CMAKE_SOURCE_DIR}/fonts/lv_font_montserrat_bold_28.c
+        ${CMAKE_SOURCE_DIR}/fonts/lv_font_montserrat_bold_36.c
+        ${CMAKE_SOURCE_DIR}/fonts/lv_font_montserrat_bold_96_digits.c
+    )
+    target_include_directories(render_calendar PRIVATE
+        ${CMAKE_SOURCE_DIR}
+        ${CMAKE_SOURCE_DIR}/src
+        ${CMAKE_SOURCE_DIR}/fonts
+    )
+    target_link_libraries(render_calendar lvgl kdash_core ${PNG_TEST_LIBRARIES} pthread m)
+    target_compile_options(render_calendar PRIVATE -Wall -Wextra -Wno-unused-parameter)
+    target_compile_definitions(render_calendar PRIVATE LV_FONT_MONTSERRAT_BOLD_96_DIGITS=1)
+    # The one render that is also a test: names at the contract's 31-character
+    # bound must be cut before the grid. render_calendar exits non-zero when a
+    # pixel lands in the 24 px gap. Runs under check-warnings-full's ctest.
+    add_test(NAME render_calendar_long_names
+        COMMAND render_calendar ${CMAKE_CURRENT_BINARY_DIR}/render_calendar_long.bmp long)
 endif()
 
 # WI #4062: the network card's model. Pure — no LVGL, no Redis — and held to
@@ -358,3 +386,19 @@ target_compile_definitions(test_kkstate PRIVATE
     KORG_LIVE_FIXTURE="${CMAKE_CURRENT_SOURCE_DIR}/fixtures/korg-pulse-2026-11-14.json"
     KLAMS_LIVE_FIXTURE="${CMAKE_CURRENT_SOURCE_DIR}/fixtures/klams-status-2026-11-14.json")
 add_test(NAME test_kkstate COMMAND test_kkstate)
+
+# WI #4665: the time and calendar card's model. Parsing and the window are
+# libkdash's (kdash_core); this holds the card's own rules — the month grid,
+# the cell flags, the coming-up list, the old-ts hint — against the calendar
+# schema's examples and counterexamples, a full-cap record, and an injected
+# clock across midnight, a month end and both DST changes.
+add_executable(test_calstate
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_calstate.c
+    ${CMAKE_SOURCE_DIR}/src/calstate.c
+)
+target_include_directories(test_calstate PRIVATE ${CMAKE_SOURCE_DIR}/src ${CJSON_INCLUDE_DIRS})
+target_link_libraries(test_calstate kdash_core ${CJSON_LIBRARIES} m)
+target_compile_options(test_calstate PRIVATE -Wall -Wextra -Wno-unused-parameter)
+target_compile_definitions(test_calstate PRIVATE
+    KDASH_CALENDAR_SCHEMA="${CMAKE_SOURCE_DIR}/lib/kdashdata/contracts/schemas/kdash-calendar.schema.json")
+add_test(NAME test_calstate COMMAND test_calstate)
