@@ -28,7 +28,10 @@
 ## Next
 
 - **What fills the free cells** — row 1 columns 4-5 and all of row 2 have
-  been empty since sprint 032 removed the dev graphs. A later brainstorm.
+  been empty since sprint 032 removed the dev graphs. Decided 2026-11-13
+  (program korg:4619, `planning/row2-cards-mockups.html`): Claude limits in
+  column 5 (sprint 037), korg + klams sharing column 4 (slice 5). Row 2 is
+  still open.
 - **Service card: kmon status with staleness alerting** (korg #902, M) — the
   card should distinguish "kmon says everything is fine" from "kmon has not
   said anything in a while", which currently look the same.

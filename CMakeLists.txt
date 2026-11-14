@@ -119,6 +119,8 @@ add_executable(kpidash
     src/widgets/nas_card.c
     src/wxstate.c
     src/widgets/weather_card.c
+    src/limstate.c
+    src/widgets/limits_card.c
     src/icons.c
     fonts/lv_font_montserrat_bold_14.c
     fonts/lv_font_montserrat_bold_16.c
@@ -144,7 +146,7 @@ target_include_directories(kpidash PRIVATE
 add_dependencies(kpidash kpidash_version)
 
 target_link_libraries(kpidash
-    kdash_core  # WI #2244: the shared apartment-temperature band classifier
+    kdash_core  # WI #2244: the apartment-temperature band; WI #4609: claude:limits
     lvgl
     hiredis::hiredis
     ${DRM_LIBRARIES}

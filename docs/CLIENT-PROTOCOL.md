@@ -814,6 +814,39 @@ redis-cli -h rpi53 GET kdash:weather:home
 
 ---
 
+## 8h. Claude Limits Card (Sprint 037, WI #4609)
+
+| Key | Type | Written by | Read by | TTL |
+|-----|------|-----------|---------|-----|
+| `claude:limits` | HASH | Claude Code statusline and oauth poll, every host running it (kdeskdash `publisher/claude-pub.sh`) | dashboard, kdeskdash | none |
+
+**The contract is kdashdata's**: schema
+`lib/kdashdata/contracts/schemas/claude-limits.schema.json`, notes in
+`contracts/registry.md`. It is the `KDASH_CLAUDE_REDIS` family, which answers
+`rpi53:6379` — the same Redis the dashboard already reads, so the card uses
+the existing connection. **If that stem ever moves off rpi53, the card needs
+a second connection**: kpidash links `kdash_core` only, not libkdash's
+stem-resolving I/O shell.
+
+**The dashboard only reads it.** Never hand-write a fake record to the live
+key; `tests/render_limits` draws ok / warn / stale / bare / live offline.
+
+**Panel** (`src/limstate.c` model, `src/widgets/limits_card.c`): one
+`HGETALL` per poll, parsed by libkdash (`kdash_parse_claude_limits`).
+
+- **Freshness is per gauge**: headline and scoped sets carry independent
+  stamps and cadences, judged by libkdash at a 60 s grace.
+- **Absent key, rejected record:** the last record stays. A write with no
+  scoped set keeps the last scoped set (greying by its own stamp).
+- **Never seen** this run: not drawn.
+
+```sh
+# What the card reads (rpi53 Redis needs auth) — read only
+redis-cli -h rpi53 HGETALL claude:limits
+```
+
+---
+
 ## 9. Dev Commands (Sprint 002)
 
 Command keys enable/disable developer overlay widgets. All keys use JSON

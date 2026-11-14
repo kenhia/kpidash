@@ -1,0 +1,317 @@
+<meta name="claude:viewport-fit-sides" content="cover">
+<title>kpidash Row 2 Cards</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;700&display=swap">
+<style>
+/* Same chrome as the other kpidash mock-up pages: one dark Mocha column, figures at real panel
+   pixels. Single dark look by choice, because the subject is a dark panel. */
+:root{
+  color-scheme:dark;
+  --crust:#11111B; --base:#1E1E2E; --s0:#313244; --s1:#45475A;
+  --muted:#6C7086; --sub:#A6ADC8; --fg:#CDD6F4;
+  --teal:#94E2D5; --lav:#B4BEFE; --peach:#FAB387; --yellow:#F9E2AF; --sapphire:#74C7EC;
+  --font:"Montserrat",system-ui,-apple-system,"Segoe UI",sans-serif;
+}
+body{background:var(--crust);color:var(--fg);font-family:var(--font);font-size:16px;line-height:1.55;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:32px 80px}
+.wrap{max-width:1920px;margin:0 auto;display:flex;flex-direction:column;gap:48px}
+body.actual{padding-inline:0}
+body.actual .wrap{max-width:none}
+body.actual .wrap>*:not(.figsec){padding-inline:24px}
+body.actual .sechead,body.actual .vhead,body.actual .variant>p{padding-inline:24px}
+h1{font-size:40px;line-height:1.1;margin:0;color:var(--yellow);font-weight:700;text-wrap:balance}
+h2{font-size:28px;margin:0;font-weight:700;text-wrap:balance}
+h3{font-size:20px;margin:0;font-weight:700}
+p{margin:0;max-width:68ch;color:var(--sub)}
+p b,li b{color:var(--fg)}
+.lede{font-size:18px}
+header{display:flex;flex-direction:column;gap:14px}
+.bar{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--crust);padding-block:10px;
+  display:flex;flex-wrap:wrap;gap:10px 24px;align-items:center;border-bottom:1px solid var(--s0)}
+.seg{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.seg span{font-size:13px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-right:4px}
+button{font:inherit;font-size:14px;font-weight:700;color:var(--fg);background:var(--base);border:1px solid var(--s1);
+  border-radius:999px;padding:6px 14px;cursor:pointer}
+button[aria-pressed="true"]{background:var(--yellow);color:var(--crust);border-color:var(--yellow)}
+button:focus-visible{outline:2px solid var(--lav);outline-offset:2px}
+section{display:flex;flex-direction:column;gap:24px}
+.sechead{display:flex;flex-direction:column;gap:8px}
+#cards{display:flex;flex-wrap:wrap;gap:40px 32px}
+.variant{display:flex;flex-direction:column;gap:12px;min-width:0}
+.vhead{display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 16px}
+.tag{font-size:13px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--crust);background:var(--lav);
+  border-radius:999px;padding:2px 10px}
+.cap{font-size:14px;color:var(--muted)}
+.variant>p{max-width:600px;font-size:15px}
+.canvas{overflow-x:auto;max-width:100%}
+.canvas svg{display:block;max-width:100%;height:auto}
+body.actual .canvas svg{max-width:none}
+body.actual #cards{gap:40px 0}
+ul{margin:0;padding-left:20px;color:var(--sub);max-width:68ch}
+li{margin-block:4px}
+.open{border-left:3px solid var(--peach);padding-left:14px;display:flex;flex-direction:column;gap:8px}
+.how{border-left:3px solid var(--teal);padding-left:14px;display:flex;flex-direction:column;gap:8px}
+</style>
+
+<div class="wrap">
+<header>
+  <h1>Four cards for the free half of row 2</h1>
+  <p class="lede">korg, klams and Claude limits, each as one 632 × 628 cell, plus korg and klams sharing a cell. The "Today" numbers are real: read from korg and klams on 13 November. The 30-day korg line is real at its two ends (118 on 9 November, 25 now) and sketched between.</p>
+  <div class="how">
+    <h3>To see it at the size it will be on the dashboard</h3>
+    <p>Open this page on cleo's monitor 2, press <b>Actual pixels</b>, and set the browser zoom to 50%.</p>
+  </div>
+</header>
+
+<div class="bar">
+  <div class="seg"><span>State</span>
+    <button id="st-ok" aria-pressed="true">Today</button>
+    <button id="st-warn" aria-pressed="false">Needs a look</button>
+    <button id="st-stale" aria-pressed="false">Stale</button></div>
+  <div class="seg"><span>Pair in place</span>
+    <button id="pr-0" aria-pressed="true">korg + klams</button>
+    <button id="pr-1" aria-pressed="false">Combined + limits</button>
+    <button id="pr-2" aria-pressed="false">korg + limits</button>
+    <button id="pr-3" aria-pressed="false">klams + limits</button></div>
+  <div class="seg"><span>Scale</span>
+    <button id="sc-fit" aria-pressed="true">Fit to page</button>
+    <button id="sc-actual" aria-pressed="false">Actual pixels</button></div>
+</div>
+
+<section class="figsec">
+  <div class="sechead">
+    <h2>In place</h2>
+    <p>Row 2 as it is now, with the chosen pair in the free space on the right. The 10G and NAS cards are a screen capture from yesterday, so they do not change with the State switch.</p>
+  </div>
+  <div class="canvas" id="inplace"></div>
+</section>
+
+<section class="figsec">
+  <div class="sechead"><h2>The four cards</h2></div>
+  <div id="cards"></div>
+</section>
+
+<section>
+  <div class="sechead"><h2>The same in all four</h2></div>
+  <ul>
+    <li><b>One accent per card:</b> lavender for korg, sapphire for klams, peach for Claude. Green, yellow and red keep their usual meaning and appear only for health.</li>
+    <li><b>Peach numbers on korg mean "yours".</b> The Awaiting Ken count turns peach when it is above zero, as the pool drives do on the NAS card.</li>
+    <li><b>Stale</b> greys the card and says how old the data is.</li>
+    <li><b>Nothing under 20 px</b>, and every fill is an opaque pre-mixed colour.</li>
+    <li><b>Fonts:</b> the big numbers use the 96 px digits font added for weather. Everything else is a size the dashboard already has.</li>
+  </ul>
+</section>
+
+<section>
+  <div class="sechead"><h2>What each card needs that does not exist yet</h2></div>
+  <div class="open">
+    <h3>korg and klams have no feed on the dashboard's Redis</h3>
+    <p>Each needs a small publisher and a contract in kdashdata, the way weather got one. For korg, one board read gives every number here. For klams, the earlier plan (korg WI 826, cut on 9 November as not worth a 2×1) named klams-view as the publisher and that still holds.</p>
+  </div>
+  <div class="open">
+    <h3>Two history charts need someone to keep the history</h3>
+    <p>korg's 30-day open count and klams's new-chunks-per-day bars are not stored anywhere today. The publisher would keep a short daily series in its own record. Without that, both cards still work and the chart areas go to something else.</p>
+  </div>
+  <div class="open">
+    <h3>klams: "last wrote" is not "last ran"</h3>
+    <p>Today's real numbers show the catch. kubs0's scanner ran 28 minutes before I read it, yet klams has it last writing three days ago. The card can only show the write time unless the scanner's own timer is also reported. I have not found out why it has written nothing since the 10th.</p>
+  </div>
+  <div class="open">
+    <h3>Claude limits is the cheap one</h3>
+    <p>The <b>claude:limits</b> record is already on the Redis the dashboard reads, and the shared reader library already parses it. The white pace tick is computed on the panel from the reset time.</p>
+  </div>
+</section>
+</div>
+
+<script>
+const C={crust:'#11111B',base:'#1E1E2E',mantle:'#181825',s0:'#313244',s1:'#45475A',muted:'#6C7086',sub:'#A6ADC8',fg:'#CDD6F4',
+  lav:'#B4BEFE',sap:'#74C7EC',peach:'#FAB387',yellow:'#F9E2AF',red:'#F38BA8',green:'#A6E3A1'};
+const F='Montserrat,sans-serif';
+let state='ok', pair=0;
+
+/* ---- data per state ---- */
+const hist=[96,97,97,99,100,100,102,103,103,105,106,108,108,109,111,112,112,113,114,115,115,116,117,117,118,118,61,18,21,22,25];
+const histWarn=[18,18,19,19,21,22,22,23,23,24,25,25,26,27,27,28,29,30,30,31,33,34,34,35,36,37,38,39,40,40,41];
+const D={
+ ok:{
+  korg:{open:25,delta:'down 93 in 30 days',dcol:C.green,hist,await:1,active:0,queued:1,
+        proj:[['kligd',5],['k-homelab',4],['kdeskdash',2],['kloom',2],1,1,1,1,1,1,1,1,1,1,1,1]},
+  klams:{st:'ok',ver:'0.1.58',up:'up 16h',chunks:'228,934',facts:40,events:39,
+        days:[310,120,0,540,220,90,410,1320,760,180,0,260,140,95],
+        sc:[['kai','19m ago',.85,'ok','123,565'],['kubs0','3d ago',0,'bad','104,933']],
+        sub:[['postgres','ok'],['qdrant','ok'],['embed','ok'],['rerank','ok']],queue:'0 / 1024',backup:'12h ago'},
+  lim:{src:'cleo · 40s ago',g:[[42,.55,'5 HOUR','resets in 2h 14m'],[61,.72,'7 DAY','resets Mon 09:00']],scoped:['Fable, 7 day',38,.72]}
+ },
+ warn:{
+  korg:{open:41,delta:'up 23 in 30 days',dcol:C.yellow,hist:histWarn,await:4,active:2,queued:3,
+        proj:[['k-homelab',9],['kligd',6],['kpidash',4],['korg',3],2,2,2,2,1,1,1,1,1,1,1,1,1,1,1]},
+  klams:{st:'warn',ver:'0.1.58',up:'up 3d',chunks:'228,934',facts:40,events:39,
+        days:[310,120,0,540,220,90,410,1320,760,180,0,0,0,0],
+        sc:[['kai','5h ago',.12,'warn','123,565'],['kubs0','3d ago',0,'bad','104,933']],
+        sub:[['postgres','ok'],['qdrant','ok'],['embed','ok'],['rerank','bad']],queue:'212 / 1024',backup:'3d ago',bkbad:1,qbad:1},
+  lim:{src:'kai · 2m ago',g:[[91,.48,'5 HOUR','resets in 2h 36m'],[78,.60,'7 DAY','resets Mon 09:00']],scoped:['Fable, 7 day',84,.60]}
+ }
+};
+D.stale=JSON.parse(JSON.stringify(D.ok));
+
+/* ---- helpers ---- */
+const esc=s=>String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;');
+function T(x,y,s,size,fill,o={}){
+  return `<text x="${x}" y="${y}" font-family="${F}" font-size="${size}" font-weight="${o.b?700:400}" fill="${fill}" text-anchor="${o.a||'start'}"${o.ls?` letter-spacing="${o.ls}"`:''}>${esc(s)}</text>`;
+}
+const R=(x,y,w,h,fill,rx=0,extra='')=>`<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="${rx}" fill="${fill}" ${extra}/>`;
+const mix=(a,b,t)=>{const p=h=>[1,3,5].map(i=>parseInt(h.slice(i,i+2),16));const A=p(a),B=p(b);
+  return '#'+A.map((v,i)=>Math.round(v+(B[i]-v)*t).toString(16).padStart(2,'0')).join('').toUpperCase();};
+const hc=k=>k==='ok'?C.green:k==='warn'?C.yellow:C.red;
+function shell(inner,stale,age){
+  return R(7,7,618,614,C.base,18)+inner+(stale?T(596,62,age,24,C.yellow,{a:'end',b:1}):'');
+}
+function svg(w,h,inner){return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${w} ${h}" width="${w}" height="${h}" role="img">${R(0,0,w,h,C.crust)}${inner}</svg>`;}
+
+function spark(vals,x,y,w,h,col,stale){
+  const mx=Math.max(...vals),mn=0,n=vals.length;
+  const px=i=>x+i*w/(n-1), py=v=>y+h-(v-mn)/(mx-mn)*h;
+  const pts=vals.map((v,i)=>`${px(i).toFixed(1)},${py(v).toFixed(1)}`).join(' ');
+  const line=stale?C.muted:col;
+  return `<polygon points="${x},${y+h} ${pts} ${x+w},${y+h}" fill="${mix(C.base,line,.2)}"/>`+
+    `<polyline points="${pts}" fill="none" stroke="${line}" stroke-width="4" stroke-linejoin="round" stroke-linecap="round"/>`+
+    `<circle cx="${px(n-1)}" cy="${py(vals[n-1])}" r="8" fill="${line}"/>`;
+}
+function projbar(proj,x,y,w,h,col,stale){
+  const tot=proj.reduce((a,p)=>a+(p[1]||p),0),gap=4;let cx=x,o='';
+  const unit=(w-gap*(proj.length-1))/tot;
+  proj.forEach((p,i)=>{const n=p[1]||p,sw=n*unit;
+    const f=stale?(i?C.s0:C.s1):i===0?col:i<4&&p[1]?mix(C.base,col,.5):C.s1;
+    o+=R(cx.toFixed(1),y,sw.toFixed(1),h,f,4);cx+=sw+gap;});
+  return o;
+}
+
+/* ---- korg ---- */
+function korg(d,stale){
+  const a=stale?C.muted:C.lav, fg=stale?C.muted:C.fg, sub=stale?C.muted:C.sub;
+  let o=T(36,62,'korg',28,a,{b:1});
+  o+=T(36,176,d.open,96,fg,{b:1});
+  const nx=36+String(d.open).length*64+16;
+  o+=T(nx,138,'open',36,sub)+T(nx,176,d.delta,24,stale?C.muted:d.dcol);
+  o+=spark(d.hist,36,208,560,118,C.lav,stale);
+  o+=T(36,356,'30 days ago',20,C.muted)+T(596,356,'today',20,C.muted,{a:'end'});
+  const tiles=[[d.await,'awaiting Ken',d.await>0&&!stale?C.peach:fg],[d.active,'active',fg],[d.queued,'queued',fg]];
+  tiles.forEach((t,i)=>{const x=36+i*196;o+=T(x,430,t[0],48,t[2],{b:1})+T(x,464,t[1],24,sub);});
+  o+=R(36,490,560,2,C.s0);
+  o+=T(36,538,d.proj[0][0],28,a,{b:1})+T(36+d.proj[0][0].length*18.5+16,538,d.proj[0][1]+' open',28,fg)+
+     T(596,538,d.proj.length+' projects',24,C.muted,{a:'end'});
+  o+=projbar(d.proj,36,560,560,28,C.lav,stale);
+  return shell(o,stale,'no data 14m');
+}
+
+/* ---- klams ---- */
+function scrow(s,x,y,w,stale,small){
+  const [host,age,frac,k]=s, col=stale?C.muted:k==='ok'?C.sap:hc(k);
+  const bx=x+(small?120:130), bw=w-(small?120:130)-(small?150:160);
+  let o=T(x,y,host,28,stale?C.muted:C.fg,{b:1});
+  o+=R(bx,y-18,bw,18,C.s0,9);
+  if(frac>0)o+=R(bx,y-18,Math.max(18,bw*frac),18,col,9);
+  else if(!stale)o+=R(bx+1.5,y-16.5,bw-3,15,'none',8,`stroke="${col}" stroke-width="3"`);
+  o+=T(x+w,y,age,28,stale?C.muted:k==='ok'?C.fg:col,{a:'end',b:k!=='ok'});
+  return o;
+}
+function subs(sub,x,y,w,stale,size){
+  let o='';const tw=sub.map(s=>30+s[0].length*size*.6),gap=(w-tw.reduce((a,b)=>a+b,0))/(sub.length-1);let px=x;
+  sub.forEach((s,i)=>{const cx=px+10;px+=tw[i]+gap;
+    o+=`<circle cx="${cx}" cy="${y-size*.34}" r="10" fill="${stale?C.s1:hc(s[1])}"/>`+T(cx+20,y,s[0],size,stale?C.muted:s[1]==='ok'?C.sub:hc(s[1]),{b:s[1]!=='ok'});});
+  return o;
+}
+function klams(d,stale){
+  const a=stale?C.muted:C.sap, fg=stale?C.muted:C.fg, sub=stale?C.muted:C.sub;
+  let o=T(36,62,'klams',28,a,{b:1});
+  if(!stale){o+=`<circle cx="150" cy="52" r="10" fill="${hc(d.st)}"/>`+T(596,62,d.ver+' · '+d.up,24,C.sub,{a:'end'});}
+  o+=T(36,150,d.chunks,48,fg,{b:1})+T(36,186,'knowledge chunks',24,sub);
+  // 14-day new-chunk bars
+  const mx=Math.max(...d.days),bx=372,bw=224,bh=86,by=100,n=d.days.length,w=bw/n;
+  d.days.forEach((v,i)=>{const h=v?Math.max(4,v/mx*bh):3;o+=R((bx+i*w).toFixed(1),(by+bh-h).toFixed(1),(w-4).toFixed(1),h.toFixed(1),v?(stale?C.s1:mix(C.base,C.sap,.75)):C.s0,2);});
+  o+=T(596,214,'new per day, 14 days',20,C.muted,{a:'end'});
+  o+=R(36,238,560,2,C.s0);
+  o+=T(36,282,'SCANNERS · LAST WROTE',20,C.muted,{b:1,ls:'.08em'});
+  d.sc.forEach((s,i)=>{o+=scrow(s,36,334+i*60,560,stale);});
+  o+=R(36,424,560,2,C.s0);
+  o+=subs(d.sub,36,476,560,stale,24);
+  o+=T(36,548,'queue',24,sub)+T(36,586,d.queue,28,stale?C.muted:d.qbad?C.yellow:C.fg,{b:1});
+  o+=T(330,548,'backup',24,sub)+T(330,586,d.backup,28,stale?C.muted:d.bkbad?C.red:C.fg,{b:1});
+  return shell(o,stale,'no data 9m');
+}
+
+/* ---- Claude limits ---- */
+function arc(cx,cy,r,pct,col,sw){
+  const p=Math.min(pct,99.999)/100,a=p*2*Math.PI,x=cx+r*Math.sin(a),y=cy-r*Math.cos(a);
+  return `<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${C.s0}" stroke-width="${sw}"/>`+
+    (pct>0?`<path d="M${cx} ${cy-r} A${r} ${r} 0 ${p>.5?1:0} 1 ${x.toFixed(1)} ${y.toFixed(1)}" fill="none" stroke="${col}" stroke-width="${sw}" stroke-linecap="round"/>`:'');
+}
+const lc=(p,stale)=>stale?C.muted:p>=90?C.red:p>=75?C.yellow:C.peach;
+function limits(d,stale){
+  const a=stale?C.muted:C.peach, fg=stale?C.muted:C.fg, sub=stale?C.muted:C.sub;
+  let o=T(36,62,'Claude',28,a,{b:1});
+  if(!stale)o+=T(596,62,d.src,20,C.muted,{a:'end'});
+  d.g.forEach((g,i)=>{const cx=172+i*288,cy=228,r=106,[pct,pace,lab,reset]=g;
+    o+=arc(cx,cy,r,pct,lc(pct,stale),26);
+    const pa=pace*2*Math.PI,s=Math.sin(pa),c=-Math.cos(pa);
+    o+=`<line x1="${(cx+(r-22)*s).toFixed(1)}" y1="${(cy+(r-22)*c).toFixed(1)}" x2="${(cx+(r+22)*s).toFixed(1)}" y2="${(cy+(r+22)*c).toFixed(1)}" stroke="${stale?C.s1:C.fg}" stroke-width="6" stroke-linecap="round"/>`;
+    o+=`<text x="${cx}" y="${cy+34}" font-family="${F}" font-weight="700" text-anchor="middle"><tspan font-size="96" fill="${fg}">${pct}</tspan><tspan font-size="36" fill="${sub}" dx="4">%</tspan></text>`;
+    o+=T(cx,400,lab,24,sub,{b:1,a:'middle',ls:'.08em'})+T(cx,436,reset,24,fg,{a:'middle'});
+  });
+  o+=R(36,466,560,2,C.s0);
+  const [sl,sp,space]=d.scoped;
+  o+=T(36,516,sl,24,sub)+T(596,518,sp+'%',36,fg,{b:1,a:'end'});
+  o+=R(36,540,560,20,C.s0,10)+R(36,540,Math.max(20,560*sp/100),20,lc(sp,stale),10);
+  o+=R(36+560*space-3,530,6,40,stale?C.s1:C.fg,3);
+  o+=T(36,600,'white tick: how far through the window',20,C.muted);
+  return shell(o,stale,'no data 22m');
+}
+
+/* ---- combined korg + klams ---- */
+function combo(dk,dl,stale){
+  const fg=stale?C.muted:C.fg, sub=stale?C.muted:C.sub;
+  let o=T(36,62,'korg',28,stale?C.muted:C.lav,{b:1});
+  o+=T(36,170,dk.open,96,fg,{b:1});
+  const nx=36+String(dk.open).length*64+16;
+  o+=T(nx,170,'open',36,sub);
+  o+=spark(dk.hist,300,84,296,90,C.lav,stale);
+  const items=[[dk.await,'awaiting Ken',dk.await>0&&!stale?C.peach:fg],[dk.active,'active',fg]];
+  let x=36;items.forEach(t=>{const s=String(t[0]);o+=T(x,238,s,36,t[2],{b:1})+T(x+s.length*24+10,238,t[1],24,sub);x+=s.length*24+10+t[1].length*13.5+34;});
+  o+=T(596,238,dk.proj[0][0]+' '+dk.proj[0][1],28,stale?C.muted:C.lav,{a:'end',b:1});
+  o+=projbar(dk.proj,36,262,560,22,C.lav,stale);
+  o+=R(36,310,560,2,C.s0);
+  o+=T(36,366,'klams',28,stale?C.muted:C.sap,{b:1});
+  if(!stale)o+=`<circle cx="150" cy="356" r="10" fill="${hc(dl.st)}"/>`;
+  o+=T(596,366,dl.chunks+' chunks',28,fg,{a:'end'});
+  dl.sc.forEach((s,i)=>{o+=scrow(s,36,432+i*58,560,stale,1);});
+  o+=subs(dl.sub,36,574,560,stale,24);
+  return shell(o,stale,'no data 14m');
+}
+
+/* ---- page ---- */
+const CARDS=[
+ ['korg','korg pulse','The open count and its 30-day line, the three lane counts, and the project holding the most open items with every project as one segment of the bar.',d=>korg(d.korg,state==='stale')],
+ ['klams','klams','Corpus size with daily growth, when each scanner last wrote (the bar drains as the hour passes), the four subsystems, queue and backup.',d=>klams(d.klams,state==='stale')],
+ ['limits','Claude limits','Two rings for the 5-hour and 7-day windows. The white tick is how far through the window you are: a ring past its tick is burning faster than the clock.',d=>limits(d.lim,state==='stale')],
+ ['combo','korg + klams','Both in one cell. korg keeps the count, line, lanes and top project. klams keeps health, the two scanners and the subsystems. Dropped: korg\'s queued count and trend text, klams\'s growth bars, queue and backup.',d=>combo(d.korg,d.klams,state==='stale')]
+];
+const PAIRS=[[0,1],[3,2],[0,2],[1,2]];
+function render(){
+  const d=D[state];
+  document.getElementById('cards').innerHTML=CARDS.map(c=>
+    `<div class="variant"><div class="vhead"><span class="tag">${c[1]}</span><span class="cap">632 × 628</span></div>`+
+    `<div class="canvas">${svg(632,628,c[3](d))}</div><p>${c[2]}</p></div>`).join('');
+  const [l,r]=PAIRS[pair];
+  document.getElementById('inplace').innerHTML=svg(3792,628,
+    `<image href="row2.png" x="0" y="0" width="2528" height="628"/>`+
+    `<g transform="translate(2528,0)">${CARDS[l][3](d)}</g><g transform="translate(3160,0)">${CARDS[r][3](d)}</g>`);
+}
+function group(prefix,keys,fn){keys.forEach(k=>{document.getElementById(prefix+k).addEventListener('click',()=>{
+  keys.forEach(j=>document.getElementById(prefix+j).setAttribute('aria-pressed',j===k));fn(k);});});}
+group('st-',['ok','warn','stale'],k=>{state=k;render();});
+group('pr-',['0','1','2','3'],k=>{pair=+k;render();});
+group('sc-',['fit','actual'],k=>{document.body.classList.toggle('actual',k==='actual');try{history.replaceState(null,'',k==='actual'?'#actual':'#')}catch(e){}});
+if(location.hash==='#actual')document.getElementById('sc-actual').click();
+if(location.hash==='#warn')document.getElementById('st-warn').click();
+if(location.hash==='#stale')document.getElementById('st-stale').click();
+render();
+</script>

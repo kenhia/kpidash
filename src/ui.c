@@ -9,10 +9,10 @@
  *   │  Host columns — Row 0, cols 0-5, 6×1 units  │
  *   │  (the whole row; sprint 030, WI #4543), the │
  *   │  weather filler in what they leave (034)    │
- *   ├──────────┬──────────┬───────────────────────┤
- *   │ 10G card │ NAS card │  (free)               │
- *   │  2×1     │  2×1     │                       │
- *   ├──────────┴──────────┴───────────────────────┤
+ *   ├──────────┬──────────┬───────────┬───────────┤
+ *   │ 10G card │ NAS card │  (free)   │  Claude   │
+ *   │  2×1     │  2×1     │           │  limits   │
+ *   ├──────────┴──────────┴───────────┴───────────┤
  *   │  (free)                                     │
  *   ├─────────────────────────────────────────────┤
  *   │  Footer: service strip, status bar          │
@@ -27,6 +27,7 @@
 #include "config.h"
 #include "hostcols.h"
 #include "layout.h"
+#include "limstate.h"
 #include "protocol.h"
 #include "redis.h"
 #include "nasstate.h"
@@ -35,6 +36,7 @@
 #include "widgets/dev_grid.h"
 #include "widgets/dev_textsize.h"
 #include "widgets/host_columns.h"
+#include "widgets/limits_card.h"
 #include "widgets/nas_card.h"
 #include "widgets/net_card.h"
 #include "widgets/service_card.h"
@@ -48,6 +50,7 @@ static lv_obj_t *g_host_columns = NULL; /* WI #4526: replaces the client card gr
 static lv_obj_t *g_weather = NULL;      /* WI #4576: the filler in the hosts' spare columns */
 static lv_obj_t *g_netcard = NULL;
 static lv_obj_t *g_nascard = NULL; /* WI #3956 */
+static lv_obj_t *g_limits = NULL;  /* WI #4609: Claude limits; "row 2, column 5" counts rows from 1 */
 static lv_obj_t *g_service_strip = NULL;  /* T013: footer Service-Strip container */
 static lv_obj_t *g_status_bar = NULL;
 static lv_obj_t *g_redis_err = NULL;
@@ -138,13 +141,18 @@ void ui_init(void) {
     /* ---- Row 1: the 10G card in columns 0-1, then the NAS card in columns
      * 2-3 (sprint 032). The NAS card is shown only once kdash:nas has
      * published, but its slot is fixed, so the 10G card never moves.
-     * Columns 4-5 and row 2 stay empty. ---- */
+     * The Claude limits card takes column 5 (sprint 037); column 4 is held
+     * for the korg + klams card. Row 2 stays empty. ---- */
     g_netcard = net_card_create(g_screen); /* WI #4062 */
     lv_obj_set_pos(g_netcard, COL_X(0), ROW_Y(1));
 
     g_nascard = nas_card_create(g_screen); /* WI #3956 */
     lv_obj_set_pos(g_nascard, COL_X(2) + CELL_PAD, ROW_Y(1) + CELL_PAD);
     lv_obj_add_flag(g_nascard, LV_OBJ_FLAG_HIDDEN);
+
+    g_limits = limits_card_create(g_screen); /* WI #4609 */
+    lv_obj_set_pos(g_limits, COL_X(5) + CELL_PAD, ROW_Y(1) + CELL_PAD);
+    lv_obj_add_flag(g_limits, LV_OBJ_FLAG_HIDDEN);
 
     /* ---- Footer (FR-005): Service-Strip container ---- */
     g_service_strip = lv_obj_create(g_screen);
@@ -202,6 +210,15 @@ void ui_refresh(void) {
             nas_card_update(g_nascard, now_s);
         } else if (!nas_hidden) {
             lv_obj_add_flag(g_nascard, LV_OBJ_FLAG_HIDDEN);
+        }
+
+        /* WI #4609: not drawn before claude:limits has ever published. Once
+         * it has, it stays — limstate keeps the last record through a gap and
+         * greys it by its own stamps, so the card never blinks out. */
+        if (lim_has_record()) {
+            limits_card_update(g_limits, now_s);
+            if (lv_obj_has_flag(g_limits, LV_OBJ_FLAG_HIDDEN))
+                lv_obj_clear_flag(g_limits, LV_OBJ_FLAG_HIDDEN);
         }
     }
 

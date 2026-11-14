@@ -219,6 +219,29 @@ if(TARGET lvgl)
         LV_FONT_MONTSERRAT_BOLD_96_DIGITS=1
         KDASH_WEATHER_SCHEMA="${CMAKE_SOURCE_DIR}/lib/kdashdata/contracts/schemas/kdash-weather.schema.json"
         WX_LIVE_FIXTURE="${CMAKE_CURRENT_SOURCE_DIR}/fixtures/weather-home-2026-11-12.json")
+
+    # Sprint 037: offline render of the Claude limits card in the mock-up's
+    # ok / warn / stale states, for review against
+    # sprints/planning/row2-cards-mockups.html (`limits()`).
+    add_executable(render_limits
+        ${CMAKE_CURRENT_SOURCE_DIR}/render_limits.c
+        ${CMAKE_SOURCE_DIR}/src/widgets/limits_card.c
+        ${CMAKE_SOURCE_DIR}/src/limstate.c
+        ${CMAKE_SOURCE_DIR}/src/bmp_write.c
+        ${CMAKE_SOURCE_DIR}/fonts/lv_font_montserrat_bold_20.c
+        ${CMAKE_SOURCE_DIR}/fonts/lv_font_montserrat_bold_24.c
+        ${CMAKE_SOURCE_DIR}/fonts/lv_font_montserrat_bold_28.c
+        ${CMAKE_SOURCE_DIR}/fonts/lv_font_montserrat_bold_36.c
+        ${CMAKE_SOURCE_DIR}/fonts/lv_font_montserrat_bold_96_digits.c
+    )
+    target_include_directories(render_limits PRIVATE
+        ${CMAKE_SOURCE_DIR}
+        ${CMAKE_SOURCE_DIR}/src
+        ${CMAKE_SOURCE_DIR}/fonts
+    )
+    target_link_libraries(render_limits lvgl kdash_core ${PNG_TEST_LIBRARIES} pthread m)
+    target_compile_options(render_limits PRIVATE -Wall -Wextra -Wno-unused-parameter)
+    target_compile_definitions(render_limits PRIVATE LV_FONT_MONTSERRAT_BOLD_96_DIGITS=1)
 endif()
 
 # WI #4062: the network card's model. Pure — no LVGL, no Redis — and held to
@@ -282,3 +305,16 @@ target_compile_definitions(test_wxstate PRIVATE
     KDASH_WEATHER_SCHEMA="${CMAKE_SOURCE_DIR}/lib/kdashdata/contracts/schemas/kdash-weather.schema.json"
     WX_LIVE_FIXTURE="${CMAKE_CURRENT_SOURCE_DIR}/fixtures/weather-home-2026-11-12.json")
 add_test(NAME test_wxstate COMMAND test_wxstate)
+
+# WI #4609: the Claude limits card's model. Parsing and per-gauge staleness are
+# libkdash's (kdash_core); this holds the card's own rules: colour bands, the
+# pace tick, the reset and age strings, and the anti-flicker carry. The live
+# record kai published on 2026-11-14 is the fixture.
+add_executable(test_limstate
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_limstate.c
+    ${CMAKE_SOURCE_DIR}/src/limstate.c
+)
+target_include_directories(test_limstate PRIVATE ${CMAKE_SOURCE_DIR}/src)
+target_link_libraries(test_limstate kdash_core m)
+target_compile_options(test_limstate PRIVATE -Wall -Wextra -Wno-unused-parameter)
+add_test(NAME test_limstate COMMAND test_limstate)
