@@ -175,7 +175,8 @@ LVGL/DRM/KMS with no mouse or keyboard interaction.
     runs it. Dashboard HGETALLs it each poll into `limstate.c` (libkdash's
     parser and per-gauge staleness, plus the card's own pace, bands and
     strings) and, once it has published, draws `widgets/limits_card.c` in
-    row 1, column 5. Read only. See CLIENT-PROTOCOL.md §8h (sprint 037).
+    row 1, column 5, in the layout the record calls for (sprint 039). Read
+    only. See CLIENT-PROTOCOL.md §8h (sprint 037).
 15. **korg + klams card**: korg's `bin/korg-pulse` on kai writes
     `kdash:korg:pulse` every 5 min, and klams-monitor on kubs0 writes
     `kdash:klams:status` every 60 s (kdashdata CD-28: one JSON document each,
@@ -504,7 +505,7 @@ nothing depends on it.
   (once a minute) or a strip around the day bar's marker (when its minute
   moves) is invalidated.
 
-## Claude Limits Card (sprint 037)
+## Claude Limits Card (sprints 037, 039)
 
 `src/widgets/limits_card.c`, the "CLAUDE LIMITS" card Ken picked on
 2026-11-13 (`sprints/planning/row2-cards-mockups.html`, function `limits()`).
@@ -517,6 +518,20 @@ korg + klams card in column 4.
   under a day away, else "resets Mon 09:00" in the panel's local time). Below,
   one bar for the model-scoped weekly window ("Fable, 7 day"), left out
   entirely when the record has never carried a scoped set.
+- **No five-hour window** (sprint 039, WI #4631; Ken's ruling 2026-11-13).
+  When the record says `five_hour_none` (kdashdata CD-29), the rings are
+  7 DAY and the scoped window ("FABLE · 7 DAY", or the model alone when that
+  is too wide to sit under its ring), each with its own reset and tick. The
+  bar and its rule go, and the rings move down 50 px to sit centred between
+  the header and the caption; nothing new fills the height. With no scoped set
+  ever seen, one 7 DAY ring is drawn centred. Same rings, colours and type.
+- **Which layout** (`lim_mode_of`, `lim_mode`). Only a valid record with the
+  flag is "no window"; a record without it (a pre-CD-29 writer) has one. The
+  first record sets the layout outright; after that it changes only when three
+  consecutive new records (by `updated_at`), each fresh when read, give the
+  same different answer, sprint 035's NO PATH rule. A stale record, an absent
+  key or a rejected one never moves it, so two hosts publishing different
+  shapes cannot flap the card.
 - **The pace tick** (`lim_pace`) is the fraction of the window already
   elapsed, from the reset time and the window's length (5 h, 7 d). A ring past
   its tick is burning faster than the clock. No tick when the reset is unknown,
@@ -531,7 +546,7 @@ korg + klams card in column 4.
 - **Anti-flicker** (sprint 035's rule). An absent key or a rejected record keeps
   the last record. A write with no scoped set (a statusline write) keeps the
   last scoped set, which then greys by its own stamp instead of vanishing and
-  reflowing the card.
+  reflowing the card. In the no-window layout that set is the right ring.
 - **Repaint cost.** One callback-drawn object. A change to any gauge (a
   number, a tick's half-degree step, a reset string's minute, a stale flip)
   repaints the card; the header age, which moves every second, repaints only

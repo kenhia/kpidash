@@ -6,6 +6,11 @@
  * CELL_PAD inside that cell, so every draw call offsets by the cell's origin.
  * Text y values are the SVG's baselines, which text_at() converts to LVGL's
  * top-of-line.
+ *
+ * Sprint 039 (WI #4631) adds the layouts for a record with no five-hour window,
+ * which no mock-up draws: the same rings, colours and type, with the bar and its
+ * rule gone and the rings moved down NOFIVE_DY so the group sits centred
+ * between the header and the caption. Nothing new fills the freed height.
  */
 #include "limits_card.h"
 
@@ -43,6 +48,11 @@
 #define BAR_H 20
 #define HDR_RIGHT 596
 #define HDR_BASE 62
+#define CARD_CX 316 /* the card's centre, cell-relative: 7 + 618 / 2 */
+/* No five-hour window: the ring group (ring top 109 to the reset line's 441)
+ * centred in the 66..585 between the header and the caption. */
+#define NOFIVE_DY 50
+#define LABEL_MAX_W (RING_DX - 16) /* a ring label may not reach its neighbour's */
 
 #define PACE_STEPS 720 /* half a degree of ring: the tick's resolution */
 
@@ -54,7 +64,10 @@ typedef struct {
 
 /* Everything that, when it changes, repaints the whole card. */
 typedef struct {
+    lim_mode_t mode;
     gauge_t g[2];
+    char label[2][48];
+    bool g_stale[2]; /* per ring: the headline's stamp, or the scoped set's */
     bool h_stale;
     bool scoped;
     gauge_t s;
@@ -204,9 +217,9 @@ static void text_at(lv_layer_t *layer, const lv_font_t *font, int32_t x, int32_t
 
 /* ---- The card ---- */
 
-static void draw_ring(lv_layer_t *layer, int32_t ox, int32_t oy, int i, const gauge_t *g,
+static void draw_ring(lv_layer_t *layer, int32_t cx, int32_t oy, const gauge_t *g,
                       const char *label, bool stale) {
-    const int32_t cx = ox + RING_CX0 + i * RING_DX, cy = oy + RING_CY;
+    const int32_t cy = oy + RING_CY;
     const lv_color_t fg = stale ? WS_COLOR_MUTED : WS_COLOR_FG;
     const lv_color_t sub = stale ? WS_COLOR_MUTED : LIM_SUBTEXT0;
 
@@ -261,12 +274,18 @@ static void draw_card(lv_layer_t *layer, const lv_area_t *a, const view_t *v) {
             b->h_stale ? WS_COLOR_MUTED : WS_COLOR_ORANGE, LV_TEXT_ALIGN_LEFT, 0);
     draw_header(layer, ox, oy, v);
 
-    draw_ring(layer, ox, oy, 0, &b->g[0], "5 HOUR", b->h_stale);
-    draw_ring(layer, ox, oy, 1, &b->g[1], "7 DAY", b->h_stale);
+    if (b->mode == LIM_MODE_SEVEN) {
+        draw_ring(layer, ox + CARD_CX, oy + NOFIVE_DY, &b->g[0], b->label[0], b->g_stale[0]);
+    } else {
+        const int32_t dy = b->mode == LIM_MODE_SCOPED ? NOFIVE_DY : 0;
+        for (int i = 0; i < 2; i++)
+            draw_ring(layer, ox + RING_CX0 + i * RING_DX, oy + dy, &b->g[i], b->label[i],
+                      b->g_stale[i]);
+    }
 
-    /* The model-scoped window. With no scoped set the bar area is left out
-     * rather than drawn empty. */
-    if (b->scoped) {
+    /* The model-scoped window as a bar, in the five-hour layout only. With no
+     * scoped set the bar area is left out rather than drawn empty. */
+    if (b->mode == LIM_MODE_FIVE && b->scoped) {
         const bool st = b->s_stale;
         const lv_color_t fg = st ? WS_COLOR_MUTED : WS_COLOR_FG;
         rect(layer, ox + BAR_X, oy + 466, BAR_W, 2, WS_COLOR_SURFACE0, 0);
@@ -313,6 +332,28 @@ static void gauge(gauge_t *g, double pct, double resets_at, double window_s, dou
     lim_fmt_reset(resets_at, now, g->reset, sizeof(g->reset));
 }
 
+/* The scoped ring's label: "FABLE · 7 DAY" when it fits under the ring, else
+ * the model alone, else the model clipped with an ellipsis. */
+static void scoped_ring_label(const lim_record_t *r, char *buf, size_t n) {
+    lim_fmt_scoped_ring_label(r, true, buf, n);
+    if (text_w(FONT_LABEL_B, buf, 2) <= LABEL_MAX_W)
+        return;
+    lim_fmt_scoped_ring_label(r, false, buf, n);
+    size_t len = strlen(buf);
+    if (text_w(FONT_LABEL_B, buf, 2) <= LABEL_MAX_W || n < 4)
+        return;
+    while (len > 0) {
+        len--;
+        while (len > 0 && ((unsigned char)buf[len] & 0xC0) == 0x80)
+            len--; /* never split a UTF-8 sequence */
+        if (len + 4 > n)
+            continue;
+        memcpy(buf + len, "\xE2\x80\xA6", 4); /* "…" */
+        if (text_w(FONT_LABEL_B, buf, 2) <= LABEL_MAX_W)
+            return;
+    }
+}
+
 /* ---- Public API ---- */
 
 lv_obj_t *limits_card_create(lv_obj_t *parent) {
@@ -337,10 +378,29 @@ void limits_card_update(lv_obj_t *card, double now) {
     memset(v, 0, sizeof(*v));
     body_t *b = &v->body;
     const kdash_claude_limits_t *l = &r->l;
-    gauge(&b->g[0], l->five_hour_pct, l->five_hour_resets_at, LIM_FIVE_HOUR_S, now);
-    gauge(&b->g[1], l->seven_day_pct, l->seven_day_resets_at, LIM_SEVEN_DAY_S, now);
+    b->mode = lim_mode();
     b->h_stale = lim_headline_stale(r, now);
-    if (l->scoped_valid) {
+    if (b->mode == LIM_MODE_FIVE) {
+        gauge(&b->g[0], l->five_hour_pct, l->five_hour_resets_at, LIM_FIVE_HOUR_S, now);
+        gauge(&b->g[1], l->seven_day_pct, l->seven_day_resets_at, LIM_SEVEN_DAY_S, now);
+        lv_snprintf(b->label[0], sizeof(b->label[0]), "5 HOUR");
+        lv_snprintf(b->label[1], sizeof(b->label[1]), "7 DAY");
+        b->g_stale[0] = b->g_stale[1] = b->h_stale;
+    } else {
+        gauge(&b->g[0], l->seven_day_pct, l->seven_day_resets_at, LIM_SEVEN_DAY_S, now);
+        lv_snprintf(b->label[0], sizeof(b->label[0]), "7 DAY");
+        b->g_stale[0] = b->h_stale;
+        /* SCOPED is only ever chosen with a scoped set, and the set is
+         * carried once seen; the check guards the debounce's lag anyway. */
+        if (b->mode == LIM_MODE_SCOPED && l->scoped_valid) {
+            gauge(&b->g[1], l->scoped_pct, l->scoped_resets_at, LIM_SEVEN_DAY_S, now);
+            scoped_ring_label(r, b->label[1], sizeof(b->label[1]));
+            b->g_stale[1] = lim_scoped_stale(r, now);
+        } else {
+            b->mode = LIM_MODE_SEVEN;
+        }
+    }
+    if (b->mode == LIM_MODE_FIVE && l->scoped_valid) {
         b->scoped = true;
         gauge(&b->s, l->scoped_pct, l->scoped_resets_at, LIM_SEVEN_DAY_S, now);
         b->s.reset[0] = '\0'; /* the bar draws no reset text */

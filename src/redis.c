@@ -1132,7 +1132,7 @@ void redis_poll_limits(void) {
             v[n] = x->str;
             n++;
         }
-        if (lim_observe(f, v, n) < 0)
+        if (lim_observe(f, v, n, (double)time(NULL)) < 0)
             fprintf(stderr, "redis: " KDASH_KEY_CLAUDE_LIMITS " is off-contract; keeping the last record\n");
     }
     freeReplyObject(r);

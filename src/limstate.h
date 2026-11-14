@@ -19,6 +19,14 @@
  * which then greys by ITS stamp rather than vanishing and reflowing the card.
  * No record ever seen: the card is not drawn.
  *
+ * Layout mode (WI #4631, sprint 039): a record that says there is no five-hour
+ * window (CD-29's five_hour_none) draws the 7-day and scoped windows as the two
+ * rings, or the 7-day ring alone with no scoped set. The mode shown follows the
+ * record but is debounced the way sprint 035 debounced NO PATH: it changes only
+ * after LIM_MODE_STREAK consecutive new, fresh records give the same different
+ * answer, so two hosts publishing different shapes cannot flap the card. A
+ * stale record, an absent key and a rejected record never move it.
+ *
  * Touched only from the LVGL thread, so there is no lock.
  */
 
@@ -39,6 +47,14 @@ typedef enum {
     LIM_BAND_CRIT,   /* red */
 } lim_band_t;
 
+typedef enum {
+    LIM_MODE_FIVE = 0, /* 5 HOUR and 7 DAY rings, the scoped bar (sprint 037) */
+    LIM_MODE_SCOPED,   /* no five-hour window: 7 DAY and the scoped window as rings */
+    LIM_MODE_SEVEN,    /* no five-hour window and no scoped set: one 7 DAY ring */
+} lim_mode_t;
+
+#define LIM_MODE_STREAK 3 /* sprint 035's NET_WAN_MISS_STREAK, the same rule */
+
 typedef struct {
     kdash_claude_limits_t l;
     char host[LIM_HOST_MAX]; /* "" when absent or off-pattern; display only */
@@ -49,14 +65,23 @@ typedef struct {
  * way, so two parses of the same list compare equal with memcmp. */
 bool lim_parse(const char *const *fields, const char *const *values, int n, lim_record_t *out);
 
-/* Feed one poll: n <= 0 (or NULL lists) means the key is absent. Returns 1
- * when the record changed, 0 when nothing changed (the same record again, or
- * absent), -1 when this record was rejected (logged by the caller; the
- * previous record stays). */
-int lim_observe(const char *const *fields, const char *const *values, int n);
+/* Feed one poll read at `now`: n <= 0 (or NULL lists) means the key is
+ * absent. Returns 1 when the record changed, 0 when nothing changed (the same
+ * record again, or absent), -1 when this record was rejected (logged by the
+ * caller; the previous record stays). `now` is for the mode debounce only: a
+ * record already stale when read does not count toward a layout change. */
+int lim_observe(const char *const *fields, const char *const *values, int n, double now);
 bool lim_has_record(void);
 const lim_record_t *lim_record(void);
 void lim_reset(void); /* test hook */
+
+/* The layout one record calls for, on its own. Only a valid record that says
+ * five_hour_none is "no window"; a record without the flag (an older writer)
+ * has one. Run after the scoped carry, so a carried set counts as present. */
+lim_mode_t lim_mode_of(const lim_record_t *r);
+/* The layout drawn: the first record's answer, then debounced. FIVE before
+ * any record. */
+lim_mode_t lim_mode(void);
 
 /* Per-gauge staleness, libkdash's rule at libkdash's default grace and legacy
  * window. The two rings share the headline stamp; the bar has its own. */
@@ -88,5 +113,9 @@ void lim_fmt_dur(double secs, char *buf, size_t n);
 void lim_fmt_header(const lim_record_t *r, double now, bool stale, char *buf, size_t n);
 /* The bar's label: "Fable, 7 day". */
 void lim_fmt_scoped_label(const lim_record_t *r, char *buf, size_t n);
+/* The scoped window's RING label, in the rings' capitals: "FABLE · 7 DAY", or
+ * with `window` false the model alone, "FABLE". ASCII is upper-cased; other
+ * bytes pass through. The card picks the longest that fits under the ring. */
+void lim_fmt_scoped_ring_label(const lim_record_t *r, bool window, char *buf, size_t n);
 
 #endif /* LIMSTATE_H */

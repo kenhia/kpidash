@@ -3,6 +3,7 @@
  */
 #include "limstate.h"
 
+#include <ctype.h>
 #include <math.h>
 #include <stdio.h>
 #include <string.h>
@@ -12,6 +13,9 @@
 
 static lim_record_t g_rec;
 static bool g_have;
+static lim_mode_t g_mode;    /* the layout drawn */
+static lim_mode_t g_pending; /* a different answer being counted… */
+static int g_streak;         /* …on this many consecutive new, fresh records */
 
 /* The schema's host pattern, ^[A-Za-z0-9._-]{1,63}$. The field is display and
  * provenance only; anything else is not drawn rather than drawn wrong. */
@@ -54,7 +58,41 @@ static void carry_scoped(lim_record_t *dst, const lim_record_t *src) {
     d->scoped_expected_refresh_s = s->scoped_expected_refresh_s;
 }
 
-int lim_observe(const char *const *fields, const char *const *values, int n) {
+lim_mode_t lim_mode_of(const lim_record_t *r) {
+    if (!r->l.valid || !r->l.five_hour_none)
+        return LIM_MODE_FIVE;
+    return r->l.scoped_valid ? LIM_MODE_SCOPED : LIM_MODE_SEVEN;
+}
+
+/* One new record's vote. A record is new when its stamp moved, so the 1 s poll
+ * reading one record many times casts one vote, as sprint 035 keyed on `ts`.
+ * The first record sets the mode outright: there is no drawn layout to flap. */
+static void vote(const lim_record_t *r, double now) {
+    if (!g_have) {
+        g_mode = lim_mode_of(r);
+        g_streak = 0;
+        return;
+    }
+    if (r->l.updated_at == g_rec.l.updated_at || lim_headline_stale(r, now))
+        return;
+    lim_mode_t m = lim_mode_of(r);
+    if (m == g_mode) {
+        g_streak = 0;
+        return;
+    }
+    if (g_streak > 0 && m == g_pending) {
+        g_streak++;
+    } else {
+        g_pending = m;
+        g_streak = 1;
+    }
+    if (g_streak >= LIM_MODE_STREAK) {
+        g_mode = m;
+        g_streak = 0;
+    }
+}
+
+int lim_observe(const char *const *fields, const char *const *values, int n, double now) {
     if (!fields || !values || n <= 0)
         return 0;
     lim_record_t r;
@@ -64,9 +102,14 @@ int lim_observe(const char *const *fields, const char *const *values, int n) {
         carry_scoped(&r, &g_rec);
     if (g_have && memcmp(&r, &g_rec, sizeof(r)) == 0)
         return 0;
+    vote(&r, now);
     g_rec = r;
     g_have = true;
     return 1;
+}
+
+lim_mode_t lim_mode(void) {
+    return g_mode;
 }
 
 bool lim_has_record(void) {
@@ -80,6 +123,9 @@ const lim_record_t *lim_record(void) {
 void lim_reset(void) {
     memset(&g_rec, 0, sizeof(g_rec));
     g_have = false;
+    g_mode = LIM_MODE_FIVE;
+    g_pending = LIM_MODE_FIVE;
+    g_streak = 0;
 }
 
 bool lim_headline_stale(const lim_record_t *r, double now) {
@@ -179,4 +225,18 @@ void lim_fmt_header(const lim_record_t *r, double now, bool stale, char *buf, si
 
 void lim_fmt_scoped_label(const lim_record_t *r, char *buf, size_t n) {
     snprintf(buf, n, "%s, 7 day", r->l.scoped_model);
+}
+
+void lim_fmt_scoped_ring_label(const lim_record_t *r, bool window, char *buf, size_t n) {
+    char m[sizeof(r->l.scoped_model)];
+    size_t i = 0;
+    for (; i + 1 < sizeof(m) && r->l.scoped_model[i]; i++) {
+        unsigned char c = (unsigned char)r->l.scoped_model[i];
+        m[i] = c < 0x80 ? (char)toupper(c) : (char)c;
+    }
+    m[i] = '\0';
+    if (window)
+        snprintf(buf, n, "%s \xC2\xB7 7 DAY", m);
+    else
+        snprintf(buf, n, "%s", m);
 }
