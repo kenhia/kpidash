@@ -76,7 +76,7 @@ package that feeds it (the telemetry daemon + CLI). Its repo scanner and the
 ### Build, test, deploy
 
 - **`just check`** — the gate: `check-dashboard` (configure `-DTESTS_ONLY=ON`,
-  build, `ctest --no-tests=error`), `check-release` (the same sources at `-O2`
+  build, `ctest --no-tests=error`), `check-release` (the same sources at `-O3`
   with `-Werror`), then `check-client` (ruff + pytest). `TESTS_ONLY` skips the
   dashboard binary and its LVGL/DRM deps, so it needs no Pi and no sysroot.
   This is the only automated safety net in the repo — there is no CI.
@@ -178,14 +178,19 @@ package that feeds it (the telemetry daemon + CLI). Its repo scanner and the
   (`-Wstringop-truncation`, `-Wunused-result`, the `-Wmaybe-*` family) only run
   once the optimiser does. Two warnings survived unseen that way until sprint
   017 read the deploy output.
-  - `just check-release` compiles at `-O2 -Werror`, but **only what TESTS_ONLY
+  - **Both gates compile at `-O3`, because that is what CMake's `Release`
+    means** and `deploy.sh` builds `Release`. They pinned `-O2` until sprint 037,
+    when an `-O3`-only `-Wformat-truncation` in `limstate.c` reached the Pi
+    build unseen by either: same GCC 13.3 both sides, so the optimisation level
+    was the whole difference.
+  - `just check-release` compiles at `-O3 -Werror`, but **only what TESTS_ONLY
     compiles**: `config.c`, `redis.c`, `registry.c`, `hosthist.c`, `hostcols.c`,
     `icons.c`, `admitted.c`, `logfilter.c`, `netstate.c`, `nasstate.c`,
     `wxstate.c`, `limstate.c` (`memstat.c` links only into the LVGL leak test).
     Worth knowing why that is not enough: neither of the two warnings it was
     written in response to was in those files, so on its own it could not have
     caught them. It is in `just check` because it is cheap and needs no LVGL.
-  - `just check-warnings-full` compiles the **whole tree** at `-O2 -Werror`,
+  - `just check-warnings-full` compiles the **whole tree** at `-O3 -Werror`,
     dashboard-only sources included (`main.c`, `ui.c`,
     `screenshot.c`, `src/widgets/*`). Added in sprint 019 once `libpng-dev`
     landed on kai — before that the configure step could not even run here.
@@ -196,7 +201,7 @@ package that feeds it (the telemetry daemon + CLI). Its repo scanner and the
     while the native x86_64 link stayed silent — invisible to both gates by
     construction. A nested function in `redis.c` was forcing a stack
     trampoline; it moved to file scope.
-  - So: warning-clean at `-O2` for the whole tree, gated; **linker** output at
+  - So: warning-clean at `-O3` for the whole tree, gated; **linker** output at
     deploy time still read by eye. The uncovered class is now linking, not
     compiling — do not let that slip back to "read the deploy output" for
     everything.
