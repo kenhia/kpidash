@@ -295,8 +295,8 @@ if(TARGET lvgl)
 
     # Sprint 041: offline render of the Agents card in the mock-up's day and
     # the states it does not draw (empty, nofeed, stale, crowded, legs, long,
-    # live), for review against sprints/planning/agents-mockups.html
-    # (`borders(true)`).
+    # live). Sprint 042 added the v2 target day, for review against
+    # sprints/planning/agents-mockups-v2.html (`focus(3)`), and a quiet one.
     add_executable(render_agents
         ${CMAKE_CURRENT_SOURCE_DIR}/render_agents.c
         ${CMAKE_SOURCE_DIR}/src/widgets/agents_card.c
@@ -313,9 +313,15 @@ if(TARGET lvgl)
     )
     target_link_libraries(render_agents lvgl kdash_core ${PNG_TEST_LIBRARIES} pthread m)
     target_compile_options(render_agents PRIVATE -Wall -Wextra -Wno-unused-parameter)
-    # Two renders that are also tests: the crowded day (rows at their floor,
-    # the oldest left out) and names at the 31-character bound with glyphs the
-    # face lacks. Each fails if anything is drawn right of the now line.
+    # Renders that are also tests: the v2 target day; a quiet one (strip, no
+    # detail); the crowded day (rows at their floor, the oldest left out); and
+    # names at the 31-character bound with glyphs the face lacks, plus names
+    # written left of their bar. Each fails if anything is drawn right of the
+    # now line, in the detail rows or the strip's lanes.
+    add_test(NAME render_agents_target
+        COMMAND render_agents ${CMAKE_CURRENT_BINARY_DIR}/render_agents_target.bmp target)
+    add_test(NAME render_agents_quiet
+        COMMAND render_agents ${CMAKE_CURRENT_BINARY_DIR}/render_agents_quiet.bmp quiet)
     add_test(NAME render_agents_crowded
         COMMAND render_agents ${CMAKE_CURRENT_BINARY_DIR}/render_agents_crowded.bmp crowded)
     add_test(NAME render_agents_long_names
@@ -431,11 +437,12 @@ target_compile_definitions(test_calstate PRIVATE
     KDASH_CALENDAR_SCHEMA="${CMAKE_SOURCE_DIR}/lib/kdashdata/contracts/schemas/kdash-calendar.schema.json")
 add_test(NAME test_calstate COMMAND test_calstate)
 
-# WI #4695: the Agents card's model. Parsing and the bar-end rule are
-# libkdash's (kdash_core); this holds the card's own rules — the time axis,
-# the packing with legs hung under their overseer, the row-shrink and
-# leave-out rule, the label fit, the hour grid — against the agents schema's
-# examples and counterexamples and an injected clock.
+# WI #4695 (v2 #4733): the Agents card's model. Parsing and the bar-end rule
+# are libkdash's (kdash_core); this holds the card's own rules — the 3-hour
+# detail axis, where each name goes, the packing with legs hung under their
+# overseer, the row-shrink and leave-out rule, the label fit, the grids, the
+# 24-hour day strip — against the agents schema's examples and
+# counterexamples and an injected clock.
 add_executable(test_agstate
     ${CMAKE_CURRENT_SOURCE_DIR}/test_agstate.c
     ${CMAKE_SOURCE_DIR}/src/agstate.c

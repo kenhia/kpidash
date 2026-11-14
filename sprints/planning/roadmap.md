@@ -6,9 +6,13 @@
 
 ## Now
 
-- **041 — Agents card** (korg proposal 4698, slice 3 of program 4699). A 4×1
-  in row 2, columns 0-3: the last 24 hours of agent sessions as host-bordered
-  bars, legs hung under their overseer, ships as diamonds, from
+- **042 — Agents card v2** (korg proposal 4734, slice 7 of program 4699). The
+  first live day showed 10-30 minute sessions as 25 px bars with no room for
+  a name, so the card now shows the last 3 hours in detail (names inside the
+  bar or just left of it) over a thin 24-hour strip, one lane per host. View B
+  of `planning/agents-mockups-v2.html`, at 3 hours.
+- **041** (shipped). Agents card, row 2 columns 0-3: agent sessions as
+  host-bordered bars, legs hung under their overseer, ships as diamonds, from
   `kdash:agents` (kdashdata CD-31, written by ksitrep). The "Border colour" +
   links "On" view of `planning/agents-mockups.html`.
 - **040** (shipped). Time and calendar card, row 2 columns 4-5, from

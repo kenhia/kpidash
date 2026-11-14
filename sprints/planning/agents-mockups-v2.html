@@ -1,0 +1,191 @@
+<meta name="claude:viewport-fit-sides" content="cover">
+<title>kpidash Agents Card v2</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;700&display=swap">
+<style>
+/* Same chrome as the other kpidash mock-up pages. Single dark look by choice: the subject is a dark panel. */
+:root{
+  color-scheme:dark;
+  --crust:#11111B; --base:#1E1E2E; --s0:#313244; --s1:#45475A;
+  --muted:#6C7086; --sub:#A6ADC8; --fg:#CDD6F4;
+  --teal:#94E2D5; --lav:#B4BEFE; --peach:#FAB387; --yellow:#F9E2AF; --blue:#89B4FA;
+  --font:"Montserrat",system-ui,-apple-system,"Segoe UI",sans-serif;
+}
+body{background:var(--crust);color:var(--fg);font-family:var(--font);font-size:16px;line-height:1.55;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:32px 80px}
+body.solo{padding:0;margin:0;overflow:hidden}
+.wrap{max-width:1920px;margin:0 auto;display:flex;flex-direction:column;gap:40px}
+body.actual{padding-inline:0}
+body.actual .wrap{max-width:none}
+body.actual .wrap>*:not(.figsec){padding-inline:24px}
+h1{font-size:40px;line-height:1.1;margin:0;color:var(--yellow);font-weight:700;text-wrap:balance}
+h2{font-size:28px;margin:0;font-weight:700;text-wrap:balance}
+h3{font-size:20px;margin:0;font-weight:700}
+p{margin:0;max-width:68ch;color:var(--sub)}
+p b,li b{color:var(--fg)}
+.lede{font-size:18px}
+header{display:flex;flex-direction:column;gap:14px}
+.bar{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--crust);padding-block:10px;
+  display:flex;flex-wrap:wrap;gap:10px 24px;align-items:center;border-bottom:1px solid var(--s0)}
+.seg{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.seg span{font-size:13px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-right:4px}
+button{font:inherit;font-size:14px;font-weight:700;color:var(--fg);background:var(--base);border:1px solid var(--s1);
+  border-radius:999px;padding:6px 14px;cursor:pointer}
+button[aria-pressed="true"]{background:var(--yellow);color:var(--crust);border-color:var(--yellow)}
+button:focus-visible{outline:2px solid var(--lav);outline-offset:2px}
+section{display:flex;flex-direction:column;gap:20px}
+.canvas{overflow-x:auto;max-width:100%}
+.canvas svg{display:block;max-width:100%;height:auto}
+body.actual .canvas svg{max-width:none}
+ul{margin:0;padding-left:20px;color:var(--sub);max-width:72ch}
+li{margin-block:4px}
+.how{border-left:3px solid var(--teal);padding-left:14px;display:flex;flex-direction:column;gap:8px}
+</style>
+
+<div class="wrap" id="page">
+<header>
+  <h1>Agents card, when sessions are short</h1>
+  <p class="lede">The first mock-up drew sessions that ran for hours. Real ones run 10 to 30 minutes, which is about 25 pixels on a 24-hour axis: too narrow for a name. This page uses a day shaped like today's and shows two ways out.</p>
+  <div class="how">
+    <h3>To see it at the size it will be on the dashboard</h3>
+    <p>Open this page on cleo's monitor 2, press <b>Actual pixels</b>, and set the browser zoom to 50%.</p>
+  </div>
+</header>
+
+<div class="bar">
+  <div class="seg"><span>View</span>
+    <button id="v-now" aria-pressed="false">As built</button>
+    <button id="v-a" aria-pressed="false">A · names beside bars</button>
+    <button id="v-b" aria-pressed="true">B · recent hours + day strip</button></div>
+  <div class="seg"><span>B shows the last</span>
+    <button id="w-2" aria-pressed="false">2 h</button>
+    <button id="w-3" aria-pressed="true">3 h</button>
+    <button id="w-4" aria-pressed="false">4 h</button></div>
+  <div class="seg"><span>Scale</span>
+    <button id="sc-fit" aria-pressed="true">Fit to page</button>
+    <button id="sc-actual" aria-pressed="false">Actual pixels</button></div>
+</div>
+
+<section class="figsec"><div class="canvas" id="fig"></div></section>
+
+<section>
+  <h2>What each view does</h2>
+  <ul>
+    <li><b>As built:</b> what is on the panel now, with this day's data. Only the long overseer bars can hold a name.</li>
+    <li><b>A · names beside bars:</b> still 24 hours. A name that does not fit inside its bar is written to its left, in the host's colour, and the row packing leaves room for it. Names push bars onto more rows, and long session titles are cut at 20 characters.</li>
+    <li><b>B · recent hours + day strip:</b> the main area shows only the last few hours, so a 15-minute leg is 100 to 200 pixels wide and holds its name. Under it, a strip shows the whole 24 hours with one thin lane per host and no names. The lighter band on the strip marks the hours shown above.</li>
+    <li><b>In both A and B</b> a name goes inside the bar when it fits and to the left when it does not.</li>
+    <li><b>Session names, hosts and times are made up</b>, but the lengths are today's real ones.</li>
+  </ul>
+</section>
+</div>
+
+<script>
+const C={crust:'#11111B',base:'#1E1E2E',mantle:'#181825',s0:'#313244',s1:'#45475A',muted:'#6C7086',sub:'#A6ADC8',fg:'#CDD6F4',
+  teal:'#94E2D5',lav:'#B4BEFE',peach:'#FAB387',yellow:'#F9E2AF',blue:'#89B4FA',mauve:'#CBA6F7',green:'#A6E3A1'};
+const W=2528,H=628,F='Montserrat, sans-serif',X0=36,X1=2492,NOW=13.083;
+const HOSTS=[['cleo',C.blue],['kai',C.peach],['kubs0',C.green],['other',C.mauve]],HC=Object.fromEntries(HOSTS);
+function mix(a,b,t){const p=h=>[1,3,5].map(i=>parseInt(h.slice(i,i+2),16));const x=p(a),y=p(b);
+  return '#'+x.map((v,i)=>Math.round(v*t+y[i]*(1-t)).toString(16).padStart(2,'0')).join('');}
+const esc=s=>String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;');
+function T(x,y,s,size,fill,o={}){return `<text x="${x}" y="${y}" font-family="${F}" font-size="${size}" font-weight="${o.b?700:400}" fill="${fill}" text-anchor="${o.a||'start'}"${o.ls?` letter-spacing="${o.ls}"`:''}>${esc(s)}</text>`;}
+const tw=s=>s.length*12.2;
+const cut=(s,n)=>s.length>n?s.slice(0,n-1)+'…':s;
+const hhmm=h=>{const m=Math.round(((h%24)+24)%24*60);return String(Math.floor(m/60)%24).padStart(2,'0')+':'+String(m%60).padStart(2,'0');};
+
+/* hours on today's clock; negative is yesterday evening. Lengths follow today's real sessions. */
+const S=[
+ {id:'o1',n:'Time and calendar card',h:'cleo',a:-0.60,b:1.75,st:'done'},
+ {n:'kdashdata',h:'kai',a:-0.45,b:-0.20,st:'done',ship:1,p:'o1'},
+ {n:'korg',h:'kai',a:-0.15,b:0.50,st:'done',ship:1,p:'o1'},
+ {n:'kpidash',h:'kai',a:0.55,b:1.45,st:'done',ship:1,p:'o1'},
+ {n:'k-homelab',h:'kubs0',a:0.60,b:0.85,st:'done',ship:1,p:'o1'},
+ {n:'rpi53-case',h:'cleo',a:6.30,b:6.55,st:'done'},
+ {n:'korg',h:'kai',a:8.10,b:8.35,st:'done'},
+ {n:'agent-skills',h:'kubs0',a:9.20,b:9.50,st:'done',ship:1},
+ {n:'kloom',h:'other',a:9.80,b:10.10,st:'done'},
+ {id:'o2',n:'KPIDash dashboard redesign',h:'cleo',a:10.40,b:NOW,st:'run'},
+ {n:'kdashdata',h:'kai',a:11.57,b:11.97,st:'done',ship:1,p:'o2'},
+ {n:'ksitrep',h:'kai',a:11.74,b:12.33,st:'done',ship:1,p:'o2'},
+ {n:'kpidash',h:'kai',a:11.99,b:12.58,st:'done',ship:1,p:'o2'},
+ {n:'k-homelab',h:'kubs0',a:12.27,b:12.56,st:'done',ship:1,p:'o2'},
+ {n:'ksitrep',h:'kai',a:12.80,b:NOW,st:'run',p:'o2'},
+ {id:'o3',n:'Stale apt-temps on rpi53',h:'cleo',a:12.40,b:12.85,st:'done'},
+ {n:'apt-temps',h:'kai',a:12.55,b:12.77,st:'done',ship:1,p:'o3'},
+ {n:'khow',h:'cleo',a:12.10,b:NOW,st:'ask'}];
+
+function head(sub){
+  let g=T(36,56,'AGENTS',28,C.lav,{b:1,ls:1})+T(170,56,sub,24,C.sub);
+  let hx=470;for(const [h,c] of HOSTS){g+=T(hx,56,h,24,c,{b:1});hx+=h.length*15+44;}
+  let x=1500;for(const [t,kind,c] of [['working','box',C.sub],['finished','line',C.sub],['needs you','box',C.yellow],['shipped','dia',C.teal]]){
+    if(kind==='dia')g+=`<rect x="${x+1}" y="39" width="16" height="16" fill="${c}" transform="rotate(45 ${x+9} 47)"/>`;
+    else if(kind==='line')g+=`<rect x="${x}" y="38" width="18" height="18" rx="4" fill="${C.base}" stroke="${c}" stroke-width="3"/>`;
+    else g+=`<rect x="${x}" y="38" width="18" height="18" rx="4" fill="${c}"/>`;
+    g+=T(x+30,55,t,20,C.sub);x+=t.length*12.4+78;}
+  return g;}
+
+/* Pack bars into rows. A bar's extent includes a name written to its left. */
+function place(t0,outside,maxOut){
+  const X=h=>X0+(Math.max(h,t0)-t0)/(NOW-t0)*(X1-X0);
+  const L=S.filter(s=>s.b>t0).map(s=>({...s})).sort((p,q)=>p.a-q.a);
+  for(const s of L){s.x=X(s.a);s.w=Math.max(X(s.b)-s.x,10);s.in=tw(s.n)+26+(s.ship?12:0)<s.w;
+    s.lbl=s.in?s.n:cut(s.n,maxOut);s.out=!s.in&&outside&&s.x-tw(s.lbl)-14>=X0;s.left=s.out?s.x-tw(s.lbl)-14:s.x;s.right=s.x+s.w+(s.ship?12:0);}
+  const rows=[];const fit=(s,min)=>{for(let r=min;;r++){if((rows[r]??-1e9)+12<=s.left){rows[r]=s.right;return r;}}};
+  for(const r of L.filter(s=>!s.p||!L.find(q=>q.id===s.p))){r.t=fit(r,0);if(r.id)for(const c of L.filter(s=>s.p===r.id))c.t=fit(c,r.t+1);}
+  return {L,X,n:rows.length};
+}
+function drawBars(L,top,bh,gap){let g='';
+  for(const s of L){s.y=top+s.t*(bh+gap);s.hh=bh;}
+  for(const s of L.filter(s=>s.p)){const o=L.find(q=>q.id===s.p);if(!o)continue;const x=s.x+6;
+    g+=`<line x1="${x}" y1="${o.y+o.hh}" x2="${x}" y2="${s.y}" stroke="${HC[o.h]}" stroke-width="4"/>`;}
+  for(const s of L){const c=HC[s.h],ovr=!!s.id,f=s.st==='ask'?C.yellow:(s.st==='run'&&!ovr)?c:mix(c,C.base,0.14);
+    const bx=s.x+2,by=s.y+2,bw=s.w-4,b2=s.hh-4,r=Math.min(8,bw/2);
+    if(s.st==='done')g+=`<rect x="${bx.toFixed(1)}" y="${by.toFixed(1)}" width="${bw.toFixed(1)}" height="${b2.toFixed(1)}" rx="${r}" fill="${f}" stroke="${c}" stroke-width="4"/>`;
+    else g+=`<path d="M${bx+r},${by} H${bx+bw} V${by+b2} H${bx+r} A${r},${r} 0 0 1 ${bx},${by+b2-r} V${by+r} A${r},${r} 0 0 1 ${bx+r},${by} Z" fill="${f}" stroke="${c}" stroke-width="4"/>`;
+    const ty=s.y+s.hh/2+7;
+    if(s.in)g+=T(s.x+14,ty,s.lbl,20,ovr&&s.st!=='ask'?C.peach:(s.st==='done'||ovr)?C.fg:C.crust,{b:1});
+    else if(s.out)g+=T(s.x-8,ty,s.lbl,20,ovr?C.peach:c,{b:1,a:'end'});
+    if(s.ship){const sx=s.x+s.w,cy=s.y+s.hh/2;g+=`<rect x="${sx-9}" y="${cy-9}" width="18" height="18" fill="${C.teal}" stroke="${C.crust}" stroke-width="2" transform="rotate(45 ${sx} ${cy})"/>`;}}
+  return g;}
+
+function full(outside){
+  const t0=NOW-24,{L,X,n}=place(t0,outside,20),top=104,bot=556,gap=8,bh=Math.min(76,(bot-top-(n-1)*gap)/n);
+  let g=head('last 24 hours')+`<rect x="${X0}" y="${top-8}" width="${X1-X0}" height="${bot-top+16}" rx="10" fill="${C.mantle}"/>`;
+  for(let h=Math.ceil(t0/2)*2;h<=NOW;h+=2){const mid=h===0;
+    g+=`<line x1="${X(h)}" y1="96" x2="${X(h)}" y2="564" stroke="${mid?C.s1:C.s0}" stroke-width="${mid?3:2}"/>`+T(X(h),598,hhmm(h),20,mid?C.sub:C.muted,{a:'middle',b:mid});}
+  g+=drawBars(L,top,bh,gap)+`<line x1="${X1}" y1="96" x2="${X1}" y2="564" stroke="${C.fg}" stroke-width="2"/>`;
+  return g;}
+
+function focus(win){
+  const t0=NOW-win,{L,X,n}=place(t0,true,24),top=104,bot=430,gap=8,bh=Math.min(64,(bot-top-(n-1)*gap)/n);
+  let g=head(`last ${win} hours`)+`<rect x="${X0}" y="${top-8}" width="${X1-X0}" height="${bot-top+16}" rx="10" fill="${C.mantle}"/>`;
+  const step=win<=2?0.25:0.5;
+  for(let h=Math.ceil(t0/step)*step;h<=NOW+1e-6;h+=step){const hr=Math.abs(h-Math.round(h))<1e-6;
+    g+=`<line x1="${X(h)}" y1="96" x2="${X(h)}" y2="438" stroke="${hr?C.s1:C.s0}" stroke-width="2"/>`+T(X(h),466,hhmm(h),20,hr?C.sub:C.muted,{a:'middle',b:hr});}
+  g+=drawBars(L,top,bh,gap)+`<line x1="${X1}" y1="96" x2="${X1}" y2="438" stroke="${C.fg}" stroke-width="2"/>`;
+  /* the day strip: 24 hours, one thin lane per host, no names */
+  const d0=NOW-24,DX=h=>X0+(Math.max(h,d0)-d0)/24*(X1-X0),sy=486,lh=14,lg=4,sh=4*lh+3*lg;
+  g+=`<rect x="${X0}" y="${sy-8}" width="${X1-X0}" height="${sh+16}" rx="8" fill="${C.mantle}"/>`;
+  g+=`<rect x="${DX(t0)}" y="${sy-8}" width="${X1-DX(t0)}" height="${sh+16}" rx="8" fill="${C.s0}"/>`;
+  for(let h=Math.ceil(d0/2)*2;h<=NOW;h+=2){const mid=h===0;
+    g+=`<line x1="${DX(h)}" y1="${sy-8}" x2="${DX(h)}" y2="${sy+sh+8}" stroke="${mid?C.s1:mix(C.s1,C.mantle,0.5)}" stroke-width="2"/>`+T(DX(h),604,hhmm(h),20,mid?C.sub:C.muted,{a:'middle',b:mid});}
+  HOSTS.forEach(([host,c],i)=>{const y=sy+i*(lh+lg);
+    for(const s of S.filter(s=>s.h===host)){const x=DX(s.a),w=Math.max(DX(s.b)-x,4);
+      g+=`<rect x="${x.toFixed(1)}" y="${y}" width="${w.toFixed(1)}" height="${lh}" rx="3" fill="${s.st==='ask'?C.yellow:c}"/>`;}});
+  return g;}
+
+function card(view,win){const inner=view==='b'?focus(win):full(view==='a');
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}"><rect x="8" y="8" width="${W-16}" height="612" rx="20" fill="${C.base}"/>${inner}</svg>`;}
+let view='b',win=3;
+function render(){
+  const solo=location.hash.match(/^#(now|a|b)-([234])$/);
+  if(solo){document.body.className='solo';document.body.innerHTML=card(solo[1],+solo[2]);return;}
+  document.getElementById('fig').innerHTML=card(view,win);
+  for(const v of ['now','a','b'])document.getElementById('v-'+v).setAttribute('aria-pressed',v===view);
+  for(const w of [2,3,4])document.getElementById('w-'+w).setAttribute('aria-pressed',w===win);
+}
+for(const v of ['now','a','b'])document.getElementById('v-'+v).onclick=()=>{view=v;render();};
+for(const w of [2,3,4])document.getElementById('w-'+w).onclick=()=>{win=w;view='b';render();};
+const setScale=a=>{document.body.classList.toggle('actual',a);document.getElementById('sc-fit').setAttribute('aria-pressed',!a);document.getElementById('sc-actual').setAttribute('aria-pressed',a);};
+document.getElementById('sc-fit').onclick=()=>setScale(false);document.getElementById('sc-actual').onclick=()=>setScale(true);
+render();
+</script>

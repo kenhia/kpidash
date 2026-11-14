@@ -1,4 +1,5 @@
-/* test_agstate.c — the Agents card's model (WI #4695, sprint 041).
+/* test_agstate.c — the Agents card's model (WI #4695, sprint 041; v2: the
+ * 3-hour detail area and the day strip, WI #4733, sprint 042).
  *
  * Held to the contract: it reads kdashdata's kdash-agents schema at run time
  * and requires every example to be adopted and every x-counterexample to be
@@ -117,6 +118,16 @@ static const spec_t MOCK[] = {
 };
 #define NMOCK ((int)(sizeof(MOCK) / sizeof(MOCK[0])))
 
+/* 12 px a character, counting UTF-8 lead bytes. */
+static int32_t measure12(const char *s, void *ctx) {
+    (void)ctx;
+    int32_t n = 0;
+    for (; *s; s++)
+        if (((unsigned char)*s & 0xC0) != 0x80)
+            n++;
+    return n * 12;
+}
+
 static const ag_bar_t *find(const ag_view_t *v, const char *name, int nth) {
     for (int i = 0; i < v->nbars; i++)
         if (STREQ(v->bars[i].name, name) && nth-- == 0)
@@ -124,17 +135,27 @@ static const ag_bar_t *find(const ag_view_t *v, const char *name, int nth) {
     return NULL;
 }
 
+static ag_view_t g_v; /* ~30 KB: not on the stack */
+
+/* A bar's left extent: its own edge, or its name's when that is outside. */
+static int32_t left_of(const ag_bar_t *b) {
+    return b->label_out ? b->x0 - AG_LABEL_OUT_GAP - measure12(b->label, NULL) : b->x0;
+}
+
 static bool overlaps(const ag_view_t *v) {
     for (int i = 0; i < v->nbars; i++)
         for (int j = i + 1; j < v->nbars; j++) {
             const ag_bar_t *a = &v->bars[i], *b = &v->bars[j];
-            if (a->row == b->row && a->x0 < b->x1 + AG_PACK_GAP_PX && b->x0 < a->x1 + AG_PACK_GAP_PX)
+            if (a->row == b->row && left_of(a) < b->x1 + AG_PACK_GAP_PX &&
+                left_of(b) < a->x1 + AG_PACK_GAP_PX)
                 return true;
         }
     return false;
 }
 
-static ag_view_t g_v; /* ~20 KB: not on the stack */
+static void view(time_t now) {
+    ag_view(now, measure12, NULL, &g_v);
+}
 
 /* ---- the contract ---- */
 
@@ -151,7 +172,7 @@ static void test_schema(void) {
         CHECK(ag_observe(s) == 1);
         CHECK(ag_record() != NULL);
         /* Every example draws, at its own ts: no NOFEED, nothing hidden. */
-        ag_view((time_t)ag_record()->ts, &g_v);
+        view((time_t)ag_record()->ts);
         CHECK(g_v.status != AG_NOFEED);
         CHECK(g_v.hidden == 0);
         free(s);
@@ -173,89 +194,278 @@ static void test_schema(void) {
     cJSON_Delete(root);
 }
 
-/* ---- the mock-up's day ---- */
+/* ---- the v2 target day (agents-mockups-v2.html `S`, view B, 3 h) ---- */
 
-static void test_mockup(void) {
-    const time_t now = local(2026, 11, 13, 18, 42, 0);
+/* Hours on the 14th's clock, now 13:05, sorted by start as the producer
+ * sends them. Running bars end at the publish time, which is ts. */
+#define TNOW_H (13.0 + 5.0 / 60)
+static const spec_t TARGET[] = {
+    {"o1", "cleo", "Time and calendar card", -0.60, 1.75, "done", 0, 1, NULL},
+    {"a1", "kai", "kdashdata", -0.45, -0.20, "done", 1, 0, "o1"},
+    {"a2", "kai", "korg", -0.15, 0.50, "done", 1, 0, "o1"},
+    {"a3", "kai", "kpidash", 0.55, 1.45, "done", 1, 0, "o1"},
+    {"a4", "kubs0", "k-homelab", 0.60, 0.85, "done", 1, 0, "o1"},
+    {"b1", "cleo", "rpi53-case", 6.30, 6.55, "done", 0, 0, NULL},
+    {"b2", "kai", "korg", 8.10, 8.35, "done", 0, 0, NULL},
+    {"b3", "kubs0", "agent-skills", 9.20, 9.50, "done", 1, 0, NULL},
+    {"b4", "kimac", "kloom", 9.80, 10.10, "done", 0, 0, NULL},
+    {"o2", "cleo", "KPIDash dashboard redesign", 10.40, TNOW_H, "working", 0, 1, NULL},
+    {"c1", "kai", "kdashdata", 11.57, 11.97, "done", 1, 0, "o2"},
+    {"c2", "kai", "ksitrep", 11.74, 12.33, "done", 1, 0, "o2"},
+    {"c3", "kai", "kpidash", 11.99, 12.58, "done", 1, 0, "o2"},
+    {"b5", "cleo", "khow", 12.10, TNOW_H, "waiting", 0, 0, NULL},
+    {"c4", "kubs0", "k-homelab", 12.27, 12.56, "done", 1, 0, "o2"},
+    {"o3", "cleo", "Stale apt-temps on rpi53", 12.40, 12.85, "done", 0, 1, NULL},
+    {"d1", "kai", "apt-temps", 12.55, 12.77, "done", 1, 0, "o3"},
+    {"c5", "kai", "ksitrep", 12.80, TNOW_H, "working", 0, 0, "o2"},
+};
+#define NTARGET ((int)(sizeof(TARGET) / sizeof(TARGET[0])))
+
+static void test_target(void) {
+    g_midnight = local(2026, 11, 14, 0, 0, 0);
+    const time_t now = local(2026, 11, 14, 13, 5, 0);
     ag_reset();
-    char *s = build((double)now, MOCK, NMOCK);
+    char *s = build((double)now, TARGET, NTARGET);
     CHECK(ag_observe(s) == 1);
     CHECK(ag_observe(s) == 0); /* unchanged value: a strcmp, no new generation */
     free(s);
-    ag_view(now, &g_v);
+    view(now);
     CHECK(g_v.status == AG_BARS);
-    CHECK(!g_v.stale);
-    CHECK(g_v.hint[0] == '\0');
-    CHECK(g_v.nbars == NMOCK);
+    CHECK(!g_v.stale && g_v.hint[0] == '\0');
     CHECK(g_v.hidden == 0);
-    CHECK(g_v.rows == 5); /* the target render: kloom alone on the fifth row */
-    CHECK(g_v.row_h == AG_ROW_H_MAX);
+    /* The detail area holds what ended after 10:05: kloom (by a minute) and
+     * everything from the redesign on. The strip holds the whole day. */
+    CHECK(g_v.nbars == 10);
+    CHECK(g_v.nstrip == NTARGET);
+    CHECK(find(&g_v, "agent-skills", 0) == NULL);
+    CHECK(find(&g_v, "Time and calendar card", 0) == NULL);
+    CHECK(g_v.rows >= 4 && g_v.rows <= AG_ROWS_MAX);
+    CHECK(g_v.row_h ==
+          (AG_ROW_BOT - AG_ROW_TOP - (g_v.rows - 1) * AG_ROW_GAP) / g_v.rows ||
+          g_v.row_h == AG_ROW_H_MAX);
+    CHECK(g_v.row_h <= AG_ROW_H_MAX);
+    CHECK(AG_ROW_TOP + g_v.rows * g_v.row_h + (g_v.rows - 1) * AG_ROW_GAP <= AG_ROW_BOT);
     CHECK(!overlaps(&g_v));
 
-    const ag_bar_t *o1 = find(&g_v, "kpidash-refresh", 0), *o2 = find(&g_v, "low-hanging-fruit", 0);
-    CHECK(o1 && o1->row == 0 && o1->overseer && o1->host == AG_HOST_CLEO);
-    CHECK(o2 && o2->row == 0);
-    /* The legs, as the target draws them. */
-    CHECK(find(&g_v, "klams", 0)->row == 1);
-    CHECK(find(&g_v, "kdashdata", 0)->row == 2);
-    CHECK(find(&g_v, "korg", 0)->row == 1);
-    CHECK(find(&g_v, "k-homelab", 0)->row == 2);
-    CHECK(find(&g_v, "kpidash", 0)->row == 3);
-    CHECK(find(&g_v, "kloom", 0)->row == 4);
-    CHECK(find(&g_v, "kmon", 0)->row == 1);
-    CHECK(find(&g_v, "agent-skills", 0)->row == 2);
-    CHECK(find(&g_v, "kfo", 0)->row == 1);
-    CHECK(find(&g_v, "kweather", 0)->row == 1);
-    CHECK(find(&g_v, "k-homelab", 1)->row == 2);
-    /* Unparented bars go in the highest free row. */
-    CHECK(find(&g_v, "korg", 1)->row == 0);
-    CHECK(find(&g_v, "kpong", 0)->row == 1);
-    CHECK(find(&g_v, "kctrldeck", 0)->row == 0);
-    CHECK(find(&g_v, "kloc", 0)->row == 0);
-    CHECK(find(&g_v, "kvimh", 0)->row == 1);
-    CHECK(find(&g_v, "khow", 0)->row == 2);
+    /* kloom ended a minute into the window: clipped to the left edge at the
+     * minimum width, and its name, which fits neither inside nor left of
+     * the plot, is not drawn. */
+    const ag_bar_t *kl = find(&g_v, "kloom", 0);
+    CHECK(kl && kl->x0 == AG_PLOT_X0 && kl->x1 == AG_PLOT_X0 + AG_BAR_MIN_W);
+    CHECK(kl->label[0] == '\0' && !kl->label_out);
+    CHECK(kl->host == AG_HOST_OTHER && kl->row == 0);
 
-    /* Every leg points at its overseer, and sits below it. */
+    /* The redesign: 3 h over 2456 px, started 19 minutes in (259.2 px). */
+    const ag_bar_t *o2 = find(&g_v, "KPIDash dashboard redesign", 0);
+    CHECK(o2 && o2->x0 == 36 + 259 && o2->x1 == AG_PLOT_X1);
+    CHECK(o2->row == 0 && o2->y == AG_ROW_TOP && o2->running && o2->overseer);
+    CHECK(STREQ(o2->label, "KPIDash dashboard redesign") && !o2->label_out);
+    const ag_bar_t *kh = find(&g_v, "khow", 0);
+    CHECK(kh && kh->running && kh->x1 == AG_PLOT_X1 && kh->state == KDASH_AGENT_WAITING);
+    CHECK(STREQ(kh->label, "khow"));
+
+    /* Every leg points at its overseer and sits below it; every name in
+     * this day fits inside its bar. */
+    const ag_bar_t *o3 = find(&g_v, "Stale apt-temps on rpi53", 0);
     for (int i = 0; i < g_v.nbars; i++) {
         const ag_bar_t *b = &g_v.bars[i];
+        if (b != kl)
+            CHECK(STREQ(b->label, b->name) && !b->label_out);
         if (b->parent < 0)
             continue;
         const ag_bar_t *p = &g_v.bars[b->parent];
-        CHECK(p->overseer);
-        CHECK(b->row > p->row);
-        CHECK(p == o1 || p == o2);
+        CHECK(p->overseer && b->row > p->row);
+        CHECK(p == o2 || p == o3);
     }
-    CHECK(find(&g_v, "kloom", 0)->parent == -1);
+    CHECK(&g_v.bars[find(&g_v, "apt-temps", 0)->parent] == o3);
+    CHECK(&g_v.bars[find(&g_v, "ksitrep", 1)->parent] == o2);
 
-    /* Hosts: kimac and thrall are "other". */
-    CHECK(find(&g_v, "kloom", 0)->host == AG_HOST_OTHER);
-    CHECK(find(&g_v, "kpong", 0)->host == AG_HOST_OTHER);
-    CHECK(find(&g_v, "klams", 0)->host == AG_HOST_KUBS0);
-    CHECK(find(&g_v, "korg", 0)->host == AG_HOST_KAI);
+    /* The detail grid: every half hour from 10:30 to 13:00, hours heavier. */
+    CHECK(g_v.nticks == 6);
+    CHECK(g_v.ticks[0].hour == 10 && g_v.ticks[0].min == 30 && !g_v.ticks[0].on_hour);
+    CHECK(g_v.ticks[0].x == 36 + 341); /* 25 min in: 341.1 px */
+    CHECK(g_v.ticks[1].hour == 11 && g_v.ticks[1].on_hour);
+    CHECK(g_v.ticks[5].hour == 13 && g_v.ticks[5].min == 0 && g_v.ticks[5].x == 36 + 2388);
 
-    /* Running bars reach the now line, square; finished ones do not. */
-    const ag_bar_t *kv = find(&g_v, "kvimh", 0), *kh = find(&g_v, "khow", 0);
-    CHECK(kv->running && kv->x1 == AG_PLOT_X1 && kv->state == KDASH_AGENT_WORKING);
-    CHECK(kh->running && kh->x1 == AG_PLOT_X1 && kh->state == KDASH_AGENT_WAITING);
-    CHECK(!find(&g_v, "kloc", 0)->running);
-    CHECK(find(&g_v, "kloc", 0)->x1 < AG_PLOT_X1);
-    CHECK(find(&g_v, "kctrldeck", 0)->shipped);
-
-    /* The axis: 24 h over 2456 px. kpidash-refresh started at 19:00 on the
-     * 12th, 18 min after the window opened at 18:42: x 36 + 0.3/24 * 2456. */
-    CHECK(o1->x0 == 36 + 31);
-    /* Rows from y 104, 76 px with 10 px between. */
-    CHECK(o1->y == 104 && o1->h == 76);
-    CHECK(find(&g_v, "kloom", 0)->y == 104 + 4 * 86);
-
-    /* The hour grid: every 2 hours, 20:00 to 18:00, midnight heavier. */
+    /* The strip: the lighter band opens 21 h into the day (2149 px); the
+     * grid every 2 hours from 14:00, midnight heavier. */
+    CHECK(g_v.band_x0 == 36 + 2149);
     CHECK(g_v.nhours == 12);
-    CHECK(g_v.hours[0].hour == 20);
-    CHECK(g_v.hours[2].hour == 0 && g_v.hours[2].midnight);
-    CHECK(g_v.hours[11].hour == 18);
-    CHECK(!g_v.hours[0].midnight);
-    /* 20:00 is 1h18m into the window. */
-    CHECK(g_v.hours[0].x == 36 + 133);
+    CHECK(g_v.hours[0].hour == 14 && g_v.hours[0].x == 36 + 94);
+    CHECK(g_v.hours[5].hour == 0 && g_v.hours[5].midnight);
+    /* In record order, each in its host's lane; khow is yellow to now. */
+    CHECK(g_v.strip[0].lane == AG_HOST_CLEO && !g_v.strip[0].waiting);
+    CHECK(g_v.strip[4].lane == AG_HOST_KUBS0);
+    CHECK(g_v.strip[8].lane == AG_HOST_OTHER);
+    CHECK(g_v.strip[13].lane == AG_HOST_CLEO && g_v.strip[13].waiting);
+    CHECK(g_v.strip[13].x1 == AG_PLOT_X1);
+    /* rpi53-case, 06:18 to 06:33: 17h13m and 17h28m into the day. */
+    CHECK(g_v.strip[5].x0 == 36 + 1762 && g_v.strip[5].x1 == 36 + 1787);
+    g_midnight = local(2026, 11, 13, 0, 0, 0);
+}
+
+/* ---- names that do not fit inside ---- */
+
+/* The overseer's ruling on korg:4734: a name is never shortened while there
+ * is room to write it whole. Inside whole, else outside whole (left of the
+ * bar, in the row the bar takes anyway), else a long name cut to 20 outside
+ * unless the inside cut keeps 20, else the inside cut, else nothing. */
+static void test_outside_name(void) {
+    g_midnight = local(2026, 11, 13, 0, 0, 0);
+    const time_t now = local(2026, 11, 13, 13, 0, 0); /* detail from 10:00 */
+    /* 818.67 px an hour. "long" holds row 0 from 10:30 to 11:30 (x 445 to
+     * 1264, free again from 1280). "k-homelab" is 5 minutes from 11:33
+     * (x 1305): too narrow inside even for "k-ho…", and its whole name
+     * (108 px, from x 1189) would cross into "long"'s room. A name never
+     * pushes its bar down a row, so it stays in row 0, unnamed. */
+    const spec_t S[] = {
+        /* Starts 3 minutes in: its name would cross the plot's left edge. */
+        {"c", "kai", "k-homelab", 10.05, 10.10, "done", 0, 0, NULL},
+        {"a", "kai", "long", 10.5, 11.5, "done", 0, 0, NULL},
+        {"b", "kubs0", "k-homelab", 11.55, 11.55 + 5.0 / 60, "done", 1, 0, NULL},
+        /* 8 minutes (109 px): "kdashdata" would be "kdashd…" inside, but
+         * there is room on its left, so it is written there whole. */
+        {"d", "cleo", "kdashdata", 12.0, 12.0 + 8.0 / 60, "done", 0, 0, NULL},
+        /* Narrow, an overseer with a 24-character name: whole it would run
+         * into "kdashdata"'s room, cut to 20 it fits. */
+        {"o", "cleo", "Stale apt-temps on rpi53", 12.5, 12.55, "done", 0, 1, NULL},
+    };
+    ag_reset();
+    char *s = build((double)now, S, 5);
+    CHECK(ag_observe(s) == 1);
+    free(s);
+    view(now);
+    const ag_bar_t *a = find(&g_v, "long", 0), *b = find(&g_v, "k-homelab", 1),
+                   *c = find(&g_v, "k-homelab", 0), *d = find(&g_v, "kdashdata", 0),
+                   *o = find(&g_v, "Stale apt-temps on rpi53", 0);
+    CHECK(a && a->row == 0 && a->x1 == 36 + 1228);
+    CHECK(b && b->x0 == 36 + 1269);
+    CHECK(b->row == 0 && b->label[0] == '\0' && !b->label_out);
+    CHECK(c && c->label[0] == '\0' && !c->label_out && c->row == 0);
+    CHECK(d && d->row == 0 && d->label_out && STREQ(d->label, "kdashdata"));
+    CHECK(o && o->row == 0 && o->label_out && STREQ(o->label, "Stale apt-temps on\xE2\x80\xA6"));
+    CHECK(g_v.rows == 1);
+    CHECK(!overlaps(&g_v));
+
+    /* With nothing to its left, the same 5-minute bar is named whole. */
+    ag_reset();
+    s = build((double)now, &S[2], 1);
+    CHECK(ag_observe(s) == 1);
+    free(s);
+    view(now);
+    CHECK(find(&g_v, "k-homelab", 0)->row == 0 && find(&g_v, "k-homelab", 0)->label_out);
+    CHECK(STREQ(find(&g_v, "k-homelab", 0)->label, "k-homelab"));
+
+    /* No room on the left, but room inside for a cut: "k-homelab" over 8
+     * minutes right after "long" (87 px inside) is "k-home…", not unnamed. */
+    const spec_t T[] = {
+        {"a", "kai", "long", 10.5, 11.5, "done", 0, 0, NULL},
+        {"e", "kai", "k-homelab", 11.55, 11.55 + 8.0 / 60, "done", 0, 0, NULL},
+    };
+    ag_reset();
+    s = build((double)now, T, 2);
+    CHECK(ag_observe(s) == 1);
+    free(s);
+    view(now);
+    const ag_bar_t *e = find(&g_v, "k-homelab", 0);
+    CHECK(e && e->row == 0 && !e->label_out && STREQ(e->label, "k-home\xE2\x80\xA6"));
+
+    /* A 31-character name, after a blocker ending at x 461: whole (372 px)
+     * it would run into the blocker; cut to 20 (240 px) it fits. On a narrow
+     * bar the inside cut keeps 5 characters, so the outside cut wins; on a
+     * wide one the inside cut keeps 24, so it stays inside. */
+    const char *w31 = "abcdefghijklmnopqrstuvwxyzABCDE";
+    const spec_t U[] = {
+        {"k", "kai", "blk", 10.0, 10.5, "done", 0, 0, NULL},
+        {"n", "kai", "abcdefghijklmnopqrstuvwxyzABCDE", 10.875, 10.875 + 0.125, "done", 0, 0, NULL},
+    };
+    ag_reset();
+    s = build((double)now, U, 2);
+    CHECK(ag_observe(s) == 1);
+    free(s);
+    view(now);
+    const ag_bar_t *u = find(&g_v, w31, 0);
+    CHECK(u && u->row == 0 && u->label_out);
+    CHECK(STREQ(u->label, "abcdefghijklmnopqrs\xE2\x80\xA6"));
+    CHECK(!overlaps(&g_v));
+    spec_t V[2];
+    memcpy(V, U, sizeof(V));
+    V[1].b = 10.875 + 0.4;
+    ag_reset();
+    s = build((double)now, V, 2);
+    CHECK(ag_observe(s) == 1);
+    free(s);
+    view(now);
+    u = find(&g_v, w31, 0);
+    CHECK(u && u->row == 0 && !u->label_out);
+    CHECK(STREQ(u->label, "abcdefghijklmnopqrstuvwx\xE2\x80\xA6"));
+
+    /* At the left edge nothing goes outside: the 31-character name is cut
+     * inside, as 041 did. */
+    const spec_t W[] = {{"n", "kai", "abcdefghijklmnopqrstuvwxyzABCDE", 9.0, 10.2, "done", 0, 0, NULL}};
+    ag_reset();
+    s = build((double)now, W, 1);
+    ag_observe(s);
+    free(s);
+    view(now);
+    u = find(&g_v, w31, 0);
+    CHECK(u && !u->label_out && u->x0 == AG_PLOT_X0);
+    CHECK(STREQ(u->label, "abcdefghij\xE2\x80\xA6")); /* 142 px: 10 and "…" */
+
+    /* No measure (no font): no names, and the bars alone are packed. */
+    ag_reset();
+    s = build((double)now, &S[1], 2);
+    ag_observe(s);
+    free(s);
+    ag_view(now, NULL, NULL, &g_v);
+    CHECK(find(&g_v, "k-homelab", 0)->row == 0 && find(&g_v, "k-homelab", 0)->label[0] == '\0');
+}
+
+/* ---- the strip on its own ---- */
+
+static void test_strip(void) {
+    g_midnight = local(2026, 11, 13, 0, 0, 0);
+    const time_t now = local(2026, 11, 13, 18, 42, 0);
+    /* Morning only: nothing in the last 3 hours, so the detail area is
+     * quiet while the strip still shows the day. */
+    const spec_t S[] = {
+        {"a", "kai", "blip", 9.0, 9.0 + 1.0 / 60, "done", 1, 0, NULL},  /* 1 min: 1.7 px */
+        {"b", "kubs0", "korg", 10.0, 11.0, "done", 0, 0, NULL},
+        {"c", "thrall", "kpong", 11.0, 12.0, "done", 0, 0, NULL},
+        {"d", "cleo", "khow", 12.0, 15.5, "done", 0, 0, NULL},
+    };
+    ag_reset();
+    char *s = build((double)now, S, 4);
+    CHECK(ag_observe(s) == 1);
+    free(s);
+    view(now);
+    CHECK(g_v.status == AG_QUIET);
+    CHECK(g_v.nbars == 0 && g_v.rows == 0 && g_v.hidden == 0);
+    CHECK(g_v.nstrip == 4);
+    CHECK(g_v.strip[0].x1 - g_v.strip[0].x0 == AG_STRIP_MIN_W);
+    CHECK(g_v.strip[0].lane == AG_HOST_KAI);
+    CHECK(g_v.strip[1].lane == AG_HOST_KUBS0);
+    CHECK(g_v.strip[2].lane == AG_HOST_OTHER);
+    CHECK(g_v.strip[3].lane == AG_HOST_CLEO);
+    /* 10:00-11:00 is 15h18m into the day: 1 h is 102.3 px. */
+    CHECK(g_v.strip[1].x0 == 36 + 1566 && g_v.strip[1].x1 == 36 + 1668);
+    /* The band starts 3 h before now. */
+    CHECK(g_v.band_x0 == 36 + 2149);
+
+    /* A sliver at the now edge keeps inside the plot. */
+    const spec_t T[] = {{"e", "kai", "fresh", 18.7 - 0.5 / 60, 18.7, "waiting", 0, 0, NULL}};
+    ag_reset();
+    s = build((double)now, T, 1);
+    ag_observe(s);
+    free(s);
+    view(now);
+    CHECK(g_v.nstrip == 1 && g_v.strip[0].waiting);
+    CHECK(g_v.strip[0].x1 == AG_PLOT_X1 && g_v.strip[0].x0 == AG_PLOT_X1 - AG_STRIP_MIN_W);
+    CHECK(g_v.status == AG_BARS);
+
+    /* The lanes fit their band, which fits above the strip's labels. */
+    CHECK(AG_STRIP_Y1 == 554);
+    CHECK(AG_STRIP_Y1 + AG_STRIP_PAD <= AG_FRAME_H - 8);
 }
 
 /* ---- the now edge moves once a minute, nothing else ---- */
@@ -267,11 +477,11 @@ static void test_minute(void) {
     ag_observe(s);
     free(s);
     static ag_view_t a, b;
-    ag_view(now, &a);
-    ag_view(now + 59, &b);
+    ag_view(now, measure12, NULL, &a);
+    ag_view(now + 59, measure12, NULL, &b);
     CHECK(memcmp(&a, &b, sizeof(a)) == 0);
     CHECK(b.now == now);
-    ag_view(now + 60, &b);
+    ag_view(now + 60, measure12, NULL, &b);
     CHECK(memcmp(&a, &b, sizeof(a)) != 0);
     CHECK(b.now == now + 60);
 }
@@ -282,45 +492,53 @@ static void test_clipping(void) {
     const time_t now = local(2026, 11, 13, 18, 42, 0);
     g_midnight = local(2026, 11, 13, 0, 0, 0);
     /* Started 30 h ago, still running; one started 26 h ago and finished
-     * 23 h ago (in the window by an hour); one wholly before the window is
-     * the parser's to drop. */
+     * 23 h ago (in the strip by an hour, long gone from the detail area);
+     * one that started 4 h ago and ended 2 h ago (clipped at the detail
+     * area's left edge, whole in the strip). */
     const spec_t S[] = {
         {"a", "kai", "long-runner", NOW_H - 30, NOW_H, "working", 0, 0, NULL},
         {"b", "kubs0", "early", NOW_H - 26, NOW_H - 23, "done", 0, 0, NULL},
+        {"c", "cleo", "straddle", NOW_H - 4, NOW_H - 2, "done", 0, 0, NULL},
     };
     ag_reset();
-    char *s = build((double)now, S, 2);
+    char *s = build((double)now, S, 3);
     CHECK(ag_observe(s) == 1);
     free(s);
-    ag_view(now, &g_v);
-    CHECK(g_v.nbars == 2);
-    const ag_bar_t *a = find(&g_v, "long-runner", 0), *b = find(&g_v, "early", 0);
+    view(now);
+    CHECK(g_v.nbars == 2 && g_v.nstrip == 3);
+    CHECK(find(&g_v, "early", 0) == NULL);
+    const ag_bar_t *a = find(&g_v, "long-runner", 0), *c = find(&g_v, "straddle", 0);
     CHECK(a->x0 == AG_PLOT_X0 && a->x1 == AG_PLOT_X1);
-    CHECK(b->x0 == AG_PLOT_X0);
-    CHECK(b->x1 == AG_PLOT_X0 + 102); /* 1 h = 102.3 px */
-    CHECK(b->row == 1);               /* the long runner holds row 0 */
+    CHECK(c->x0 == AG_PLOT_X0);
+    CHECK(c->x1 == AG_PLOT_X0 + 819); /* 1 h of 3 = 818.7 px */
+    CHECK(c->row == 1);               /* the long runner holds row 0 */
+    CHECK(g_v.strip[0].x0 == AG_PLOT_X0 && g_v.strip[0].x1 == AG_PLOT_X1);
+    CHECK(g_v.strip[1].x0 == AG_PLOT_X0 && g_v.strip[1].x1 == AG_PLOT_X0 + 102);
+    CHECK(g_v.strip[2].x0 == AG_PLOT_X0 + 2047 && g_v.strip[2].x1 == AG_PLOT_X0 + 2251);
 
-    /* Two hours later "early" has left the window, and the long runner is
-     * now 2 h past its last publish: stale, so it stops at its own end. */
-    ag_view(now + 2 * 3600, &g_v);
+    /* Two hours later "early" has left the strip, and the long runner is
+     * now 2 h past its last publish: stale, so it stops at its own end, an
+     * hour into the detail area. */
+    view(now + 2 * 3600);
+    CHECK(g_v.nstrip == 2);
     CHECK(g_v.nbars == 1);
     CHECK(g_v.stale);
     CHECK(STREQ(g_v.hint, "as of 2h"));
     a = find(&g_v, "long-runner", 0);
     CHECK(!a->running);
-    CHECK(a->x1 == AG_PLOT_X0 + (int32_t)(22.0 / 24 * 2456 + 0.5));
+    CHECK(a->x1 == AG_PLOT_X0 + 819);
 
     /* A sliver of a bar is still wide enough for its border; one at the now
      * line keeps inside the plot. */
     const spec_t T[] = {
-        {"c", "kai", "blip", 10.0, 10.01, "done", 1, 0, NULL},
-        {"d", "kai", "fresh", NOW_H - 0.01, NOW_H, "working", 0, 0, NULL},
+        {"c", "kai", "blip", 17.0, 17.001, "done", 1, 0, NULL},
+        {"d", "kai", "fresh", NOW_H - 0.001, NOW_H, "working", 0, 0, NULL},
     };
     ag_reset();
     s = build((double)now, T, 2);
     ag_observe(s);
     free(s);
-    ag_view(now, &g_v);
+    view(now);
     CHECK(find(&g_v, "blip", 0)->x1 - find(&g_v, "blip", 0)->x0 == AG_BAR_MIN_W);
     CHECK(find(&g_v, "fresh", 0)->x1 == AG_PLOT_X1);
     CHECK(find(&g_v, "fresh", 0)->x1 - find(&g_v, "fresh", 0)->x0 == AG_BAR_MIN_W);
@@ -332,10 +550,12 @@ static void test_states(void) {
     const time_t now = local(2026, 11, 13, 18, 42, 0);
     g_midnight = local(2026, 11, 13, 0, 0, 0);
     ag_reset();
-    ag_view(now, &g_v);
+    view(now);
     CHECK(g_v.status == AG_NOFEED);
     CHECK(g_v.nbars == 0);
-    CHECK(g_v.nhours == 12); /* the grid still draws */
+    CHECK(g_v.nhours == 12); /* the grids still draw */
+    CHECK(g_v.nticks == 6);
+    CHECK(g_v.nstrip == 0);
     CHECK(ag_observe(NULL) == 0);
     CHECK(ag_record() == NULL);
 
@@ -343,13 +563,13 @@ static void test_states(void) {
     char *s = build((double)now, NULL, 0);
     CHECK(ag_observe(s) == 1);
     free(s);
-    ag_view(now, &g_v);
+    view(now);
     CHECK(g_v.status == AG_EMPTY);
     const spec_t OLD[] = {{"a", "kai", "gone", 0.0, 1.0, "done", 0, 0, NULL}};
     s = build((double)local(2026, 11, 13, 2, 0, 0), OLD, 1);
     CHECK(ag_observe(s) == 1);
     free(s);
-    ag_view(local(2026, 11, 14, 3, 0, 0), &g_v);
+    view(local(2026, 11, 14, 3, 0, 0));
     CHECK(g_v.status == AG_EMPTY);
     CHECK(g_v.stale);
 
@@ -362,14 +582,15 @@ static void test_states(void) {
     CHECK(ag_observe("{\"ts\":1}") == -1);
     CHECK(ag_observe("not json") == -1);
     CHECK(ag_generation() == gen);
-    ag_view(now, &g_v);
-    CHECK(g_v.nbars == NMOCK);
+    view(now);
+    CHECK(g_v.nstrip == NMOCK);
+    CHECK(g_v.nbars == 4); /* what ended after 15:42 */
 
     /* Fresh within cadence + grace (60 + 60 s); stale past it. */
-    ag_view(now + 119, &g_v);
+    view(now + 119);
     CHECK(!g_v.stale);
     CHECK(find(&g_v, "kvimh", 0)->running);
-    ag_view(now + 180, &g_v);
+    view(now + 180);
     CHECK(g_v.stale);
     CHECK(STREQ(g_v.hint, "as of 3m"));
     CHECK(!find(&g_v, "kvimh", 0)->running);
@@ -383,11 +604,11 @@ static void test_crowded(void) {
     g_midnight = local(2026, 11, 13, 0, 0, 0);
     static spec_t S[40];
     static char ids[40][8], names[40][16];
-    /* 40 bars that all overlap 12:00-13:00: each needs its own row. */
+    /* 40 bars that all overlap 16:24-17:00: each needs its own row. */
     for (int i = 0; i < 40; i++) {
         snprintf(ids[i], sizeof(ids[i]), "x%d", i);
         snprintf(names[i], sizeof(names[i]), "bar%02d", i);
-        S[i] = (spec_t){ids[i], "kai", names[i], 11.0 + i * 0.01, 13.0 + i * 0.1,
+        S[i] = (spec_t){ids[i], "kai", names[i], 16.0 + i * 0.01, 17.0 + i * 0.03,
                         "done", 0, 0, NULL};
     }
     for (int n = 1; n <= 40; n++) {
@@ -395,7 +616,7 @@ static void test_crowded(void) {
         char *s = build((double)now, S, n);
         CHECK(ag_observe(s) == 1);
         free(s);
-        ag_view(now, &g_v);
+        view(now);
         CHECK(!overlaps(&g_v));
         if (n <= AG_ROWS_MAX) {
             CHECK(g_v.rows == n && g_v.hidden == 0 && g_v.nbars == n);
@@ -411,25 +632,25 @@ static void test_crowded(void) {
         /* The last row ends inside the plot. */
         CHECK(AG_ROW_TOP + g_v.rows * g_v.row_h + (g_v.rows - 1) * AG_ROW_GAP <= AG_ROW_BOT);
     }
-    CHECK(AG_ROWS_MAX == 10);
+    CHECK(AG_ROWS_MAX == 7);
 
     /* An overseer left out takes its legs with it. */
     const spec_t P[] = {
-        {"o", "cleo", "old-overseer", 1.0, 2.0, "done", 0, 1, NULL},
+        {"o", "cleo", "old-overseer", 15.8, 16.0, "done", 0, 1, NULL},
         /* The legs end AFTER the bars below, so only the take-the-legs rule
          * removes them: on their own they would be the last to go. */
-        {"l1", "kai", "leg1", 1.2, 17.0, "done", 0, 0, "o"},
-        {"l2", "kai", "leg2", 1.3, 17.0, "done", 0, 0, "o"},
+        {"l1", "kai", "leg1", 15.85, 18.5, "done", 0, 0, "o"},
+        {"l2", "kai", "leg2", 15.86, 18.5, "done", 0, 0, "o"},
     };
     static spec_t Q[3 + AG_ROWS_MAX];
     memcpy(Q, P, sizeof(P));
     for (int i = 0; i < AG_ROWS_MAX; i++)
-        Q[3 + i] = (spec_t){ids[i], "kubs0", names[i], 1.5 + i * 0.01, 16.0, "done", 0, 0, NULL};
+        Q[3 + i] = (spec_t){ids[i], "kubs0", names[i], 15.9 + i * 0.01, 18.0, "done", 0, 0, NULL};
     ag_reset();
     char *s = build((double)now, Q, 3 + AG_ROWS_MAX);
     CHECK(ag_observe(s) == 1);
     free(s);
-    ag_view(now, &g_v);
+    view(now);
     CHECK(find(&g_v, "old-overseer", 0) == NULL);
     CHECK(find(&g_v, "leg1", 0) == NULL && find(&g_v, "leg2", 0) == NULL);
     CHECK(g_v.hidden == 3);
@@ -453,7 +674,7 @@ static void test_working_overseer(void) {
     char *s = build((double)now, S, 4);
     CHECK(ag_observe(s) == 1);
     free(s);
-    ag_view(now, &g_v);
+    view(now);
     const ag_bar_t *o = find(&g_v, "agents-card", 0);
     CHECK(o && o->row == 0 && o->running && o->overseer);
     const ag_bar_t *l1 = find(&g_v, "kpidash", 0), *l2 = find(&g_v, "ksitrep", 0),
@@ -472,31 +693,21 @@ static void test_leg_floor(void) {
     const time_t now = local(2026, 11, 13, 18, 42, 0);
     g_midnight = local(2026, 11, 13, 0, 0, 0);
     const spec_t S[] = {
-        {"a", "kai", "early", 0.0, 6.0, "done", 0, 0, NULL},       /* row 0 */
-        {"o", "cleo", "overseer", 3.0, 12.0, "done", 0, 1, NULL},  /* row 1: row 0 busy */
-        {"l", "kubs0", "leg", 8.0, 10.0, "done", 1, 0, "o"},       /* row 0 is free by 08:00 */
+        {"a", "kai", "early", 15.0, 16.5, "done", 0, 0, NULL},     /* row 0 */
+        {"o", "cleo", "overseer", 16.0, 18.0, "done", 0, 1, NULL}, /* row 1: row 0 busy */
+        {"l", "kubs0", "leg", 17.0, 17.5, "done", 1, 0, "o"},      /* row 0 is free by 17:00 */
     };
     ag_reset();
     char *s = build((double)now, S, 3);
     CHECK(ag_observe(s) == 1);
     free(s);
-    ag_view(now, &g_v);
+    view(now);
     CHECK(find(&g_v, "early", 0)->row == 0);
     CHECK(find(&g_v, "overseer", 0)->row == 1);
     CHECK(find(&g_v, "leg", 0)->row == 2);
 }
 
 /* ---- the label ---- */
-
-/* 12 px a character, counting UTF-8 lead bytes. */
-static int32_t measure12(const char *s, void *ctx) {
-    (void)ctx;
-    int32_t n = 0;
-    for (; *s; s++)
-        if (((unsigned char)*s & 0xC0) != 0x80)
-            n++;
-    return n * 12;
-}
 
 static void test_label(void) {
     char out[KDASH_AGENTS_NAME_MAX + 4];
@@ -535,7 +746,7 @@ static void test_dst(void) {
      * it holds 25 wall hours. */
     const time_t now = local(2026, 11, 1, 12, 0, 0);
     ag_reset();
-    ag_view(now, &g_v);
+    view(now);
     /* Even hours after 13:00 on the 31st and before 12:00: 14..22 (5), 00,
      * 02 (once: the repeated hour is 01, which is odd), 04..10 (4). */
     CHECK(g_v.nhours == 11);
@@ -552,7 +763,9 @@ int main(void) {
     tzset();
     g_midnight = local(2026, 11, 13, 0, 0, 0);
     test_schema();
-    test_mockup();
+    test_target();
+    test_outside_name();
+    test_strip();
     test_minute();
     test_clipping();
     test_states();

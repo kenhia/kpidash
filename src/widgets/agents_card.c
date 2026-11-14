@@ -1,8 +1,8 @@
 /**
- * agents_card.c — the Agents card (WI #4695). See the header.
+ * agents_card.c — the Agents card (WI #4695; v2 WI #4733). See the header.
  *
- * Coordinates are the mock-up's (sprints/planning/agents-mockups.html,
- * `borders(true)`, `hours`, `legend`, `ship`, `label`), in its 2528 × 628
+ * Coordinates are the v2 mock-up's (sprints/planning/agents-mockups-v2.html,
+ * view B at 3 hours: `head`, `focus(3)`, `drawBars`), in its 2528 × 628
  * frame, at real panel pixels. The object sits CELL_PAD inside that frame, so
  * every draw call offsets by the frame's origin. Text y values are the SVG's
  * baselines, which text_at() converts to LVGL's top-of-line.
@@ -35,15 +35,18 @@
 #define FONT_BAR (&lv_font_montserrat_bold_20)
 #define FONT_NOTE (&lv_font_montserrat_24)
 
-/* ---- Geometry (mock-up `borders`) ---- */
+/* ---- Geometry (mock-up `head`, `focus(3)`) ---- */
 #define HEAD_BASE 56
 #define SUBTITLE_X 170
 #define HOSTS_X 470
 #define NOTE_X 1000
 #define LEGEND_X 1500
-#define PLOT_Y0 96  /* the backdrop and the grid lines: rows' top less 8 */
-#define PLOT_Y1 564 /* rows' bottom plus 8 */
-#define HOUR_BASE 598
+#define TICK_BASE 466  /* the detail grid's labels */
+#define STRIP_BASE 604 /* the strip grid's labels */
+#define STRIP_B0 (AG_STRIP_Y - AG_STRIP_PAD)
+#define STRIP_B1 (AG_STRIP_Y1 + AG_STRIP_PAD)
+#define STRIP_R 8
+#define LANE_R 3
 #define BAR_R 10    /* the SVG's rx 8 on a rect inset by half its 4 px stroke */
 #define BAR_BORDER 4
 #define STEM_W 4
@@ -135,7 +138,8 @@ static int32_t text_w(const lv_font_t *font, const char *s, int32_t ls) {
 }
 
 /* Text whose BASELINE is at y, `ls` px between letters. `x` is the left edge,
- * or the centre for LV_TEXT_ALIGN_CENTER. Returns the width drawn. */
+ * the centre for LV_TEXT_ALIGN_CENTER, or the right edge for
+ * LV_TEXT_ALIGN_RIGHT. Returns the width drawn. */
 static int32_t text_at(lv_layer_t *layer, const lv_font_t *font, int32_t x, int32_t baseline,
                        const char *s, lv_color_t c, lv_text_align_t align, int32_t ls) {
     if (!s || !s[0])
@@ -143,6 +147,8 @@ static int32_t text_at(lv_layer_t *layer, const lv_font_t *font, int32_t x, int3
     int32_t w = text_w(font, s, ls);
     if (align == LV_TEXT_ALIGN_CENTER)
         x -= w / 2;
+    else if (align == LV_TEXT_ALIGN_RIGHT)
+        x -= w;
     lv_draw_label_dsc_t d;
     lv_draw_label_dsc_init(&d);
     d.text = s;
@@ -203,9 +209,12 @@ static void sanitize(const char *name, char *out, size_t n) {
     out[k] = '\0';
 }
 
-static int32_t measure_bar(const char *s, void *ctx) {
+/* The model's measure: the width of `s` as it will be drawn, '?'s and all. */
+int32_t agents_card_measure(const char *s, void *ctx) {
     (void)ctx;
-    return text_w(FONT_BAR, s, 0);
+    char clean[KDASH_AGENTS_NAME_MAX + 8];
+    sanitize(s, clean, sizeof(clean));
+    return text_w(FONT_BAR, clean, 0);
 }
 
 /* ---- The pieces ---- */
@@ -213,7 +222,9 @@ static int32_t measure_bar(const char *s, void *ctx) {
 static void draw_header(lv_layer_t *layer, int32_t ox, int32_t oy, const ag_view_t *v) {
     text_at(layer, FONT_TITLE, ox + AG_PLOT_X0, oy + HEAD_BASE, "AGENTS", WS_COLOR_LAVENDER,
             LV_TEXT_ALIGN_LEFT, 1);
-    text_at(layer, FONT_SUBTITLE, ox + SUBTITLE_X, oy + HEAD_BASE, "last 24 hours", AG_SUBTEXT0,
+    char sub[24];
+    snprintf(sub, sizeof(sub), "last %d hours", (AG_DETAIL_S / 3600) % 100);
+    text_at(layer, FONT_SUBTITLE, ox + SUBTITLE_X, oy + HEAD_BASE, sub, AG_SUBTEXT0,
             LV_TEXT_ALIGN_LEFT, 0);
     int32_t hx = HOSTS_X;
     for (int i = 0; i < 4; i++) {
@@ -255,24 +266,58 @@ static void draw_header(lv_layer_t *layer, int32_t ox, int32_t oy, const ag_view
     }
 }
 
+/* A grid label centred on x, left off if it would cross the card's edge
+ * (its line stays). */
+static void grid_label(lv_layer_t *layer, int32_t ox, int32_t oy, int32_t x, int32_t base,
+                       const char *s, bool strong) {
+    const lv_font_t *f = strong ? FONT_HOUR_B : FONT_HOUR;
+    const int32_t half = text_w(f, s, 0) / 2;
+    if (x - half < 8 + 4 || x + half > AG_FRAME_W - 8 - 4)
+        return;
+    text_at(layer, f, ox + x, oy + base, s, strong ? AG_SUBTEXT0 : WS_COLOR_MUTED,
+            LV_TEXT_ALIGN_CENTER, 0);
+}
+
+/* The detail area's backdrop and its half-hour grid, the hours heavier. */
 static void draw_grid(lv_layer_t *layer, int32_t ox, int32_t oy, const ag_view_t *v) {
-    rect(layer, ox + AG_PLOT_X0, oy + PLOT_Y0, AG_PLOT_X1 - AG_PLOT_X0, PLOT_Y1 - PLOT_Y0,
-         AG_MANTLE, 10);
+    rect(layer, ox + AG_PLOT_X0, oy + AG_PLOT_Y0, AG_PLOT_X1 - AG_PLOT_X0,
+         AG_PLOT_Y1 - AG_PLOT_Y0, AG_MANTLE, 10);
+    for (int i = 0; i < v->nticks; i++) {
+        const ag_tick_t *t = &v->ticks[i];
+        rect(layer, ox + t->x - 1, oy + AG_PLOT_Y0, 2, AG_PLOT_Y1 - AG_PLOT_Y0,
+             t->on_hour ? WS_COLOR_SURFACE1 : WS_COLOR_SURFACE0, 0);
+        char s[8];
+        snprintf(s, sizeof(s), "%02d:%02d", t->hour % 24, t->min % 60);
+        grid_label(layer, ox, oy, t->x, TICK_BASE, s, t->on_hour);
+    }
+}
+
+/* The day strip: a band, a lighter band over the hours the detail area
+ * shows, the 2-hour grid, then one lane per host. Waiting bars go last so
+ * their yellow is never under a lane-mate. */
+static void draw_strip(lv_layer_t *layer, int32_t ox, int32_t oy, const ag_view_t *v) {
+    const int32_t bh = STRIP_B1 - STRIP_B0;
+    rect(layer, ox + AG_PLOT_X0, oy + STRIP_B0, AG_PLOT_X1 - AG_PLOT_X0, bh, AG_MANTLE, STRIP_R);
+    rect(layer, ox + v->band_x0, oy + STRIP_B0, AG_PLOT_X1 - v->band_x0, bh, WS_COLOR_SURFACE0,
+         STRIP_R);
+    const lv_color_t line = mix(WS_COLOR_SURFACE1, AG_MANTLE, 0.5);
     for (int i = 0; i < v->nhours; i++) {
         const ag_hour_t *h = &v->hours[i];
-        const int32_t w = h->midnight ? 3 : 2;
-        rect(layer, ox + h->x - w / 2, oy + PLOT_Y0, w, PLOT_Y1 - PLOT_Y0,
-             h->midnight ? WS_COLOR_SURFACE1 : WS_COLOR_SURFACE0, 0);
+        rect(layer, ox + h->x - 1, oy + STRIP_B0, 2, bh,
+             h->midnight ? WS_COLOR_SURFACE1 : line, 0);
         char s[8];
         snprintf(s, sizeof(s), "%02d:00", h->hour % 24);
-        const lv_font_t *f = h->midnight ? FONT_HOUR_B : FONT_HOUR;
-        /* A label that would cross the card's edge is left off; its line stays. */
-        const int32_t half = text_w(f, s, 0) / 2;
-        if (h->x - half < 8 + 4 || h->x + half > AG_FRAME_W - 8 - 4)
-            continue;
-        text_at(layer, f, ox + h->x, oy + HOUR_BASE, s,
-                h->midnight ? AG_SUBTEXT0 : WS_COLOR_MUTED, LV_TEXT_ALIGN_CENTER, 0);
+        grid_label(layer, ox, oy, h->x, STRIP_BASE, s, h->midnight);
     }
+    for (int pass = 0; pass < 2; pass++)
+        for (int i = 0; i < v->nstrip; i++) {
+            const ag_strip_t *b = &v->strip[i];
+            if (b->waiting != (pass == 1))
+                continue;
+            rect(layer, ox + b->x0, oy + AG_STRIP_Y + b->lane * (AG_LANE_H + AG_LANE_GAP),
+                 b->x1 - b->x0, AG_LANE_H, b->waiting ? WS_COLOR_YELLOW : host_color(b->lane),
+                 LANE_R);
+        }
 }
 
 static void draw_bar(lv_layer_t *layer, int32_t ox, int32_t oy, const ag_bar_t *b,
@@ -294,7 +339,12 @@ static void draw_bar(lv_layer_t *layer, int32_t ox, int32_t oy, const ag_bar_t *
     if (b->running && w > 2 * BAR_R)
         ring_rect(layer, x + w - BAR_R - 4, y, BAR_R + 4, b->h, fill, c, BAR_BORDER, 0,
                   LV_BORDER_SIDE_TOP | LV_BORDER_SIDE_BOTTOM | LV_BORDER_SIDE_RIGHT);
-    if (label[0]) {
+    if (label[0] && b->label_out) {
+        /* Left of the bar, right-aligned, in the bar's colour on the
+         * backdrop: host colour, or peach for an overseer. */
+        text_at(layer, FONT_BAR, x - AG_LABEL_OUT_GAP, y + b->h / 2 + 7, label,
+                b->overseer ? WS_COLOR_ORANGE : c, LV_TEXT_ALIGN_RIGHT, 0);
+    } else if (label[0]) {
         /* An overseer's name is Claude peach, to catch the eye, on its dark
          * fill; dark text on the solid and yellow fills (peach on yellow
          * would not read, so a waiting overseer's name is dark too). */
@@ -319,10 +369,14 @@ static void draw_card(lv_layer_t *layer, const lv_area_t *a, const ag_widget_t *
     rect(layer, a->x1, a->y1, AG_CARD_W, AG_CARD_H, WS_COLOR_BG, CARD_R);
     draw_header(layer, ox, oy, v);
     draw_grid(layer, ox, oy, v);
+    draw_strip(layer, ox, oy, v);
 
     if (v->status != AG_BARS) {
+        char quiet[40];
+        snprintf(quiet, sizeof(quiet), "nothing in the last %d hours", (AG_DETAIL_S / 3600) % 100);
         const char *msg = v->status == AG_NOFEED ? "no agents feed"
-                                                 : "no sessions in the last 24 hours";
+                          : v->status == AG_QUIET ? quiet
+                                                  : "no sessions in the last 24 hours";
         /* On a patch of the backdrop, so no grid line runs through it. */
         const int32_t cx = (AG_PLOT_X0 + AG_PLOT_X1) / 2, base = (AG_ROW_TOP + AG_ROW_BOT) / 2 + 8;
         const int32_t tw = text_w(FONT_NOTE, msg, 0);
@@ -346,7 +400,7 @@ static void draw_card(lv_layer_t *layer, const lv_area_t *a, const ag_widget_t *
     }
 
     /* The now line, last, over any bar that runs into it. */
-    rect(layer, ox + AG_PLOT_X1 - 1, oy + PLOT_Y0, 2, PLOT_Y1 - PLOT_Y0, WS_COLOR_FG, 0);
+    rect(layer, ox + AG_PLOT_X1 - 1, oy + AG_PLOT_Y0, 2, AG_PLOT_Y1 - AG_PLOT_Y0, WS_COLOR_FG, 0);
 }
 
 static void draw_cb(lv_event_t *e) {
@@ -389,18 +443,14 @@ void agents_card_update(lv_obj_t *card, time_t now) {
         return;
     w->gen = gen;
     w->minute = minute;
-    ag_view(now, &w->next);
+    ag_view(now, agents_card_measure, NULL, &w->next);
     if (w->valid && memcmp(&w->next, &w->cur, sizeof(w->cur)) == 0)
         return;
     w->cur = w->next;
     w->valid = true;
-    for (int i = 0; i < w->cur.nbars; i++) {
-        const ag_bar_t *b = &w->cur.bars[i];
-        char clean[KDASH_AGENTS_NAME_MAX];
-        sanitize(b->name, clean, sizeof(clean));
-        const int32_t avail =
-            (b->x1 - b->x0) - AG_LABEL_PAD - (b->shipped ? AG_LABEL_SHIP : AG_LABEL_PAD_R);
-        ag_fit_label(clean, avail, measure_bar, NULL, w->label[i], sizeof(w->label[i]));
-    }
+    /* The model chose each label, and where, measuring it as sanitize()
+     * will draw it; this swaps in the '?'s. */
+    for (int i = 0; i < w->cur.nbars; i++)
+        sanitize(w->cur.bars[i].label, w->label[i], sizeof(w->label[i]));
     lv_obj_invalidate(card);
 }
