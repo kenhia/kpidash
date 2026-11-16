@@ -56,6 +56,12 @@
 #define KPIDASH_KEY_CMD_GRID         "kpidash:cmd:grid"
 #define KPIDASH_KEY_CMD_TEXTSIZE     "kpidash:cmd:textsize"
 
+/* WI #4783: seconds each lamp-panel machine stays on screen before the next
+ * takes over. A plain integer string, no TTL: a knob Ken sets and leaves.
+ * Absent or not a positive integer reads as LM_PERIOD_DEFAULT_S (900);
+ * clamped to LM_PERIOD_MIN_S..LM_PERIOD_MAX_S (src/lampmach.h). */
+#define KPIDASH_KEY_CMD_LAMP_PERIOD  "kpidash:cmd:lamps:period"
+
 /* WI #374: card eviction command — dashboard GETDELs this each poll and drops
  * the named cards from its in-memory registries. Value: JSON array of targets
  * [{"kind":"service","name":..,"host":..}, {"kind":"apttemps","name":<slug>}]. */

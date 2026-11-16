@@ -1,23 +1,26 @@
-/* render_lamp_panel.c — offline render of the Altair lamp panel to BMP
- * (sprint 044). A review tool, built with the full native tree (it needs
- * LVGL), so the panel can be compared with the mock-up's
- * sprints/planning/altair-widths.png without a Pi.
+/* render_lamp_panel.c — offline render of the lamp panel to BMP (sprint
+ * 044, the PDP-8 added in 045). A review tool, built with the full native
+ * tree (it needs LVGL), so the panel can be compared with the mock-ups'
+ * sprints/planning/altair-widths.png and pdp8-widths.png without a Pi.
  *
- *   render_lamp_panel <out.bmp> <status cards> [seconds]
+ *   render_lamp_panel <out.bmp> <status cards> [seconds] [altair|pdp8]
  *
  * The canvas is the footer: 3840 × 276, the status cards as plain bordered
  * boxes at the strip's real geometry (220 px on a 228 px pitch from x 24,
  * centred in the strip), then the panel in what they leave, run for
- * `seconds` of emulated time (default 10) in ALT_REDRAW_MS steps from the
- * widget's fixed seed, so a render is reproducible.
+ * `seconds` of emulated time (default 10) in LM_REDRAW_MS steps from reset
+ * (the Altair from the widget's fixed seed), so a render is reproducible.
+ * The machine defaults to the Altair, which is the rotation's first.
  *
  * Also a test: it fails if anything is drawn in the 8 px gap before the
  * panel or right of the strip's edge (x 3816). */
 #include <stdio.h>
 #include <stdlib.h>
 
-#include "altair.h"
+#include <string.h>
+
 #include "bmp_write.h"
+#include "lampmach.h"
 #include "layout.h"
 #include "lvgl.h"
 #include "widgets/lamp_panel.h"
@@ -25,7 +28,7 @@
 #define STRIP_W (SCR_W - 2 * PAD_LEFT)
 #define CARD_W 220
 #define CARD_GAP 8
-#define CARD_Y ((FOOTER_H - ALT_CARD_H) / 2)
+#define CARD_Y ((FOOTER_H - LAMP_PANEL_H) / 2)
 
 static void flush_cb(lv_display_t *d, const lv_area_t *a, uint8_t *px) {
     (void)a;
@@ -35,11 +38,13 @@ static void flush_cb(lv_display_t *d, const lv_area_t *a, uint8_t *px) {
 
 int main(int argc, char **argv) {
     if (argc < 3) {
-        fprintf(stderr, "usage: %s <out.bmp> <status cards> [seconds]\n", argv[0]);
+        fprintf(stderr, "usage: %s <out.bmp> <status cards> [seconds] [altair|pdp8]\n",
+                argv[0]);
         return 2;
     }
     int n = atoi(argv[2]);
     int secs = argc > 3 ? atoi(argv[3]) : 10;
+    int machine = argc > 4 && strcmp(argv[4], "pdp8") == 0 ? LM_PDP8 : LM_ALTAIR;
 
     lv_init();
     lv_display_t *disp = lv_display_create(SCR_W, FOOTER_H);
@@ -53,7 +58,7 @@ int main(int argc, char **argv) {
     for (int i = 0; i < n; i++) {
         lv_obj_t *c = lv_obj_create(scr);
         lv_obj_set_pos(c, PAD_LEFT + i * (CARD_W + CARD_GAP), CARD_Y);
-        lv_obj_set_size(c, CARD_W, ALT_CARD_H);
+        lv_obj_set_size(c, CARD_W, LAMP_PANEL_H);
         lv_obj_set_style_bg_color(c, lv_color_hex(0x181825), 0);
         lv_obj_set_style_radius(c, 8, 0);
         lv_obj_set_style_border_width(c, 6, 0);
@@ -64,17 +69,19 @@ int main(int argc, char **argv) {
     lv_obj_set_y(p, CARD_Y);
     int32_t x0 = PAD_LEFT + n * (CARD_W + CARD_GAP), x1 = PAD_LEFT + STRIP_W;
     lamp_panel_place(p, x0, x1 - x0);
-    for (int i = 0; i < secs * 1000 / ALT_REDRAW_MS; i++)
-        lamp_panel_advance(p, ALT_REDRAW_MS);
+    lamp_panel_show(p, machine);
+    for (int i = 0; i < secs * 1000 / LM_REDRAW_MS; i++)
+        lamp_panel_advance(p, LM_REDRAW_MS);
 
-    alt_layout_t L;
-    alt_layout(x1 - x0, &L);
-    printf("%d cards: free width %d px, %s, lamp %d px on a %.1f px pitch, labels %s\n", n,
-           x1 - x0,
-           L.mode == ALT_MODE_FULL      ? "36 lamps"
-           : L.mode == ALT_MODE_COMPACT ? "24 lamps (status row dropped)"
-                                        : "nothing drawn",
-           L.lamp_w, L.pitch, L.per_lamp ? "per lamp" : "per group");
+    static lm_layout_t L;
+    LM_MACHINES[machine]->layout(x1 - x0, &L);
+    if (L.drawable)
+        printf("%s, %d cards: free width %d px, %d lamps, %d labels, first lamp %d x %d px\n",
+               LM_MACHINES[machine]->name, n, x1 - x0, L.nlamps, L.nlabels, L.lamps[0].w,
+               L.lamps[0].h);
+    else
+        printf("%s, %d cards: free width %d px, nothing drawn\n", LM_MACHINES[machine]->name, n,
+               x1 - x0);
 
     lv_draw_buf_t *snap = lv_snapshot_take(scr, LV_COLOR_FORMAT_XRGB8888);
     if (!snap) {

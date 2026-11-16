@@ -327,14 +327,16 @@ if(TARGET lvgl)
     add_test(NAME render_agents_long_names
         COMMAND render_agents ${CMAKE_CURRENT_BINARY_DIR}/render_agents_long.bmp long)
 
-    # Sprint 044: offline render of the Altair lamp panel after N status
-    # cards, for review against sprints/planning/altair-widths.png. Also a
-    # test at the mock-up's widths: nothing may be drawn in the gap before
-    # the panel or past the strip's right edge.
+    # Sprint 044: offline render of the lamp panel after N status cards, for
+    # review against sprints/planning/altair-widths.png (and, since 045,
+    # pdp8-widths.png). Also a test at the mock-ups' widths: nothing may be
+    # drawn in the gap before the panel or past the strip's right edge.
     add_executable(render_lamp_panel
         ${CMAKE_CURRENT_SOURCE_DIR}/render_lamp_panel.c
         ${CMAKE_SOURCE_DIR}/src/widgets/lamp_panel.c
+        ${CMAKE_SOURCE_DIR}/src/lampmach.c
         ${CMAKE_SOURCE_DIR}/src/altair.c
+        ${CMAKE_SOURCE_DIR}/src/pdp8.c
         ${CMAKE_SOURCE_DIR}/src/bmp_write.c
         ${CMAKE_SOURCE_DIR}/fonts/lv_font_montserrat_bold_20.c
         ${CMAKE_SOURCE_DIR}/fonts/lv_font_montserrat_bold_24.c
@@ -349,6 +351,10 @@ if(TARGET lvgl)
     foreach(ncards 8 12 14 15 16)
         add_test(NAME render_lamp_panel_${ncards}
             COMMAND render_lamp_panel ${CMAKE_CURRENT_BINARY_DIR}/render_lamp_panel_${ncards}.bmp ${ncards})
+    endforeach()
+    foreach(ncards 8 12 13 14 15 16)
+        add_test(NAME render_lamp_panel_pdp8_${ncards}
+            COMMAND render_lamp_panel ${CMAKE_CURRENT_BINARY_DIR}/render_lamp_panel_pdp8_${ncards}.bmp ${ncards} 10 pdp8)
     endforeach()
 endif()
 
@@ -489,3 +495,28 @@ target_include_directories(test_altair PRIVATE ${CMAKE_SOURCE_DIR}/src)
 target_link_libraries(test_altair m)
 target_compile_options(test_altair PRIVATE -Wall -Wextra -Wno-unused-parameter)
 add_test(NAME test_altair COMMAND test_altair)
+
+# WI #4783: the PDP-8/I lamp panel's model -- the emulator, the two
+# programs, the lamp sampling and the layout -- and the machine interface
+# and rotation both machines sit behind. Pure, no LVGL; the expected layouts,
+# lamp counts and palettes come from the mock-up's own script
+# (tests/fixtures/pdp8/gen.js).
+add_executable(test_pdp8
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_pdp8.c
+    ${CMAKE_SOURCE_DIR}/src/pdp8.c
+)
+target_include_directories(test_pdp8 PRIVATE ${CMAKE_SOURCE_DIR}/src ${CMAKE_CURRENT_SOURCE_DIR}/fixtures/pdp8)
+target_link_libraries(test_pdp8 m)
+target_compile_options(test_pdp8 PRIVATE -Wall -Wextra -Wno-unused-parameter)
+add_test(NAME test_pdp8 COMMAND test_pdp8)
+
+add_executable(test_lampmach
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_lampmach.c
+    ${CMAKE_SOURCE_DIR}/src/lampmach.c
+    ${CMAKE_SOURCE_DIR}/src/altair.c
+    ${CMAKE_SOURCE_DIR}/src/pdp8.c
+)
+target_include_directories(test_lampmach PRIVATE ${CMAKE_SOURCE_DIR}/src ${CMAKE_CURRENT_SOURCE_DIR}/fixtures/pdp8)
+target_link_libraries(test_lampmach m)
+target_compile_options(test_lampmach PRIVATE -Wall -Wextra -Wno-unused-parameter)
+add_test(NAME test_lampmach COMMAND test_lampmach)

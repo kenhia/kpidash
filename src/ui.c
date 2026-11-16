@@ -16,9 +16,9 @@
  *   │  Agents, 3 h + day strip        │  time +   │
  *   │  4×1 (041/042)                  │  calendar │
  *   ├─────────────────────────────────┴───────────┤
- *   │  Footer: service strip, then the Altair     │
- *   │  lamp panel in what it leaves (044); status │
- *   │  bar                                        │
+ *   │  Footer: service strip, then the lamp panel │
+ *   │  in what it leaves (Altair 044, PDP-8 045); │
+ *   │  status bar                                 │
  *   └─────────────────────────────────────────────┘
  */
 #include "ui.h"
@@ -27,7 +27,6 @@
 #include <string.h>
 #include <time.h>
 
-#include "altair.h"
 #include "config.h"
 #include "hostcols.h"
 #include "layout.h"
@@ -63,7 +62,7 @@ static lv_obj_t *g_limits = NULL;  /* WI #4609: Claude limits; "row 2, column 0"
 static lv_obj_t *g_agents = NULL;   /* WI #4695: agents timeline; "row 3, columns 0-3" counts rows from 1 */
 static lv_obj_t *g_calendar = NULL; /* WI #4665: time and calendar; "row 3, columns 4-5" counts rows from 1 */
 static lv_obj_t *g_service_strip = NULL;  /* T013: footer Service-Strip container */
-static lv_obj_t *g_lamp_panel = NULL;     /* WI #4777: the Altair panel after the status cards */
+static lv_obj_t *g_lamp_panel = NULL;     /* WI #4777, #4783: the lamp panel after the status cards */
 static lv_obj_t *g_status_bar = NULL;
 static lv_obj_t *g_redis_err = NULL;
 
@@ -191,11 +190,11 @@ void ui_init(void) {
                           LV_FLEX_ALIGN_CENTER);
     lv_obj_set_style_pad_column(g_service_strip, 8, 0);
 
-    /* ---- The Altair 8800 lamp panel (WI #4777) in the strip's free width,
+    /* ---- The lamp panel (WI #4777, #4783) in the strip's free width,
      * at the status cards' height and centred on the strip as they are.
      * Placed by ui_refresh once the cards are counted. ---- */
     g_lamp_panel = lamp_panel_create(g_screen);
-    lv_obj_set_y(g_lamp_panel, PAD_TOP + ROWS * UNIT_H + (FOOTER_H - ALT_CARD_H) / 2);
+    lv_obj_set_y(g_lamp_panel, PAD_TOP + ROWS * UNIT_H + (FOOTER_H - LAMP_PANEL_H) / 2);
 
     /* ---- Status bar (bottom of screen, hidden initially) (FR-006: unchanged) ---- */
     g_status_bar = status_bar_create(g_screen);
@@ -429,6 +428,8 @@ void ui_refresh(void) {
             }
             lamp_panel_place(g_lamp_panel, x0, x1 - x0);
         }
+        /* WI #4783: each machine's time on screen, from Redis every poll. */
+        lamp_panel_set_period(g_lamp_panel, cmd->lamp_period_s);
     }
 
     if (cmd->grid_enabled) {

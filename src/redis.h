@@ -92,6 +92,14 @@ bool redis_parse_cmd_grid_json(const char *json, dev_cmd_state_t *state);
 bool redis_parse_cmd_textsize_json(const char *json, dev_cmd_state_t *state);
 
 /**
+ * Parse kpidash:cmd:lamps:period (WI #4783): seconds each lamp-panel machine
+ * stays on screen. NULL (key absent), empty, or anything but a positive
+ * decimal integer → LM_PERIOD_DEFAULT_S. Otherwise clamped to
+ * LM_PERIOD_MIN_S..LM_PERIOD_MAX_S, so a typo cannot make it strobe.
+ */
+int redis_parse_lamp_period(const char *s);
+
+/**
  * Return a pointer to the current dev command state (updated each poll cycle).
  * Not thread-safe for writing; read from LVGL timer (main thread) only.
  */

@@ -144,6 +144,8 @@ LVGL/DRM/KMS with no mouse or keyboard interaction.
 8. **Dev Commands**: `kpidash:cmd:grid` and `kpidash:cmd:textsize` control
    developer overlay widgets. Set via redis-cli
    with 300 s TTL. Auto-expire disables the overlay.
+   `kpidash:cmd:lamps:period` (no TTL, sprint 045) sets how long each
+   lamp-panel machine stays on screen; see CLIENT-PROTOCOL.md §9.7.
 9. **Screenshot**: `kpidash:screenshot` (consumed via GETDEL) triggers an
    in-process `lv_snapshot_take` → BMP at `/tmp/kpidash-shot.bmp`. Use the
    `krpidss` CLI to fetch a PNG remotely (sprint 011).
@@ -229,6 +231,8 @@ kpidash/
 │   ├── calstate.{h,c}          # Time and calendar card: month grid, tags, coming up (pure, 040)
 │   ├── agstate.{h,c}           # Agents card: 3 h detail, name placement, packing, day strip (pure, 041/042)
 │   ├── altair.{h,c}            # Altair lamp panel: 8080 subset, lamp on-times, layout, palette (pure, 044)
+│   ├── pdp8.{h,c}              # PDP-8/I lamp panel: emulator, lamp sampling, layout, colours (pure, 045)
+│   ├── lampmach.{h,c}          # The lamp panel's machine interface, both adapters, rotation (pure, 045)
 │   ├── redis.{h,c}             # hiredis poll cycle + JSON parsing (cJSON)
 │   ├── status.{h,c}            # In-memory status message FIFO queue
 │   ├── ui.{h,c}                # Screen layout + redis error overlay
@@ -246,7 +250,7 @@ kpidash/
 │       ├── agents_card.{h,c}   # Agents, last 3 hours + 24 h strip, row 2 columns 0-3 (041/042)
 │       ├── service_card.{h,c}  # Service status card + host staleness card
 │       ├── apt_temps_card.{h,c}# Per-zone temp/humidity card (footer, WI #364)
-│       ├── lamp_panel.{h,c}    # Altair 8800 lamps after the footer's status cards (044)
+│       ├── lamp_panel.{h,c}    # Lamp panel after the footer's status cards, one machine at a time (044, 045)
 │       ├── status_bar.{h,c}    # Bottom status bar (warning/error)
 │       ├── dev_grid.{h,c}      # Pixel grid overlay (dev command)
 │       └── dev_textsize.{h,c}  # Font size reference panel (dev command)
@@ -267,6 +271,8 @@ kpidash/
 │   ├── test_calstate.c         # Calendar model: schema, full-cap record, midnight, DST (040)
 │   ├── test_agstate.c          # Agents model: schema, packing, legs, names, strip, crowding (041/042)
 │   ├── test_altair.c           # Altair panel model: T-states, Kill the Bit, lamp on-times, layout (044)
+│   ├── test_pdp8.c             # PDP-8 model: instructions, programs vs the mock-up, lamp time, layout (045)
+│   ├── test_lampmach.c         # Machine interface (the Altair unchanged), palettes, rotation (045)
 │   ├── test_widget_leak.c      # Widget leak regression (needs LVGL)
 │   ├── render_host_columns.c   # Offline render of the host columns to BMP (tool)
 │   ├── render_nas_card.c       # Offline render of the NAS card, four states (tool)
@@ -275,7 +281,7 @@ kpidash/
 │   ├── render_korg_klams.c     # Offline render of the korg + klams card, 6 states (tool)
 │   ├── render_calendar.c       # Offline render of the time and calendar card, 7 states (tool)
 │   ├── render_agents.c         # Offline render of the Agents card, 9 states + live (tool)
-│   └── render_lamp_panel.c     # Offline render of the Altair panel after N status cards (tool + test)
+│   └── render_lamp_panel.c     # Offline render of the lamp panel (either machine) after N status cards (tool + test)
 ├── clients/
 │   └── kpidash-client/         # Python 3.13+ daemon + CLI (psutil, pynvml)
 ├── scripts/
@@ -336,7 +342,7 @@ Widget content (1×1): UNIT_W - 2×CELL_PAD = 624, UNIT_H - 2×CELL_PAD = 620
 │  Row 2: Agents, 3 h + day (4×1, 041/042)    │ time + calendar│
 │                                             │ (2×1, 040)     │
 ├─────────────────────────────────────────────┴────────────────┤
-│  Footer (276px): service strip, Altair lamps after it (044), │
+│  Footer (276px): service strip, lamp panel after it (044/5), │
 │  status bar                                                  │
 └──────────────────────────────────────────────────────────────┘
 ```
@@ -467,7 +473,7 @@ is registered as LVGL's print callback in `main.c`; `lv_conf.h` therefore has
   walks its sorted snapshot moving every card to last — otherwise a host going
   stale long after boot would append at the end of the row.
 
-## Altair 8800 lamp panel (sprint 044)
+## Lamp panel: Altair 8800 (sprint 044) and PDP-8/I (sprint 045)
 
 Decoration in the footer, like the weather filler in row 0: the front-panel
 lamps of an Altair 8800 from the end of the last status card (plus the
@@ -488,6 +494,31 @@ height. Ken's idea and settings are WI #4777; the approved mock-up,
   timer runs the emulator every 500 ms and sets a fill only on lamps whose
   level changed. `ui_refresh` places it again only when the strip's card
   count changes.
+
+Sprint 045 (WI #4783) added a second machine and made the panel rotate.
+The mock-up `sprints/planning/pdp8-mockups.html` is the PDP-8's specification.
+
+- **PDP-8/I model** (`src/pdp8.c`, pure): the eight basic instructions with
+  FETCH / DEFER / EXECUTE, operate groups 1 and 3, the group 2 skips, CLA,
+  auto-index and CDF. It runs the mock-up's walking-bit program, a bit
+  rotating through link and AC while MQ counts the steps (`count` is kept,
+  selected by `PDP8_PROG`). It samples 89 lamps once per machine cycle, and
+  colours them by register on the LED palette. The layout has three modes:
+  89 lamps, 72 without the right-hand block, and 61 (the registers and the
+  link). Tuning: 0.037 of real speed (about 2 steps a second), 16 levels,
+  100 % max brightness.
+- **Machine interface** (`src/lampmach.c`, pure): a machine is its colours,
+  a reset, a step-and-sample function (`advance`: run some ms, return the
+  on-fractions) and a layout. The layout is lamps with position, size and a
+  palette index, plus labels, or "not drawable". Each machine colour gets its
+  own 16-level palette, mixed once. The Altair sits behind it unchanged:
+  `test_lampmach` checks its lamps and labels against `alt_layout` at every
+  width, and its renders are byte-identical to 044's.
+- **Rotation** (`lm_rotation_tick`, pure, with an injected clock): one
+  machine at a time, each for `kpidash:cmd:lamps:period` seconds (default
+  900, clamped to 10 .. 86400; CLIENT-PROTOCOL.md §9.7). A switch is a plain
+  cut, and the incoming machine starts from reset. A machine that does not
+  fit the width is skipped; if none fits, the card hides.
 
 ## Host Columns (sprints 029, 030)
 
