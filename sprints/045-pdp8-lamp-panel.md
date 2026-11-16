@@ -229,3 +229,48 @@ the deploy, below. The overseer's ruling on method:
    showing.
 2. Use 60 s for the two `krpidss` captures.
 3. Delete the key.
+
+## Deployed
+
+Deployed on 2026-11-16 at 12:38 PST, during the ship turn, after the
+overseer's clearance (korg comment 4758). I used `scripts/deploy.sh` to
+rpi53 from kai. There is no `.sprint-deploy`.
+
+- **`864d752`** (PR #49). The service is active (NRestarts=0), and the
+  dashboard self-reports `864d752 (2026-11-16)`.
+  - `just check-warnings-full` passed on the merged `main` first (rc 0, no
+    warnings).
+  - The aarch64 build and link printed no warnings.
+- **Exactly one dashboard is running on rpi53.** `pgrep -a kpidash` shows
+  `/home/ken/kpidash` (pid 10972) and the telemetry client, nothing else.
+- **Panel CPU, with the PDP-8 on screen:** 10.7 % of a core.
+  - I took the reading by the overseer's method: `kpidash:cmd:lamps:period`
+    set to 300 s, so the PDP-8's showing ran from about 20:43:17 to
+    20:48:17 UTC (300 s after the 20:38:17 restart). The 120 s read ran
+    inside it, 20:43:45 to 20:45:45 UTC (12:43 to 12:45 PST).
+  - It read `utime + stime` from `/proc` on rpi53 at 100 Hz: 1280 ticks.
+  - Before the ship it was 11.6 %, with the Altair on the old build
+    (1388 ticks, 12:30 to 12:32 PST, pid 3755).
+  - The difference is within the spread of single readings, which were 8.4,
+    9.0, 9.5 and 11.6 % across sprints 042 to 045. The PDP-8 adds no
+    measurable cost: 24,667 machine cycles a second, and repaints of at most
+    89 small opaque lamps twice a second.
+  - I probed from kai, the deploy host, over ssh, with no second process
+    started.
+- **Live captures** (`krpidss`, from kai), attached to korg:4784:
+  - **PDP-8**, at 20:45:50 UTC, still inside the 300 s showing:
+    **img-12b3**, the footer's right end at full resolution.
+    - All 89 lamps were in full mode.
+    - The walking bit was lit in AC, and MQ was counting.
+    - DF and IF lamps were lit.
+    - ISZ and JMP were the bright instruction lamps.
+    - FETCH was brighter than EXEC, and DEFER was dark, as corrected.
+  - **The whole footer** at half scale, from the same capture: **img-12b5**.
+  - **Altair**, at 20:46:06 UTC: **img-12b4**.
+    - I set the period to 60 at 20:46:00. By then the PDP-8 had been on
+      for more than 60 s, so the Altair took over within one tick. That
+      confirms a period change applies at once.
+    - The panel was in per-lamp label mode, as in 044, with WO bright, the
+      address loop's bits lit and the bit dim on the high address lamps.
+- **The key was deleted** at 20:46:12 UTC (`EXISTS` 0), so the period is
+  back to the 900 s default. This sprint set and deleted only that one key.
