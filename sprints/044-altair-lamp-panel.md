@@ -128,3 +128,31 @@ host, with no second process started.
 On kai at `-O3`, the emulator runs 60 emulated seconds in about 30 ms. The
 Pi's share is 450 k T-states each second, plus at most 36 small opaque
 repaints twice a second.
+
+## Deployed
+
+Deployed 2026-11-16 at 11:22 PST from the ship turn with `scripts/deploy.sh`
+to rpi53, after the overseer's clearance (korg comment 4754). There is no
+`.sprint-deploy`.
+
+- **`799b1ee`** (PR #48). The service is active (NRestarts=0), and the
+  dashboard self-reports `799b1ee (2026-11-16)`. The aarch64 link printed no
+  warnings.
+- **Exactly one dashboard on rpi53.** `pgrep -a kpidash` shows
+  `/home/ken/kpidash` (pid 3755) and the telemetry client, nothing else.
+- **Live capture** (`krpidss`, from kai). The footer crop at full resolution
+  is attached to korg:4778 as img-12ac, and the whole footer at half scale as
+  img-12ad.
+  - Twelve status cards were up, so the panel drew 36 lamps with group labels
+    (STATUS, DATA, 8800, ADDRESS), as in the render at 12 cards.
+  - It sits 8 px after the last card, at the cards' height, and ends at the
+    strip's right edge.
+  - MEMR, M1 and WO are bright, the bit is dim on the high address lamps, and
+    the loop's address bits are lit.
+- **Panel CPU**, measured on rpi53 itself by the same method as before
+  (utime + stime over 120 s, 20 s after the restart, pid 3755, ending
+  11:24 PST): **9.5 %** of a core (1137 ticks), against **8.4 %** before the
+  ship (1008 ticks). That is +1.1 points, which covers the emulator's
+  450 k T-states a second and the lamp repaints. It is also within the spread
+  of earlier single readings, which were 6.8 % and 9.0 % on the same build in
+  sprint 042.
