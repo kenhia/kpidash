@@ -16,7 +16,9 @@
  *   │  Agents, 3 h + day strip        │  time +   │
  *   │  4×1 (041/042)                  │  calendar │
  *   ├─────────────────────────────────┴───────────┤
- *   │  Footer: service strip, status bar          │
+ *   │  Footer: service strip, then the Altair     │
+ *   │  lamp panel in what it leaves (044); status │
+ *   │  bar                                        │
  *   └─────────────────────────────────────────────┘
  */
 #include "ui.h"
@@ -25,6 +27,7 @@
 #include <string.h>
 #include <time.h>
 
+#include "altair.h"
 #include "config.h"
 #include "hostcols.h"
 #include "layout.h"
@@ -38,6 +41,7 @@
 #include "widgets/dev_textsize.h"
 #include "widgets/host_columns.h"
 #include "widgets/korg_klams_card.h"
+#include "widgets/lamp_panel.h"
 #include "widgets/calendar_card.h"
 #include "widgets/agents_card.h"
 #include "widgets/limits_card.h"
@@ -59,6 +63,7 @@ static lv_obj_t *g_limits = NULL;  /* WI #4609: Claude limits; "row 2, column 0"
 static lv_obj_t *g_agents = NULL;   /* WI #4695: agents timeline; "row 3, columns 0-3" counts rows from 1 */
 static lv_obj_t *g_calendar = NULL; /* WI #4665: time and calendar; "row 3, columns 4-5" counts rows from 1 */
 static lv_obj_t *g_service_strip = NULL;  /* T013: footer Service-Strip container */
+static lv_obj_t *g_lamp_panel = NULL;     /* WI #4777: the Altair panel after the status cards */
 static lv_obj_t *g_status_bar = NULL;
 static lv_obj_t *g_redis_err = NULL;
 
@@ -185,6 +190,12 @@ void ui_init(void) {
     lv_obj_set_flex_align(g_service_strip, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER,
                           LV_FLEX_ALIGN_CENTER);
     lv_obj_set_style_pad_column(g_service_strip, 8, 0);
+
+    /* ---- The Altair 8800 lamp panel (WI #4777) in the strip's free width,
+     * at the status cards' height and centred on the strip as they are.
+     * Placed by ui_refresh once the cards are counted. ---- */
+    g_lamp_panel = lamp_panel_create(g_screen);
+    lv_obj_set_y(g_lamp_panel, PAD_TOP + ROWS * UNIT_H + (FOOTER_H - ALT_CARD_H) / 2);
 
     /* ---- Status bar (bottom of screen, hidden initially) (FR-006: unchanged) ---- */
     g_status_bar = status_bar_create(g_screen);
@@ -395,6 +406,28 @@ void ui_refresh(void) {
             apt_temps_card_update(live, now);
             lv_obj_move_to_index(live->container,
                                  (int32_t)lv_obj_get_child_count(g_service_strip) - 1);
+        }
+    }
+
+    /* ---- WI #4777: the lamp panel takes the strip from the end of the last
+     * status card (plus the strip's column gap) to its right edge. Placed
+     * again only when the number of cards changes: the cards are all one
+     * width, so the count is the whole of the geometry, and forcing the
+     * strip's flex layout to read it back costs nothing on the other polls. ---- */
+    {
+        static int32_t last_n = -1;
+        int32_t n = (int32_t)lv_obj_get_child_count(g_service_strip);
+        if (n != last_n) {
+            last_n = n;
+            int32_t x0 = lv_obj_get_x(g_service_strip);
+            int32_t x1 = x0 + lv_obj_get_width(g_service_strip);
+            if (n > 0) {
+                lv_obj_update_layout(g_service_strip);
+                lv_obj_t *last = lv_obj_get_child(g_service_strip, n - 1);
+                x0 += lv_obj_get_x(last) + lv_obj_get_width(last) +
+                      lv_obj_get_style_pad_column(g_service_strip, 0);
+            }
+            lamp_panel_place(g_lamp_panel, x0, x1 - x0);
         }
     }
 

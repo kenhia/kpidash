@@ -326,6 +326,30 @@ if(TARGET lvgl)
         COMMAND render_agents ${CMAKE_CURRENT_BINARY_DIR}/render_agents_crowded.bmp crowded)
     add_test(NAME render_agents_long_names
         COMMAND render_agents ${CMAKE_CURRENT_BINARY_DIR}/render_agents_long.bmp long)
+
+    # Sprint 044: offline render of the Altair lamp panel after N status
+    # cards, for review against sprints/planning/altair-widths.png. Also a
+    # test at the mock-up's widths: nothing may be drawn in the gap before
+    # the panel or past the strip's right edge.
+    add_executable(render_lamp_panel
+        ${CMAKE_CURRENT_SOURCE_DIR}/render_lamp_panel.c
+        ${CMAKE_SOURCE_DIR}/src/widgets/lamp_panel.c
+        ${CMAKE_SOURCE_DIR}/src/altair.c
+        ${CMAKE_SOURCE_DIR}/src/bmp_write.c
+        ${CMAKE_SOURCE_DIR}/fonts/lv_font_montserrat_bold_20.c
+        ${CMAKE_SOURCE_DIR}/fonts/lv_font_montserrat_bold_24.c
+    )
+    target_include_directories(render_lamp_panel PRIVATE
+        ${CMAKE_SOURCE_DIR}
+        ${CMAKE_SOURCE_DIR}/src
+        ${CMAKE_SOURCE_DIR}/fonts
+    )
+    target_link_libraries(render_lamp_panel lvgl ${PNG_TEST_LIBRARIES} pthread m)
+    target_compile_options(render_lamp_panel PRIVATE -Wall -Wextra -Wno-unused-parameter)
+    foreach(ncards 8 12 14 15 16)
+        add_test(NAME render_lamp_panel_${ncards}
+            COMMAND render_lamp_panel ${CMAKE_CURRENT_BINARY_DIR}/render_lamp_panel_${ncards}.bmp ${ncards})
+    endforeach()
 endif()
 
 # WI #4062: the network card's model. Pure — no LVGL, no Redis — and held to
@@ -453,3 +477,15 @@ target_compile_options(test_agstate PRIVATE -Wall -Wextra -Wno-unused-parameter)
 target_compile_definitions(test_agstate PRIVATE
     KDASH_AGENTS_SCHEMA="${CMAKE_SOURCE_DIR}/lib/kdashdata/contracts/schemas/kdash-agents.schema.json")
 add_test(NAME test_agstate COMMAND test_agstate)
+
+# WI #4777: the Altair lamp panel's model -- the 8080 subset, the lamp
+# accumulators, the simulated player and the layout. Pure, no LVGL; the
+# expected layouts and palette come from the mock-up's own script.
+add_executable(test_altair
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_altair.c
+    ${CMAKE_SOURCE_DIR}/src/altair.c
+)
+target_include_directories(test_altair PRIVATE ${CMAKE_SOURCE_DIR}/src)
+target_link_libraries(test_altair m)
+target_compile_options(test_altair PRIVATE -Wall -Wextra -Wno-unused-parameter)
+add_test(NAME test_altair COMMAND test_altair)

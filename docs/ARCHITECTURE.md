@@ -228,6 +228,7 @@ kpidash/
 │   ├── kkstate.{h,c}           # korg + klams card: debounce, scanners, 30-day line (pure, 038)
 │   ├── calstate.{h,c}          # Time and calendar card: month grid, tags, coming up (pure, 040)
 │   ├── agstate.{h,c}           # Agents card: 3 h detail, name placement, packing, day strip (pure, 041/042)
+│   ├── altair.{h,c}            # Altair lamp panel: 8080 subset, lamp on-times, layout, palette (pure, 044)
 │   ├── redis.{h,c}             # hiredis poll cycle + JSON parsing (cJSON)
 │   ├── status.{h,c}            # In-memory status message FIFO queue
 │   ├── ui.{h,c}                # Screen layout + redis error overlay
@@ -245,6 +246,7 @@ kpidash/
 │       ├── agents_card.{h,c}   # Agents, last 3 hours + 24 h strip, row 2 columns 0-3 (041/042)
 │       ├── service_card.{h,c}  # Service status card + host staleness card
 │       ├── apt_temps_card.{h,c}# Per-zone temp/humidity card (footer, WI #364)
+│       ├── lamp_panel.{h,c}    # Altair 8800 lamps after the footer's status cards (044)
 │       ├── status_bar.{h,c}    # Bottom status bar (warning/error)
 │       ├── dev_grid.{h,c}      # Pixel grid overlay (dev command)
 │       └── dev_textsize.{h,c}  # Font size reference panel (dev command)
@@ -264,6 +266,7 @@ kpidash/
 │   ├── test_kkstate.c          # korg + klams model against both schemas (038)
 │   ├── test_calstate.c         # Calendar model: schema, full-cap record, midnight, DST (040)
 │   ├── test_agstate.c          # Agents model: schema, packing, legs, names, strip, crowding (041/042)
+│   ├── test_altair.c           # Altair panel model: T-states, Kill the Bit, lamp on-times, layout (044)
 │   ├── test_widget_leak.c      # Widget leak regression (needs LVGL)
 │   ├── render_host_columns.c   # Offline render of the host columns to BMP (tool)
 │   ├── render_nas_card.c       # Offline render of the NAS card, four states (tool)
@@ -271,7 +274,8 @@ kpidash/
 │   ├── render_limits.c         # Offline render of the Claude limits card, 5 states (tool)
 │   ├── render_korg_klams.c     # Offline render of the korg + klams card, 6 states (tool)
 │   ├── render_calendar.c       # Offline render of the time and calendar card, 7 states (tool)
-│   └── render_agents.c         # Offline render of the Agents card, 9 states + live (tool)
+│   ├── render_agents.c         # Offline render of the Agents card, 9 states + live (tool)
+│   └── render_lamp_panel.c     # Offline render of the Altair panel after N status cards (tool + test)
 ├── clients/
 │   └── kpidash-client/         # Python 3.13+ daemon + CLI (psutil, pynvml)
 ├── scripts/
@@ -332,7 +336,8 @@ Widget content (1×1): UNIT_W - 2×CELL_PAD = 624, UNIT_H - 2×CELL_PAD = 620
 │  Row 2: Agents, 3 h + day (4×1, 041/042)    │ time + calendar│
 │                                             │ (2×1, 040)     │
 ├─────────────────────────────────────────────┴────────────────┤
-│  Footer (276px): service strip + status bar                  │
+│  Footer (276px): service strip, Altair lamps after it (044), │
+│  status bar                                                  │
 └──────────────────────────────────────────────────────────────┘
 ```
 
@@ -461,6 +466,28 @@ is registered as LVGL's print callback in `main.c`; `lv_conf.h` therefore has
   row whose child order is *creation* order, each of the two trailing groups
   walks its sorted snapshot moving every card to last — otherwise a host going
   stale long after boot would append at the end of the row.
+
+## Altair 8800 lamp panel (sprint 044)
+
+Decoration in the footer, like the weather filler in row 0: the front-panel
+lamps of an Altair 8800 from the end of the last status card (plus the
+strip's 8 px gap) to the strip's right edge at x 3816, at the cards' 240 px
+height. Ken's idea and settings are WI #4777; the approved mock-up,
+`sprints/planning/altair-mockups.html`, is the specification.
+
+- **Model** (`src/altair.c`, pure): the mock-up's 8080 subset running Kill
+  the Bit, a seeded simulated player on the sense switches, and per machine
+  cycle the T-states each of the 36 lamps' lines was high. A redraw reads
+  each lamp's on-fraction and resets. Also the layout (free width in: 36
+  lamps, 24 with the status row dropped, or nothing under a 14 px pitch or
+  240 px) and the 16 pre-mixed opaque lamp colours. Tuning constants (clock
+  450 kHz, 500 ms redraw, 16 levels, max brightness, LED red) are together at
+  the top of `altair.h`.
+- **Widget** (`src/widgets/lamp_panel.c`): an opaque card, one opaque
+  rectangle per lamp, labels per lamp (pitch ≥ 88) or per group. Its own LVGL
+  timer runs the emulator every 500 ms and sets a fill only on lamps whose
+  level changed. `ui_refresh` places it again only when the strip's card
+  count changes.
 
 ## Host Columns (sprints 029, 030)
 
