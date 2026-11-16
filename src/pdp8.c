@@ -37,9 +37,11 @@ void pdp8_reset(pdp8_t *m, pdp8_prog_t prog) {
     m->ifl = 1;
 }
 
-/* One machine cycle's worth of lamp time. The step counter, PAUSE and ION
- * are never lit: nothing here uses them, as in the mock-up. */
-static void sample(pdp8_t *m) {
+/* One machine cycle's worth of lamp time. `st` is the major state the cycle
+ * was in, not the one it leads to: a FETCH that decodes an ISZ lights FETCH,
+ * not EXEC (the mock-up as the overseer corrected it, sprint 045). The step
+ * counter, PAUSE and ION are never lit: nothing here uses them. */
+static void sample(pdp8_t *m, int st) {
     for (int i = 0; i < 12; i++) {
         m->on[PDP8_L_PC + i] += m->pc >> i & 1;
         m->on[PDP8_L_MA + i] += m->ma >> i & 1;
@@ -53,7 +55,7 @@ static void sample(pdp8_t *m) {
     }
     m->on[PDP8_L_LINK] += m->l;
     m->on[PDP8_L_IR + m->ir]++;
-    m->on[PDP8_L_ST + m->state]++;
+    m->on[PDP8_L_ST + st]++;
     m->on[PDP8_L_RUN]++;
     m->total++;
 }
@@ -132,9 +134,7 @@ void pdp8_cycle(pdp8_t *m) {
             else
                 m->state = PDP8_EXEC;
         }
-        /* Sampled after the decode, so FETCH's own cycle lights the state
-         * it leads to, as the mock-up's does. */
-        sample(m);
+        sample(m, PDP8_FETCH);
         return;
     }
     if (m->state == PDP8_DEFER) {
@@ -151,7 +151,7 @@ void pdp8_cycle(pdp8_t *m) {
         } else {
             m->state = PDP8_EXEC;
         }
-        sample(m);
+        sample(m, PDP8_DEFER);
         return;
     }
     m->ma = m->ea; /* EXECUTE */
@@ -185,7 +185,7 @@ void pdp8_cycle(pdp8_t *m) {
         m->pc = (m->ma + 1) & 07777;
         break;
     }
-    sample(m);
+    sample(m, PDP8_EXEC);
     m->state = PDP8_FETCH;
 }
 

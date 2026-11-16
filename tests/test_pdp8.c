@@ -118,6 +118,10 @@ static void test_defer_and_autoindex(void) {
     pdp8_cycle(&M);
     CHECK(M.state == PDP8_FETCH && M.ac == 42 && M.ma == 0300);
 
+    /* Each of those three cycles lit the state it was in, once each. */
+    CHECK(M.on[PDP8_L_ST + PDP8_FETCH] == 1 && M.on[PDP8_L_ST + PDP8_DEFER] == 1 &&
+          M.on[PDP8_L_ST + PDP8_EXEC] == 1);
+
     /* JMP I: FETCH, DEFER, and no EXECUTE. */
     static const uint16_t jmpi[] = {05650};
     load(jmpi, 1);
@@ -303,10 +307,11 @@ static void test_fractions(void) {
     /* DF = 2 from the second cycle on: all but the first sample. */
     CHECK(fabsf(f[PDP8_L_DF + 1] - (float)(total - 1) / total) < 1e-6f);
     /* The delay loop dominates: ISZ (FETCH, EXEC) and JMP (FETCH) at 0204/0205.
-     * The mock-up samples a FETCH after decoding it, so ISZ's FETCH already
-     * lights EXEC: EXEC is lit about two cycles in three, FETCH one in three. */
-    CHECK(fabsf(f[PDP8_L_ST + PDP8_EXEC] - 2.0f / 3) < 0.01f);
-    CHECK(fabsf(f[PDP8_L_ST + PDP8_FETCH] - 1.0f / 3) < 0.01f);
+     * Each cycle lights the state it was in, so FETCH is lit about two cycles
+     * in three, EXEC one in three, and DEFER never (walk has no indirect). */
+    CHECK(fabsf(f[PDP8_L_ST + PDP8_FETCH] - 2.0f / 3) < 0.01f);
+    CHECK(fabsf(f[PDP8_L_ST + PDP8_EXEC] - 1.0f / 3) < 0.01f);
+    CHECK(f[PDP8_L_ST + PDP8_DEFER] == 0);
     /* PC 0204-0206: bit 2 always, bit 7 always. */
     CHECK(f[PDP8_L_PC + 7] == 1.0f);
     /* Read and reset: nothing ran since, so all zero. */

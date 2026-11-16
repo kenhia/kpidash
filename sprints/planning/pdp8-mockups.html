@@ -98,11 +98,11 @@
     acc = {}; for (const k in KEYS) acc[k] = new Float64Array(KEYS[k]); total = 0;
     lastFrac = {}; for (const k in KEYS) lastFrac[k] = new Array(KEYS[k]).fill(0);
   }
-  function sample() {                                   // one machine cycle's worth of lamp time
+  function sample(st) {                                 // one machine cycle's worth of lamp time; st = the state that cycle was in
     const bits = (a, v, n) => { for (let i = 0; i < n; i++) if (v >> i & 1) a[i]++; };
     bits(acc.pc, m.pc, 12); bits(acc.ma, m.ma, 12); bits(acc.mb, m.mb, 12);
     bits(acc.ac, m.ac, 12); bits(acc.mq, m.mq, 12); bits(acc.df, m.df, 3); bits(acc.ifl, m.ifl, 3);
-    acc.l[0] += m.l; acc.ir[m.ir]++; acc.st[m.state]++; acc.run[0]++; total++;
+    acc.l[0] += m.l; acc.ir[m.ir]++; acc.st[st]++; acc.run[0]++; total++;
   }
   function operate(w) {
     if (!(w & 0o400)) {                                 // group 1
@@ -139,14 +139,14 @@
         else if (m.ir === 5) m.pc = m.ea;
         else m.state = 1;
       }
-      sample(); return;
+      sample(0); return;
     }
     if (m.state === 2) {                                // DEFER
       m.ma = m.ea; m.mb = mem[m.ma];
       if ((m.ma & 0o7770) === 0o010) { m.mb = m.mb + 1 & 0o7777; mem[m.ma] = m.mb; }
       m.ea = m.mb;
       if (m.ir === 5) { m.pc = m.ea; m.state = 0; } else m.state = 1;
-      sample(); return;
+      sample(2); return;
     }
     m.ma = m.ea;                                        // EXECUTE
     switch (m.ir) {
@@ -156,7 +156,7 @@
       case 3: m.mb = m.ac; mem[m.ma] = m.ac; m.ac = 0; break;
       case 4: m.mb = m.pc; mem[m.ma] = m.pc; m.pc = m.ma + 1 & 0o7777; break;
     }
-    sample(); m.state = 0;
+    sample(1); m.state = 0;
   }
 
   // ---- colours ----

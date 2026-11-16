@@ -155,13 +155,34 @@ layout arithmetic and the colour table. Ken's settings (WI 4783) are:
   `requestAnimationFrame`, under the same 0.6 s cap, as in 044.
 - **Ported unchanged, though it may look odd, because the mock-up is the
   spec:**
-  - A FETCH cycle samples the state lamps after decoding. So an ISZ's fetch
-    already lights EXEC, and in the delay loop EXEC reads about 2/3 and FETCH
-    about 1/3.
   - The step counter, PAUSE and ION are never lit, because nothing in either
     program drives them.
   - DEFER is dark while `walk` runs, because the program uses no indirect
     addressing.
+
+## Correction after the overseer's review: the state lamps
+
+The first cut (`bbffae5`) ported a fault in the mock-up. The mock-up sampled
+the major-state lamps after the cycle had advanced the state. So a FETCH
+that decodes an ISZ lit EXEC, and in the delay loop EXEC read about 2/3 and
+FETCH about 1/3.
+
+The overseer ruled that a lamp shows the state of the cycle that just ran.
+They corrected the mock-up at `kai:/scratch/kpidash-pdp8/`, changing nothing
+else in it: `sample(st)` now takes the state the cycle was in (0 fetch,
+2 defer, 1 execute).
+
+- The corrected mock-up was copied over `sprints/planning/pdp8-mockups.html`.
+- `pdp8.c` makes the same change: `sample(m, st)`, with PDP8_FETCH, _DEFER
+  or _EXEC passed by each branch of `pdp8_cycle`.
+- `tests/fixtures/pdp8/expected.h` was regenerated from the corrected
+  script. Only the six state-lamp counts per program changed.
+- `test_pdp8` now expects the following in the delay loop:
+  - FETCH about 2/3, EXEC about 1/3 and DEFER 0;
+  - on an indirect TAD, each of FETCH, DEFER and EXEC lit exactly once.
+- `pdp8-widths-lvgl.png` was re-rendered. FETCH is now the brighter of the
+  two lamps, and nothing else in it changed. The Altair renders are still
+  byte-identical to 044's.
 
 ## The Altair code path
 
@@ -185,6 +206,8 @@ layout arithmetic and the colour table. Ken's settings (WI 4783) are:
 - `just check-warnings-full` builds the whole tree, `lamp_panel.c` and
   `ui.c` included, at `-O3 -Werror` with no warnings. Its ctest passes
   40/40, including the six `render_lamp_panel_pdp8_*` tests.
+- Both gates were run again after the state-lamp correction, with the same
+  results: 23/23, then 40/40 with zero warnings.
 
 ## Pre-ship reading
 
@@ -200,4 +223,9 @@ Before the deploy, the panel used **11.6 % of a core**. Method: 120 s of
   readings move by a couple of points from run to run.
 
 The after reading has to be taken with the PDP-8 on screen. It belongs to
-the deploy, below.
+the deploy, below. The overseer's ruling on method:
+
+1. Set the period key to 300 s, so the 120 s window sits inside one PDP-8
+   showing.
+2. Use 60 s for the two `krpidss` captures.
+3. Delete the key.
