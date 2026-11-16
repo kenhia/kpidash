@@ -1,6 +1,8 @@
 #include "redis.h"
 
 #include <cjson/cJSON.h>
+#include <ctype.h>
+#include <errno.h>
 #include <hiredis/hiredis.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -12,6 +14,7 @@
 
 #include "hosthist.h"
 #include "kkstate.h"
+#include "lampmach.h"
 #include "calstate.h"
 #include "agstate.h"
 #include "limstate.h"
@@ -276,6 +279,25 @@ bool redis_parse_cmd_textsize_json(const char *json, dev_cmd_state_t *state) {
     return true;
 }
 
+int redis_parse_lamp_period(const char *s) {
+    if (!s)
+        return LM_PERIOD_DEFAULT_S;
+    while (isspace((unsigned char)*s))
+        s++;
+    if (!isdigit((unsigned char)*s))
+        return LM_PERIOD_DEFAULT_S; /* also rejects a sign: "-5", "+60" */
+    errno = 0;
+    char *end;
+    long v = strtol(s, &end, 10);
+    while (isspace((unsigned char)*end))
+        end++;
+    if (*end || v <= 0)
+        return LM_PERIOD_DEFAULT_S;
+    if (errno == ERANGE || v > LM_PERIOD_MAX_S)
+        return LM_PERIOD_MAX_S;
+    return v < LM_PERIOD_MIN_S ? LM_PERIOD_MIN_S : (int)v;
+}
+
 /* ---- Main poll cycle ---- */
 
 void redis_poll(void) {
@@ -356,7 +378,7 @@ void redis_poll(void) {
         return;
     }
 
-    /* Step 4: Dev commands — grid and textsize */
+    /* Step 4: Dev commands — grid, textsize, and the lamp panel's period */
     redisReply *gr = redisCommand(g_ctx, "GET " KPIDASH_KEY_CMD_GRID);
     dev_cmd_state_t new_cmd = {0};
     redis_parse_cmd_grid_json((gr && gr->type == REDIS_REPLY_STRING) ? gr->str : NULL, &new_cmd);
@@ -368,6 +390,12 @@ void redis_poll(void) {
                                   &new_cmd);
     if (tsr)
         freeReplyObject(tsr);
+
+    redisReply *lpr = redisCommand(g_ctx, "GET " KPIDASH_KEY_CMD_LAMP_PERIOD);
+    new_cmd.lamp_period_s =
+        redis_parse_lamp_period((lpr && lpr->type == REDIS_REPLY_STRING) ? lpr->str : NULL);
+    if (lpr)
+        freeReplyObject(lpr);
 
     g_dev_cmd = new_cmd;
 

@@ -77,6 +77,7 @@ typedef struct {
     bool grid_unit;       /* unit-based grid mode */
     float grid_unit_size; /* unit multiplier (0.5, 1, 2) */
     bool textsize_enabled;
+    int lamp_period_s;    /* WI #4783: lamp-panel rotation; redis_parse_lamp_period */
 } dev_cmd_state_t;
 
 /* ---- Registry API (global singleton, thread-safe) ---- */

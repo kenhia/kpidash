@@ -14,6 +14,7 @@
 #include <stdbool.h>
 
 /* Pull in headers that redis.c depends on */
+#include "lampmach.h"
 #include "redis.h"
 #include "registry.h"
 #include "protocol.h"
@@ -291,6 +292,25 @@ int main(void) {
         CHECK(s.textsize_enabled == false);
     }
 
+
+    /* WI #4783: the lamp panel's rotation period */
+    CHECK(redis_parse_lamp_period(NULL) == LM_PERIOD_DEFAULT_S); /* absent key */
+    CHECK(redis_parse_lamp_period("") == LM_PERIOD_DEFAULT_S);
+    CHECK(redis_parse_lamp_period("60") == 60);
+    CHECK(redis_parse_lamp_period(" 60\n") == 60);
+    CHECK(redis_parse_lamp_period("900") == 900);
+    CHECK(redis_parse_lamp_period("0") == LM_PERIOD_DEFAULT_S);  /* not positive */
+    CHECK(redis_parse_lamp_period("-60") == LM_PERIOD_DEFAULT_S);
+    CHECK(redis_parse_lamp_period("+60") == LM_PERIOD_DEFAULT_S);
+    CHECK(redis_parse_lamp_period("60s") == LM_PERIOD_DEFAULT_S); /* not an integer */
+    CHECK(redis_parse_lamp_period("1.5") == LM_PERIOD_DEFAULT_S);
+    CHECK(redis_parse_lamp_period("fast") == LM_PERIOD_DEFAULT_S);
+    CHECK(redis_parse_lamp_period("1") == LM_PERIOD_MIN_S);      /* clamped up */
+    CHECK(redis_parse_lamp_period("9") == LM_PERIOD_MIN_S);
+    CHECK(redis_parse_lamp_period("10") == 10);
+    CHECK(redis_parse_lamp_period("86400") == 86400);
+    CHECK(redis_parse_lamp_period("86401") == LM_PERIOD_MAX_S);  /* clamped down */
+    CHECK(redis_parse_lamp_period("99999999999999999999") == LM_PERIOD_MAX_S);
 
     printf("test_redis_json: %d passed, %d failed\n", passed, failed);
     return failed > 0 ? 1 : 0;

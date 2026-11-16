@@ -1103,6 +1103,38 @@ replaces the whole value: if both write inside the same 1 s poll, the earlier
 command is lost and its card lingers until a re-run or a restart. That race is
 rare and is **noted, not guarded**.
 
+### 9.7 Lamp-Panel Rotation Period (Sprint 045, WI #4783)
+
+| Key | Type | Written by | Read by | TTL |
+|-----|------|-----------|---------|-----|
+| `kpidash:cmd:lamps:period` | STRING (decimal integer, seconds) | manual (redis-cli) | dashboard | none |
+
+The footer's lamp panel shows one machine at a time (the Altair 8800, then
+the PDP-8/I) and switches to the next after this many seconds. Unlike the
+other keys in this section it is a knob, not a one-off: set it and leave it,
+with no TTL. The dashboard only reads it, on every 1 s poll.
+
+- **Absent, or not a positive decimal integer** (`0`, `-5`, `60s`, `1.5`,
+  `fast`): the default, **900** (15 minutes).
+- **Clamped** to 10 .. 86400. A value under 10 s reads as 10, so a typo cannot
+  make the panel strobe.
+- **A change applies at once**: the panel compares the time the current
+  machine has been on with the period on every 500 ms tick. Shortening it
+  below what the machine has already had switches within half a second;
+  lengthening it lets the current machine stay on until the new period, counted
+  from when it came on.
+- A machine that does not fit the width the status cards leave is skipped, and
+  the one that fits stays on without restarting. Each machine starts from reset
+  when it comes on screen, and only the one on screen runs.
+
+```bash
+# Fast switch: a minute each (rpi53's Redis needs auth)
+redis-cli SET kpidash:cmd:lamps:period 60
+
+# Back to the default, 15 minutes each
+redis-cli DEL kpidash:cmd:lamps:period
+```
+
 ---
 
 ## 10. System Info
