@@ -127,6 +127,8 @@ add_executable(kpidash
     src/widgets/calendar_card.c
     src/agstate.c
     src/widgets/agents_card.c
+    src/altair.c
+    src/widgets/lamp_panel.c
     src/icons.c
     fonts/lv_font_montserrat_bold_14.c
     fonts/lv_font_montserrat_bold_16.c

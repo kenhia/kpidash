@@ -24,7 +24,8 @@ plus network, NAS and service status for the homelab.
 ├─────────────────────────────────────────────────────┤
 │  Row 2: agents (3 h + day strip), time and calendar │
 ├─────────────────────────────────────────────────────┤
-│  Footer: service, staleness, update, apt-temp cards │
+│  Footer: service, staleness, update, apt-temp cards,│
+│  then an Altair 8800 lamp panel in what they leave  │
 └─────────────────────────────────────────────────────┘
 ```
 
