@@ -167,6 +167,14 @@ double lim_pace(double resets_at, double window_s, double now) {
     return 1 - left / window_s;
 }
 
+double lim_gauge_deg(double frac) {
+    if (frac < 0)
+        frac = 0;
+    else if (frac > 1)
+        frac = 1;
+    return LIM_GAUGE_START_DEG + LIM_GAUGE_SWEEP_DEG * frac;
+}
+
 /* ---- Formatting ---- */
 
 void lim_fmt_reset(double resets_at, double now, char *buf, size_t n) {

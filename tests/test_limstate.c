@@ -229,6 +229,19 @@ static void test_pace(void) {
     CHECK(lim_pace(1795089599, LIM_SEVEN_DAY_S, LIVE_UPDATED) >= 0);
 }
 
+/* Sprint 046 (WI #4801): the rings are 270° arcs open at the bottom, as on
+ * kctrldeck's Agents gauges, in LVGL's angles (0° at three o'clock, clockwise). */
+static void test_gauge_deg(void) {
+    CHECK(LIM_GAUGE_START_DEG == 135 && LIM_GAUGE_SWEEP_DEG == 270);
+    CHECK(lim_gauge_deg(0) == 135); /* lower left */
+    CHECK(lim_gauge_deg(0.5) == 270); /* twelve o'clock */
+    CHECK(lim_gauge_deg(1) == 405); /* lower right: 45°, one turn on */
+    CHECK(lim_gauge_deg(0.25) == 202.5);
+    /* Out of range clamps to the arc's ends: the tick never sits in the gap. */
+    CHECK(lim_gauge_deg(-0.1) == 135);
+    CHECK(lim_gauge_deg(1.5) == 405);
+}
+
 static void test_fmt_reset(void) {
     char b[48];
     const double now = 1794600000;
@@ -459,6 +472,7 @@ int main(void) {
     test_stale();
     test_pct_and_band();
     test_pace();
+    test_gauge_deg();
     test_fmt_reset();
     test_fmt_dur_and_header();
     test_mode_of();

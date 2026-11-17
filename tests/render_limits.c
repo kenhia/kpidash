@@ -23,6 +23,12 @@
  *   nofive-long   nofive-ok with the schema's example model, "claude-opus-5",
  *                 whose ring label is too wide with the window: model alone
  *   live          the record kai published at 2026-11-14 02:44Z, read 47 s on
+ * Sprint 046 (WI #4801) opens the rings into 270° arcs and adds one more state
+ * for reviewing them at any value and pace:
+ *   gauge <five|scoped|seven> <pct1> <pace1> <pct2> <pace2> [stale]
+ *                 ring 1 (5 HOUR, or 7 DAY with no five-hour window) and ring 2
+ *                 at pct % with the tick at pace (0..1); the five-hour layout's
+ *                 bar sits at Fable 38 %, 0.72. stale reads it 22 minutes on.
  * Times are drawn in America/Los_Angeles, rpi53's zone. The canvas is the
  * whole 632 x 628 cell, the card at CELL_PAD inside it, on the panel's crust. */
 #include <stdio.h>
@@ -99,7 +105,7 @@ static void build(double now, double age, const char *host, double p5, double k5
 
 int main(int argc, char **argv) {
     if (argc < 2) {
-        fprintf(stderr, "usage: %s out.bmp [ok|warn|stale|bare|live037|nofive-ok|nofive-warn|nofive-stale|nofive-long|seven|live]\n", argv[0]);
+        fprintf(stderr, "usage: %s out.bmp [ok|warn|stale|bare|live037|nofive-ok|nofive-warn|nofive-stale|nofive-long|seven|live|gauge ...]\n", argv[0]);
         return 2;
     }
     const char *state = argc > 2 ? argv[2] : "ok";
@@ -125,6 +131,24 @@ int main(int argc, char **argv) {
         else
             build(now, 40, "kai", -1, 0, 61, 0.72, 38, 0.72, strcmp(state, "seven") != 0, 0);
         if (strcmp(state, "nofive-stale") == 0)
+            now += 22 * 60;
+    } else if (strcmp(state, "gauge") == 0) {
+        if (argc < 8) {
+            fprintf(stderr, "gauge <five|scoped|seven> <pct1> <pace1> <pct2> <pace2> [stale]\n");
+            return 2;
+        }
+        const char *lay = argv[3];
+        double a = atof(argv[4]), ka = atof(argv[5]), b = atof(argv[6]), kb = atof(argv[7]);
+        /* The 7-day tick is set by `now`, the rest by their reset times. */
+        if (strcmp(lay, "five") == 0) {
+            now = mon - (1 - kb) * LIM_SEVEN_DAY_S;
+            build(now, 40, "cleo", a, 0, b, kb, 38, 0.72, true,
+                  now + (1 - ka) * LIM_FIVE_HOUR_S);
+        } else {
+            now = mon - (1 - ka) * LIM_SEVEN_DAY_S;
+            build(now, 40, "kai", -1, 0, a, ka, b, kb, strcmp(lay, "seven") != 0, 0);
+        }
+        if (argc > 8 && strcmp(argv[8], "stale") == 0)
             now += 22 * 60;
     } else if (strcmp(state, "live") == 0) {
         static const char *lf[] = {
