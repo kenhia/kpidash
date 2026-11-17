@@ -72,3 +72,18 @@ bottom.
 
 - `just check`: green, 23/23 ctest, the shell tests and the client.
 - `just check-warnings-full`: green, the whole tree at `-O3 -Werror`.
+
+## Deployed
+
+- 2026-11-17 09:51 PST: `scripts/deploy.sh` from merged `main` (`5485332`,
+  PR #50) to rpi53. Service active with NRestarts=0, and the running binary
+  reports `5485332 (2026-11-17)`. The cross-build printed no compiler or
+  linker warnings.
+- Live check: one `krpidss` capture, with the card's crop attached to
+  korg:4802 (`img-12c4`). The card was in the scoped layout, at 7 DAY 26 %
+  and FABLE · 7 DAY 29 %. Both rings drew as 270° arcs open at the bottom,
+  with each white tick past its value end at about 0.75 of the window. That
+  is consistent with the Thu 03:59 reset about 1.75 days away. The capture
+  and crop are in `/scratch/kpidash-limits/` on kai.
+- No Redis keys were written except the `kpidash:screenshot` command that
+  `krpidss` itself issues.
