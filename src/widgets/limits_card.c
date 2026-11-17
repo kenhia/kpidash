@@ -54,7 +54,7 @@
 #define NOFIVE_DY 50
 #define LABEL_MAX_W (RING_DX - 16) /* a ring label may not reach its neighbour's */
 
-#define PACE_STEPS 720 /* half a degree of ring: the tick's resolution */
+#define PACE_STEPS 720 /* the tick's resolution: 0.375° of the 270° arc */
 
 typedef struct {
     int pct;
@@ -223,19 +223,20 @@ static void draw_ring(lv_layer_t *layer, int32_t cx, int32_t oy, const gauge_t *
     const lv_color_t fg = stale ? WS_COLOR_MUTED : WS_COLOR_FG;
     const lv_color_t sub = stale ? WS_COLOR_MUTED : LIM_SUBTEXT0;
 
-    /* Track, then the value from twelve o'clock clockwise (LVGL's 0° is
-     * three o'clock, so twelve is 270°). */
-    arc(layer, cx, cy, 0, 360, WS_COLOR_SURFACE0, false);
-    if (g->pct > 0) {
-        double sweep = 360.0 * (g->pct >= 100 ? 0.99999 : g->pct / 100.0);
-        arc(layer, cx, cy, 270, 270 + sweep, band_color(g->pct, stale), true);
-    }
+    /* Track, then the value, as 270° arcs open at the bottom (WI #4801): a
+     * ring with a visible start and end gives the pace tick something to be
+     * read against. Both have rounded ends. */
+    arc(layer, cx, cy, lim_gauge_deg(0), lim_gauge_deg(1), WS_COLOR_SURFACE0, true);
+    if (g->pct > 0)
+        arc(layer, cx, cy, lim_gauge_deg(0), lim_gauge_deg(g->pct / 100.0),
+            band_color(g->pct, stale), true);
     if (g->pace >= 0) {
-        double a = 2 * M_PI * g->pace / PACE_STEPS, s = sin(a), c = -cos(a);
-        line(layer, cx + (int32_t)lround((RING_R - TICK_IN) * s),
-             cy + (int32_t)lround((RING_R - TICK_IN) * c),
-             cx + (int32_t)lround((RING_R + TICK_IN) * s),
-             cy + (int32_t)lround((RING_R + TICK_IN) * c),
+        double a = lim_gauge_deg((double)g->pace / PACE_STEPS) * M_PI / 180;
+        double c = cos(a), s = sin(a);
+        line(layer, cx + (int32_t)lround((RING_R - TICK_IN) * c),
+             cy + (int32_t)lround((RING_R - TICK_IN) * s),
+             cx + (int32_t)lround((RING_R + TICK_IN) * c),
+             cy + (int32_t)lround((RING_R + TICK_IN) * s),
              stale ? WS_COLOR_SURFACE1 : WS_COLOR_FG, 6);
     }
 

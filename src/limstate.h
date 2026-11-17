@@ -99,6 +99,12 @@ lim_band_t lim_band(int pct);
  * is long, which no consistent record can say. A reset already passed (the
  * record not yet refreshed) is 1. */
 double lim_pace(double resets_at, double window_s, double now);
+/* The rings are 270° arcs open at the bottom, as on kctrldeck's Agents gauges
+ * (sprint 046, WI #4801), in LVGL's angles: 0° at three o'clock, clockwise. */
+#define LIM_GAUGE_START_DEG 135
+#define LIM_GAUGE_SWEEP_DEG 270
+/* The angle at fraction `frac` of a ring, clamped to the arc: 135 .. 405. */
+double lim_gauge_deg(double frac);
 
 /* ---- Formatting ---- */
 
