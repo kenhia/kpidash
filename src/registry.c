@@ -381,6 +381,10 @@ void service_registry_apply_payload(service_entry_t *e, const service_entry_t *p
     e->last_payload_ts = parsed->last_payload_ts;
     memcpy(e->text, parsed->text, sizeof(e->text));
     e->icon_index = parsed->icon_index;
+    memcpy(e->title, parsed->title, sizeof(e->title));
+    e->span = parsed->span;
+    e->n_lines = parsed->n_lines;
+    memcpy(e->lines, parsed->lines, sizeof(e->lines));
     pthread_mutex_unlock(&g_service_mutex);
 }
 

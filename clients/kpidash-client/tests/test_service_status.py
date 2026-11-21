@@ -56,6 +56,27 @@ def test_set_service_status_includes_optional_fields(mock_client):
     assert payload["icon"] == 7
 
 
+def test_set_service_status_writes_layout(mock_client):
+    """WI #4847: title, lines and span ride the same key, as given."""
+    lines = [{"t": "blip", "size": "S", "color": "#1e66f5"}, "", "OK backups"]
+    mock_client.set_service_status(
+        name="argus", state="ok", text="2 ok", host="kai", title="argus", lines=lines, span=2
+    )
+    _key, raw = mock_client._r.set.call_args[0]
+    payload = json.loads(raw)
+    assert payload["title"] == "argus"
+    assert payload["lines"] == lines
+    assert payload["span"] == 2
+    assert payload["text"] == "2 ok"  # still required: the fallback
+
+
+def test_set_service_status_omits_absent_layout(mock_client):
+    mock_client.set_service_status(name="x", state="ok", text="t", lines=[])
+    _key, raw = mock_client._r.set.call_args[0]
+    payload = json.loads(raw)
+    assert not {"title", "lines", "span"} & set(payload)
+
+
 def test_set_service_status_no_ttl(mock_client):
     mock_client.set_service_status(name="x", state="ok", text="t")
     # `ex` keyword must NOT be present (set without TTL per data-model).
@@ -85,7 +106,8 @@ def test_cli_service_status_minimal():
         )
     assert r.exit_code == 0, r.output
     fake.set_service_status.assert_called_once_with(
-        name="api", state="ok", text="hi", host="_", icon=None
+        name="api", state="ok", text="hi", host="_", icon=None,
+        title=None, lines=None, span=None,
     )
 
 
@@ -105,7 +127,8 @@ def test_cli_service_status_full():
         )
     assert r.exit_code == 0, r.output
     fake.set_service_status.assert_called_once_with(
-        name="db", state="maintenance", text="draining", host="kai", icon=3
+        name="db", state="maintenance", text="draining", host="kai", icon=3,
+        title=None, lines=None, span=None,
     )
 
 
@@ -137,3 +160,68 @@ def test_cli_service_status_requires_text():
     runner = CliRunner()
     r = runner.invoke(main, ["service-status", "--name", "x", "--state", "ok"])
     assert r.exit_code != 0
+
+
+# ---------------------------------------------------------------------------
+# WI #4847: --title, --line, --span
+# ---------------------------------------------------------------------------
+
+
+def _invoke(args):
+    from kpidash_client.cli import main
+
+    runner = CliRunner()
+    p, fake = _patch_make_client()
+    with p, patch("kpidash_client.cli._load_config"):
+        r = runner.invoke(
+            main, ["service-status", "--name", "argus", "--state", "ok", "--text", "t", *args]
+        )
+    return r, fake
+
+
+def test_cli_service_status_lines():
+    r, fake = _invoke(
+        [
+            "--title", "argus", "--span", "2",
+            "--line", "[size=s color=#1E66F5] blip 12m ago",
+            "--line", "",
+            "--line", "[align=L] OK   backups",
+            "--line", "plain words [not a style]",
+        ]
+    )
+    assert r.exit_code == 0, r.output
+    kw = fake.set_service_status.call_args.kwargs
+    assert kw["title"] == "argus"
+    assert kw["span"] == 2
+    assert kw["lines"] == [
+        {"t": "blip 12m ago", "size": "S", "color": "#1e66f5"},
+        "",
+        {"t": "OK   backups", "align": "L"},
+        "plain words [not a style]",
+    ]
+
+
+def test_cli_service_status_empty_style_group_is_an_object():
+    r, fake = _invoke(["--line", "[] centred"])
+    assert r.exit_code == 0, r.output
+    assert fake.set_service_status.call_args.kwargs["lines"] == [{"t": "centred"}]
+
+
+@pytest.mark.parametrize(
+    "bad",
+    [
+        ["--line", "[size=XL] x"],
+        ["--line", "[align=middle] x"],
+        ["--line", "[color=red] x"],
+        ["--line", "[weight=bold] x"],
+        ["--line", "[size] x"],
+        ["--line", "two\nlines"],
+        ["--title", "two\nlines"],
+        ["--span", "3"],
+        [arg for i in range(9) for arg in ("--line", str(i))],
+    ],
+)
+def test_cli_service_status_rejects_bad_layout(bad):
+    r, fake = _invoke(bad)
+    assert r.exit_code != 0, r.output
+    fake.set_service_status.assert_not_called()

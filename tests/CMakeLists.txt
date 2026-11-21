@@ -84,6 +84,12 @@ add_kpidash_test(test_service_card
 )
 target_compile_definitions(test_service_card PRIVATE KPIDASH_TEST_STUBS=1)
 
+# WI #4847: the service card's width per span and its line fitting. Pure.
+add_kpidash_test(test_svclayout
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_svclayout.c
+    ${CMAKE_SOURCE_DIR}/src/svclayout.c
+)
+
 # WI #1903: host staleness feed reader (kdash:stale:<host>:<deployer>).
 add_kpidash_test(test_stale_card
     ${CMAKE_CURRENT_SOURCE_DIR}/test_stale_card.c
@@ -338,8 +344,8 @@ if(TARGET lvgl)
         COMMAND render_agents ${CMAKE_CURRENT_BINARY_DIR}/render_agents_long.bmp long)
 
     # Sprint 047 (WI #4848): offline render of the apt-temps widget in each
-    # state it draws, for review. Also a test: the widest temperature and
-    # each zone's name beside its widest right-hand text must fit.
+    # state it draws, for review. Also a test: the widest temperature, each
+    # zone's name and the widest humidity must fit (each centred, WI #4870).
     add_executable(render_apt_temps
         ${CMAKE_CURRENT_SOURCE_DIR}/render_apt_temps.c
         ${CMAKE_SOURCE_DIR}/src/widgets/apt_temps_card.c
@@ -347,7 +353,7 @@ if(TARGET lvgl)
         ${CMAKE_SOURCE_DIR}/src/registry.c
         ${CMAKE_SOURCE_DIR}/src/bmp_write.c
         ${CMAKE_SOURCE_DIR}/fonts/lv_font_montserrat_bold_28.c
-        ${CMAKE_SOURCE_DIR}/fonts/lv_font_montserrat_bold_96_digits.c
+        ${CMAKE_SOURCE_DIR}/fonts/lv_font_montserrat_bold_48.c
     )
     target_include_directories(render_apt_temps PRIVATE
         ${CMAKE_SOURCE_DIR}
@@ -357,10 +363,37 @@ if(TARGET lvgl)
     target_link_libraries(render_apt_temps lvgl kdash_core ${PNG_TEST_LIBRARIES} pthread m)
     target_compile_options(render_apt_temps PRIVATE -Wall -Wextra -Wno-unused-parameter)
     target_compile_definitions(render_apt_temps PRIVATE
-        LV_FONT_MONTSERRAT_BOLD_28=1 LV_FONT_MONTSERRAT_BOLD_96_DIGITS=1)
+        LV_FONT_MONTSERRAT_BOLD_28=1 LV_FONT_MONTSERRAT_BOLD_48=1)
     foreach(st normal bands stale missing unknown extremes)
         add_test(NAME render_apt_temps_${st}
             COMMAND render_apt_temps ${CMAKE_CURRENT_BINARY_DIR}/render_apt_temps_${st}.bmp ${st})
+    endforeach()
+
+    # Sprint 048 (WI #4847): offline render of the footer strip's service
+    # cards with the contract's title, lines and span, for review. Also a
+    # test: every drawn line sits wholly inside its card and is one line high.
+    add_executable(render_service_card
+        ${CMAKE_CURRENT_SOURCE_DIR}/render_service_card.c
+        ${CMAKE_SOURCE_DIR}/src/widgets/service_card.c
+        ${CMAKE_SOURCE_DIR}/src/svclayout.c
+        ${CMAKE_SOURCE_DIR}/src/registry.c
+        ${CMAKE_SOURCE_DIR}/src/icons.c
+        ${CMAKE_SOURCE_DIR}/src/bmp_write.c
+        ${CMAKE_SOURCE_DIR}/fonts/lv_font_montserrat_bold_16.c
+        ${CMAKE_SOURCE_DIR}/fonts/lv_font_montserrat_bold_20.c
+        ${CMAKE_SOURCE_DIR}/fonts/lv_font_montserrat_bold_24.c
+        ${CMAKE_SOURCE_DIR}/fonts/lv_font_icons_56.c
+    )
+    target_include_directories(render_service_card PRIVATE
+        ${CMAKE_SOURCE_DIR}
+        ${CMAKE_SOURCE_DIR}/src
+        ${CMAKE_SOURCE_DIR}/fonts
+    )
+    target_link_libraries(render_service_card lvgl kdash_core ${PNG_TEST_LIBRARIES} pthread m)
+    target_compile_options(render_service_card PRIVATE -Wall -Wextra -Wno-unused-parameter)
+    foreach(st argus fail plain long full)
+        add_test(NAME render_service_card_${st}
+            COMMAND render_service_card ${CMAKE_CURRENT_BINARY_DIR}/render_service_card_${st}.bmp ${st})
     endforeach()
 
     # Sprint 044: offline render of the lamp panel after N status cards, for

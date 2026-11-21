@@ -33,7 +33,7 @@ int at_zone_index(const char *slug);
 typedef struct {
     bool present;          /* a valid reading exists, fresh or not */
     apttemps_color_t color; /* GRAY when stale, or absent */
-    char temp[16];         /* "72.4°" */
+    char temp[16];         /* "72.4°F" (WI #4870: bold 48 has the F) */
     char hum[8];           /* "45%" */
 } at_zone_t;
 

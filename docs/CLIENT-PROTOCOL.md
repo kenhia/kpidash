@@ -271,6 +271,9 @@ last reader in sprint 033.
 | `text` | string | yes | Short status text shown on the card, ≤128 bytes. See **Which characters are safe** below |
 | `host` | string | no | Echo of the host segment for display; the **key** is authoritative |
 | `icon` | int | no | Optional icon index into `lv_font_icons_56` |
+| `title` | string | no | Drawn in place of the name. One line; cut with `...` if too wide (sprint 048) |
+| `lines` | array | no | Up to 8 lines drawn **instead of** `text` — see **Multi-line cards** below (sprint 048) |
+| `span` | int | no | `1` (default) or `2`: the card's width in footer units (sprint 048) |
 
 **Sprint 007 schema**: the Redis key always has 4 colon-separated segments:
 `kpidash:services:<name>:<host>`. The `<host>` segment is required; clients
@@ -294,6 +297,62 @@ host. Card border colour reflects state via the truth table in
 `sprints/006-layout-refresh-status-cards/data-model.md`: `DOWN`/`UNKNOWN` →
 GRAY (sticky for DOWN); other states → their colour iff
 `(now − ts) < ` the service's freshness window, else RED.
+
+#### Multi-line cards: `title`, `lines`, `span` (sprint 048, WI #4847)
+
+The shape is kdashdata's (`kpidash-service-status.schema.json`, decision
+CD-32); this is how kpidash draws it. All three fields are optional and ride
+the same key, so a record without them draws exactly the card it always did —
+pixel for pixel, checked against the pre-048 widget.
+
+```json
+{
+  "ts": 1743292800.789, "state": "unhealthy", "text": "1 check failing",
+  "host": "kai", "icon": 5, "span": 2,
+  "lines": [
+    {"t": "blip 12m ago - 3 recent", "size": "S", "color": "#1e66f5"},
+    "",
+    {"t": "OK   backups 02:10", "align": "L"},
+    {"t": "FAIL certs 2 d", "align": "L", "color": "#d20f39"}
+  ]
+}
+```
+
+| Line field | Values | Drawn as |
+|---|---|---|
+| `t` | one line of text; `""` is a blank spacer | A bare string is the same as `{"t": …}` |
+| `size` | `S` / `M` (default) / `L` | Montserrat bold 16 / 20 / 24 — the faces the card already uses |
+| `align` | `L` / `C` (default) / `R` | Within the card's width |
+| `color` | `#rrggbb` | The line's text colour; default is the card's foreground |
+
+How the card is laid out:
+
+- **`lines` replaces `text`, and `text` stays required.** It is what a reader
+  without lines draws, and what this one draws when `lines` is malformed: one
+  bad element (an unknown size, a newline, a ninth line) drops the whole array,
+  per CD-32, and the card reads `text`.
+- **A line is one line.** One too wide for the card is cut with LVGL's `...`,
+  never wrapped, so the publisher's line count is the card's line count. The
+  card's width is the limit a publisher meets first — well before the parser's
+  127-byte cap.
+- **Lines that do not fit the card's height are dropped from the bottom,
+  whole.** A card drawing `lines` closes its rows up (no gap between header
+  and lines, or between lines), which leaves room for 96 px of lines under the
+  full header — the four lines above (S + three M). Without an icon there is
+  room for 59 px more. Put the line that matters most *above* the ones that
+  can be lost.
+- **`title` replaces the name** and, unlike the name, is held to one line.
+- **`span: 2`** makes the card two units wide (2 × 220 + the strip's 8 px gap),
+  so it lines up with two ordinary cards. The lamp panel takes what is left of
+  the strip, as it always has.
+- **The border is not the publisher's.** It stays `state` plus freshness, as
+  above; a line's `color` colours that line only. A dead publisher still goes
+  red whatever its last record asked for.
+- `state` must be lowercase for the layout to be read: kpidash has always
+  accepted `OK`, but kdashdata's parser, which reads the layout, follows the
+  schema's lowercase enum. An uppercase record still draws, as `text`.
+
+The character rules below apply to `title` and every line as they do to `text`.
 
 #### Which characters are safe in `text` (sprint 022, WI #2646)
 
@@ -387,6 +446,13 @@ uv run kpidash-client service-status --name api --state ok --text "API respondin
 
 # Non-host-scoped service (writes to kpidash:services:api:_, host line hidden)
 uv run kpidash-client service-status --name api --state ok --text "API responding"
+
+# Multi-line, two units wide (client 2.1.0). A --line is its text, optionally led
+# by a [size= align= color=] group; --text is still required, as the fallback.
+uv run kpidash-client service-status --name argus --host kai --state ok \
+    --text "2 checks ok" --icon 5 --span 2 \
+    --line "[size=S color=#1e66f5] blip 12m ago - 3 recent" --line "" \
+    --line "[align=L] OK   backups 02:10" --line "[align=L] OK   certs 61 d"
 ```
 
 ---
@@ -417,7 +483,8 @@ idiom). Dashboard polls `SCAN MATCH kpidash:apttemps:*` each second.
 **Render** (sprint 047; until then one footer card per key). One widget in
 row 2, between the Agents card and the time + calendar card, always shows
 three zones top to bottom — **`living`, `kitchen`, `bedroom`** — each with
-its name, the temperature to one decimal and the humidity. A zone whose key
+its name, the temperature to one decimal (`72.4°F`) and the humidity under it,
+all centred (sprint 048, WI #4870). A zone whose key
 is absent keeps its slot, muted ("no reading"). Temperature colour: Blue
 `<65.0` · Green `65.0–75.0` · Orange `75.1–79.9` · Red `>79.9`; a zone goes
 GRAY when `(now − ts) ≥ 300 s`. **A fresh key with any other slug is not

@@ -17,17 +17,27 @@
 
 #define AT_SUBTEXT0 lv_color_hex(0xA6ADC8)
 
-#define FONT_TEMP (&lv_font_montserrat_bold_96_digits)
+/* WI #4870 (sprint 048): bold 48, the 10G card's verdict face. Ken found the
+ * 96 px digits too big and asked for a face between the two if the repo had
+ * one, else 48 — it has none (14-36, 48, then 96 digits only), and his rule
+ * was "use what we have", so no size is generated for this. */
+#define FONT_TEMP (&lv_font_montserrat_bold_48)
 #define FONT_NAME (&lv_font_montserrat_bold_28)
 #define FONT_HUM (&lv_font_montserrat_bold_28)
 #define FONT_NOTE (&lv_font_montserrat_24)
 
 #define CARD_R 20
 #define BORDER_W 4 /* the green border: a fresh sensor nobody has named */
-#define PAD_X 24
 #define ZONE_H (AT_CARD_H / AT_ZONES) /* 206 */
-#define NAME_BASE 50                  /* within a zone */
-#define TEMP_BASE 172
+/* WI #4870: zone, temperature, humidity — the old footer cards' order — each
+ * centred, the stack centred in its 206 px zone. Line boxes: name 35, temp 59,
+ * humidity 35, with 6 px gaps; the stack sits 4 px below centre, which centres
+ * the glyphs (a line box carries more leading above them than below). Baselines
+ * within a zone: */
+#define NAME_BASE 62
+#define TEMP_BASE 129
+#define HUM_BASE 174
+#define RULE_X 24 /* the rules between zones stop short of the card's edge */
 #define RULE_H 2
 
 typedef struct {
@@ -93,23 +103,23 @@ static void text_at(lv_layer_t *layer, const lv_font_t *font, int32_t x, int32_t
 /* ---- The pieces ---- */
 
 static void draw_zone(lv_layer_t *layer, int32_t x0, int32_t y0, int i, const at_zone_t *z) {
-    const int32_t cx = x0 + AT_CARD_W / 2, right = x0 + AT_CARD_W - PAD_X;
+    const int32_t cx = x0 + AT_CARD_W / 2;
     if (!z->present) {
         /* No key: the slot keeps its shape, everything muted. */
-        text_at(layer, FONT_NAME, x0 + PAD_X, y0 + NAME_BASE, at_zone_name(i), WS_COLOR_MUTED,
-                LV_TEXT_ALIGN_LEFT);
-        text_at(layer, FONT_NOTE, right, y0 + NAME_BASE, "no reading", WS_COLOR_MUTED,
-                LV_TEXT_ALIGN_RIGHT);
+        text_at(layer, FONT_NAME, cx, y0 + NAME_BASE, at_zone_name(i), WS_COLOR_MUTED,
+                LV_TEXT_ALIGN_CENTER);
         text_at(layer, FONT_TEMP, cx, y0 + TEMP_BASE, "\xE2\x80\x94", WS_COLOR_SURFACE1,
+                LV_TEXT_ALIGN_CENTER);
+        text_at(layer, FONT_NOTE, cx, y0 + HUM_BASE, "no reading", WS_COLOR_MUTED,
                 LV_TEXT_ALIGN_CENTER);
         return;
     }
     const bool stale = z->color == APTTEMPS_COLOR_GRAY;
-    text_at(layer, FONT_NAME, x0 + PAD_X, y0 + NAME_BASE, at_zone_name(i),
-            stale ? AT_SUBTEXT0 : WS_COLOR_FG, LV_TEXT_ALIGN_LEFT);
-    text_at(layer, FONT_HUM, right, y0 + NAME_BASE, z->hum, stale ? WS_COLOR_MUTED : AT_SUBTEXT0,
-            LV_TEXT_ALIGN_RIGHT);
+    text_at(layer, FONT_NAME, cx, y0 + NAME_BASE, at_zone_name(i),
+            stale ? AT_SUBTEXT0 : WS_COLOR_FG, LV_TEXT_ALIGN_CENTER);
     text_at(layer, FONT_TEMP, cx, y0 + TEMP_BASE, z->temp, band_color(z->color),
+            LV_TEXT_ALIGN_CENTER);
+    text_at(layer, FONT_HUM, cx, y0 + HUM_BASE, z->hum, stale ? WS_COLOR_MUTED : AT_SUBTEXT0,
             LV_TEXT_ALIGN_CENTER);
 }
 
@@ -128,7 +138,7 @@ static void draw_card(lv_layer_t *layer, const lv_area_t *a, const at_view_t *v)
     for (int i = 0; i < AT_ZONES; i++) {
         const int32_t zy = y0 + i * ZONE_H;
         if (i > 0)
-            rect(layer, x0 + PAD_X, zy - RULE_H / 2, AT_CARD_W - 2 * PAD_X, RULE_H,
+            rect(layer, x0 + RULE_X, zy - RULE_H / 2, AT_CARD_W - 2 * RULE_X, RULE_H,
                  WS_COLOR_SURFACE0, 0);
         draw_zone(layer, x0, zy, i, &v->zone[i]);
     }

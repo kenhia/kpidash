@@ -61,6 +61,8 @@ echo "Done. Generated ${#SIZES[@]} font files."
 # would be most of a megabyte for characters the card never draws. Sprint 040
 # (WI #4665) added the colon for the calendar card's 24-hour HH:MM clock, and
 # sprint 047 (WI #4848) the full stop for the apt-temps widget's "72.4°".
+# (Since sprint 048, WI #4870, that widget uses bold 48 and nothing draws the
+# full stop at 96; it stays rather than regenerate a committed font for it.)
 echo "Generating lv_font_montserrat_bold_96_digits.c ..."
 npx lv_font_conv \
     --bpp "${BPP}" \

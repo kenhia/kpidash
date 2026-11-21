@@ -6,6 +6,7 @@
 #include <stdint.h>
 #include <time.h>
 
+#include "kdash/kdash_payload.h"
 #include "protocol.h"
 
 /* ---- Disk types ---- */
@@ -260,6 +261,15 @@ typedef struct service_entry {
     double last_payload_ts;  /* payload's own ts */
     service_state_t last_valid_state;
 
+    /* WI #4847: the optional layout (kdashdata CD-32), as kdash_parse_service()
+     * hands it over. `title` "" means draw `name`; `span` is 1 or 2; n_lines > 0
+     * means draw `lines` instead of `text`. A malformed `lines` arrives already
+     * dropped whole, as n_lines 0. */
+    char title[KDASH_TEXT_MAX];
+    int span;
+    int n_lines;
+    kdash_service_line_t lines[KDASH_SVC_LINES_MAX];
+
 #ifndef KPIDASH_TEST_STUBS
     lv_obj_t *container;
     lv_obj_t *border;
@@ -267,6 +277,7 @@ typedef struct service_entry {
     lv_obj_t *name_label;
     lv_obj_t *host_label;
     lv_obj_t *text_label;
+    lv_obj_t *line_labels[KDASH_SVC_LINES_MAX];
 #else
     void *container;
     void *border;
@@ -274,7 +285,9 @@ typedef struct service_entry {
     void *name_label;
     void *host_label;
     void *text_label;
+    void *line_labels[KDASH_SVC_LINES_MAX];
 #endif
+    uint32_t drawn_sig;      /* svc_layout_sig() of what the body last drew */
 } service_entry_t;
 
 /* Parse a service state string. Returns SERVICE_STATE_UNKNOWN for
