@@ -172,6 +172,6 @@ None.
     - It drew beside the ordinary cards with every line shown, and the middle dot rendered as a glyph.
     - Attached to WI 4847 (`img-130b` footer, `img-130c` card).
     - `kpidash-cards prune --service test048:kai` removed it, and `kpidash-cards list` no longer shows it.
-  - **Row 2:** the apt-temps widget is live as rendered: Living 68.3°F / 37 %, Kitchen 67.9°F / 38 %, Bedroom 66.6–66.8°F / 42 %, centred. Attached to WI 4870 (`img-130d` row, `img-130e` widget).
+  - **Row 2:** the apt-temps widget is live as rendered: Living 68.3°F / 37 %, Kitchen 67.9°F / 38 %, Bedroom 66.8°F / 42 %, centred. Attached to WI 4870 (`img-130d` row, `img-130e` widget).
   - **Journal:** `kpidash.service` logged 22 lines from the restart to the check: start-up, client registrations, one memstat, and four screenshot saves. None was a warning, so nothing repeats per redraw.
 - No Redis keys were written except `test048` (now deleted), the evict command `kpidash-cards` sends, and the `kpidash:screenshot` command `krpidss` issues.
