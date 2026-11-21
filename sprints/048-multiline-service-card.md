@@ -159,3 +159,19 @@ None.
   five `render_service_card_*` renders, the six `render_apt_temps_*` fit
   checks and `test_widget_leak`.
 - All three were re-run after WI 4870 and are still green.
+
+## Deployed
+
+- **2026-11-20 18:35 PST:** `just publish` added kpidash-client **2.1.0** (wheel and sdist) to the package store.
+- **2026-11-20 18:35 PST:** `scripts/deploy.sh` deployed from merged `main` (`27dd15f`, PR #52) to rpi53.
+  - The service is active with NRestarts=0, and the running binary reports `27dd15f (2026-11-21)`.
+  - The cross-build printed no compiler or linker warnings.
+- **Live checks:** a `krpidss` capture from kai. The crops are in `/scratch/kpidash-048/live/`.
+  - **Multi-line card:** a throwaway `kpidash:services:test048:kai` was published with the client's new flags.
+    - Span 2, a title, a blue S notice with a real middle dot (U+00B7), a blank line, an OK line, and a red FAIL line.
+    - It drew beside the ordinary cards with every line shown, and the middle dot rendered as a glyph.
+    - Attached to WI 4847 (`img-130b` footer, `img-130c` card).
+    - `kpidash-cards prune --service test048:kai` removed it, and `kpidash-cards list` no longer shows it.
+  - **Row 2:** the apt-temps widget is live as rendered: Living 68.3°F / 37 %, Kitchen 67.9°F / 38 %, Bedroom 66.6–66.8°F / 42 %, centred. Attached to WI 4870 (`img-130d` row, `img-130e` widget).
+  - **Journal:** `kpidash.service` logged 22 lines from the restart to the check: start-up, client registrations, one memstat, and four screenshot saves. None was a warning, so nothing repeats per redraw.
+- No Redis keys were written except `test048` (now deleted), the evict command `kpidash-cards` sends, and the `kpidash:screenshot` command `krpidss` issues.
