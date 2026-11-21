@@ -66,6 +66,16 @@ add_kpidash_test(test_apttemps_band
 )
 target_compile_definitions(test_apttemps_band PRIVATE KPIDASH_TEST_STUBS=1)
 
+# WI #4848: the apt-temps widget's model -- three fixed zones in a fixed
+# order, and the green-border signal for a fresh unknown sensor. Links
+# registry.c for apttemps_color(), the band and freshness rule it reuses.
+add_kpidash_test(test_atstate
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_atstate.c
+    ${CMAKE_SOURCE_DIR}/src/atstate.c
+    ${CMAKE_SOURCE_DIR}/src/registry.c
+)
+target_compile_definitions(test_atstate PRIVATE KPIDASH_TEST_STUBS=1)
+
 add_kpidash_test(test_service_card
     ${CMAKE_CURRENT_SOURCE_DIR}/test_service_card.c
     ${CMAKE_SOURCE_DIR}/src/registry.c
@@ -326,6 +336,32 @@ if(TARGET lvgl)
         COMMAND render_agents ${CMAKE_CURRENT_BINARY_DIR}/render_agents_crowded.bmp crowded)
     add_test(NAME render_agents_long_names
         COMMAND render_agents ${CMAKE_CURRENT_BINARY_DIR}/render_agents_long.bmp long)
+
+    # Sprint 047 (WI #4848): offline render of the apt-temps widget in each
+    # state it draws, for review. Also a test: the widest temperature and
+    # each zone's name beside its widest right-hand text must fit.
+    add_executable(render_apt_temps
+        ${CMAKE_CURRENT_SOURCE_DIR}/render_apt_temps.c
+        ${CMAKE_SOURCE_DIR}/src/widgets/apt_temps_card.c
+        ${CMAKE_SOURCE_DIR}/src/atstate.c
+        ${CMAKE_SOURCE_DIR}/src/registry.c
+        ${CMAKE_SOURCE_DIR}/src/bmp_write.c
+        ${CMAKE_SOURCE_DIR}/fonts/lv_font_montserrat_bold_28.c
+        ${CMAKE_SOURCE_DIR}/fonts/lv_font_montserrat_bold_96_digits.c
+    )
+    target_include_directories(render_apt_temps PRIVATE
+        ${CMAKE_SOURCE_DIR}
+        ${CMAKE_SOURCE_DIR}/src
+        ${CMAKE_SOURCE_DIR}/fonts
+    )
+    target_link_libraries(render_apt_temps lvgl kdash_core ${PNG_TEST_LIBRARIES} pthread m)
+    target_compile_options(render_apt_temps PRIVATE -Wall -Wextra -Wno-unused-parameter)
+    target_compile_definitions(render_apt_temps PRIVATE
+        LV_FONT_MONTSERRAT_BOLD_28=1 LV_FONT_MONTSERRAT_BOLD_96_DIGITS=1)
+    foreach(st normal bands stale missing unknown extremes)
+        add_test(NAME render_apt_temps_${st}
+            COMMAND render_apt_temps ${CMAKE_CURRENT_BINARY_DIR}/render_apt_temps_${st}.bmp ${st})
+    endforeach()
 
     # Sprint 044: offline render of the lamp panel after N status cards, for
     # review against sprints/planning/altair-widths.png (and, since 045,

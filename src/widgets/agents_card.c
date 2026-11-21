@@ -2,8 +2,11 @@
  * agents_card.c — the Agents card (WI #4695; v2 WI #4733). See the header.
  *
  * Coordinates are the v2 mock-up's (sprints/planning/agents-mockups-v2.html,
- * view B at 3 hours: `head`, `focus(3)`, `drawBars`), in its 2528 × 628
- * frame, at real panel pixels. The object sits CELL_PAD inside that frame, so
+ * view B at 3 hours: `head`, `focus(3)`, `drawBars`), in its frame, at real
+ * panel pixels. The frame was the mock-up's 2528 × 628 until sprint 047
+ * narrowed it by one host column to 2152 (WI #4849); everything right of the
+ * hosts is placed from the frame's width (agstate.h), and the legend moved
+ * left to stay inside it. The object sits CELL_PAD inside that frame, so
  * every draw call offsets by the frame's origin. Text y values are the SVG's
  * baselines, which text_at() converts to LVGL's top-of-line.
  *
@@ -40,7 +43,7 @@
 #define SUBTITLE_X 170
 #define HOSTS_X 470
 #define NOTE_X 1000
-#define LEGEND_X 1500
+#define LEGEND_X 1470 /* its right end ~10 px short of the now line (sprint 047; 1500 at 2528 wide) */
 #define TICK_BASE 466  /* the detail grid's labels */
 #define STRIP_BASE 604 /* the strip grid's labels */
 #define STRIP_B0 (AG_STRIP_Y - AG_STRIP_PAD)

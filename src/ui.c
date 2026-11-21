@@ -12,10 +12,11 @@
  *   ├───────────┬──────────┬──────────┬───────────┤
  *   │  Claude   │ 10G card │ NAS card │  korg +   │
  *   │  limits   │  2×1     │  2×1     │  klams    │
- *   ├───────────┴──────────┴──────────┼───────────┤
- *   │  Agents, 3 h + day strip        │  time +   │
- *   │  4×1 (041/042)                  │  calendar │
- *   ├─────────────────────────────────┴───────────┤
+ *   ├───────────┴──────────┴─────┬────┼───────────┤
+ *   │  Agents, 3 h + day strip   │apt │  time +   │
+ *   │  (041/042; 047: one host   │tem-│  calendar │
+ *   │  column narrower)          │ps  │           │
+ *   ├────────────────────────────┴────┴───────────┤
  *   │  Footer: service strip, then the lamp panel │
  *   │  in what it leaves (Altair 044, PDP-8 045); │
  *   │  status bar                                 │
@@ -60,6 +61,7 @@ static lv_obj_t *g_nascard = NULL; /* WI #3956 */
 static lv_obj_t *g_korgklams = NULL; /* WI #4613: korg + klams; "row 2, column 5" counts rows from 1 */
 static lv_obj_t *g_limits = NULL;  /* WI #4609: Claude limits; "row 2, column 0" counts rows from 1 */
 static lv_obj_t *g_agents = NULL;   /* WI #4695: agents timeline; "row 3, columns 0-3" counts rows from 1 */
+static lv_obj_t *g_apttemps = NULL; /* WI #4848: the three zones, in the column the Agents card gave up */
 static lv_obj_t *g_calendar = NULL; /* WI #4665: time and calendar; "row 3, columns 4-5" counts rows from 1 */
 static lv_obj_t *g_service_strip = NULL;  /* T013: footer Service-Strip container */
 static lv_obj_t *g_lamp_panel = NULL;     /* WI #4777, #4783: the lamp panel after the status cards */
@@ -169,13 +171,18 @@ void ui_init(void) {
     g_korgklams = korg_klams_card_create(g_screen); /* WI #4613 */
     lv_obj_set_pos(g_korgklams, COL_X(5) + CELL_PAD, ROW_Y(1) + CELL_PAD);
 
-    /* ---- Row 2: the Agents card, a 4×1 in columns 0-3 (sprint 041), then
-     * the time and calendar card, a 2×1 in columns 4-5 (sprint 040). Both
+    /* ---- Row 2: the Agents card in columns 0-3 (sprint 041) less one host
+     * column, the apt-temps widget in that column (sprint 047), then the
+     * time and calendar card, a 2×1 in columns 4-5 (sprint 040). All three
      * always shown: the agents card draws its grid and "no agents feed"
-     * before kdash:agents has ever published, and the calendar's clock and
-     * grid come from the panel's own clock. ---- */
+     * before kdash:agents has ever published, the apt-temps widget draws
+     * every zone's slot with or without a reading, and the calendar's clock
+     * and grid come from the panel's own clock. ---- */
     g_agents = agents_card_create(g_screen); /* WI #4695 */
     lv_obj_set_pos(g_agents, COL_X(0) + CELL_PAD, ROW_Y(2) + CELL_PAD);
+
+    g_apttemps = apt_temps_card_create(g_screen); /* WI #4848 */
+    lv_obj_set_pos(g_apttemps, ROW2_APT_X + CELL_PAD, ROW_Y(2) + CELL_PAD);
 
     g_calendar = calendar_card_create(g_screen); /* WI #4665 */
     lv_obj_set_pos(g_calendar, COL_X(4) + CELL_PAD, ROW_Y(2) + CELL_PAD);
@@ -259,6 +266,10 @@ void ui_refresh(void) {
          * through a gap, and an old one stops its running bars instead. */
         agents_card_update(g_agents, (time_t)now_s);
 
+        /* WI #4848: always drawn, repainted only when a zone's reading, its
+         * colour or the green-border signal changes. */
+        apt_temps_card_update(g_apttemps, now_s);
+
         /* WI #4609: not drawn before claude:limits has ever published. Once
          * it has, it stays — limstate keeps the last record through a gap and
          * greys it by its own stamps, so the card never blinks out. */
@@ -269,16 +280,20 @@ void ui_refresh(void) {
         }
     }
 
-    /* WI #374: apply pending card-evict commands — destroy the card on the
-     * LVGL thread, then drop the entry from its registry. Runs before the paint
-     * loops so a removed entry is never repainted from a dangling pointer. */
+    /* WI #374: apply pending card-evict commands — destroy a service card on
+     * the LVGL thread, then drop the entry from its registry. Runs before the
+     * paint loops so a removed entry is never repainted from a dangling
+     * pointer. An apt-temps entry owns no card since sprint 047: dropping it
+     * is enough, and the widget stops seeing it on its next update. */
     {
         evict_target_t ev[EVICT_TARGETS_MAX];
         int nev = redis_take_evict_targets(ev, EVICT_TARGETS_MAX);
         for (int i = 0; i < nev; i++) {
-            void *c = (strcmp(ev[i].kind, "apttemps") == 0)
-                          ? apttemps_registry_remove(ev[i].name)
-                          : service_registry_remove(ev[i].name, ev[i].host);
+            if (strcmp(ev[i].kind, "apttemps") == 0) {
+                apttemps_registry_remove(ev[i].name);
+                continue;
+            }
+            void *c = service_registry_remove(ev[i].name, ev[i].host);
             if (c) lv_obj_delete((lv_obj_t *)c);
         }
     }
@@ -314,15 +329,16 @@ void ui_refresh(void) {
     /* ---- WI #1903: host staleness cards.
      *
      * Ken, after looking at the panel (2026-09-05): "After service cards,
-     * before apt-temps." Hence this block sitting between the two.
+     * before apt-temps." Hence this block after the service cards. (The
+     * apt-temps cards left the strip in sprint 047, WI #4848.)
      *
      * Paint order alone will not hold that, though. The strip is a flex row,
      * so child order is creation order, and a card created on a *later* poll
      * — a host that goes stale an hour from now — is appended at the end
-     * whatever group it belongs to. So each of the two trailing groups walks
-     * its own sorted snapshot moving every card to last: stale first, then
-     * apt-temps. Whatever order the service cards ended up in, the strip
-     * settles as [services…][stale, host-sorted][apt-temps, slug-sorted].
+     * whatever group it belongs to. So each trailing group walks its own
+     * sorted snapshot moving every card to last: stale first, then update.
+     * Whatever order the service cards ended up in, the strip settles as
+     * [services…][stale, host-sorted][update, host-sorted].
      *
      * This is also what keeps several stale hosts ordered among themselves
      * rather than in the order they happened to go stale, and it is why the
@@ -357,9 +373,9 @@ void ui_refresh(void) {
         }
     }
 
-    /* ---- WI #3642: update-issue cards — after the staleness cards, before
-     * apt-temps, by the same move-to-last walk (see the block above). Both
-     * are "a host needs Ken" cards, so they sit together. ---- */
+    /* ---- WI #3642: update-issue cards — after the staleness cards, by the
+     * same move-to-last walk (see the block above). Both are "a host needs
+     * Ken" cards, so they sit together. ---- */
     {
         void *dead[UPDATE_REGISTRY_MAX];
         int ndead = update_registry_reap(dead, UPDATE_REGISTRY_MAX);
@@ -375,34 +391,6 @@ void ui_refresh(void) {
                 update_card_create(g_service_strip, live);
             }
             update_card_update(live);
-            lv_obj_move_to_index(live->container,
-                                 (int32_t)lv_obj_get_child_count(g_service_strip) - 1);
-        }
-    }
-
-    /* ---- WI #364: Apt-Temps per-zone cards, painted into the footer strip
-     * last — after the service cards and after any staleness and update cards. ---- */
-    {
-        apttemps_entry_t ats[APTTEMPS_REGISTRY_MAX];
-        int nat = apttemps_registry_snapshot(ats, APTTEMPS_REGISTRY_MAX);
-        /* Stable order by slug ascending. */
-        for (int i = 1; i < nat; i++) {
-            apttemps_entry_t tmp = ats[i];
-            int j = i;
-            while (j > 0 && strncmp(ats[j - 1].slug, tmp.slug, sizeof(tmp.slug)) > 0) {
-                ats[j] = ats[j - 1];
-                j--;
-            }
-            ats[j] = tmp;
-        }
-        double now = (double)time(NULL);
-        for (int i = 0; i < nat; i++) {
-            apttemps_entry_t *live = apttemps_registry_find_or_create(ats[i].slug);
-            if (!live) continue;
-            if (!live->container) {
-                apt_temps_card_create(g_service_strip, live);
-            }
-            apt_temps_card_update(live, now);
             lv_obj_move_to_index(live->container,
                                  (int32_t)lv_obj_get_child_count(g_service_strip) - 1);
         }

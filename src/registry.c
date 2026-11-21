@@ -486,21 +486,21 @@ void *service_registry_remove(const char *name, const char *host) {
     return container;
 }
 
-void *apttemps_registry_remove(const char *slug) {
-    if (!slug) return NULL;
-    void *container = NULL;
+bool apttemps_registry_remove(const char *slug) {
+    if (!slug) return false;
+    bool found = false;
     pthread_mutex_lock(&g_apttemps_mutex);
     for (int i = 0; i < g_apttemps_count; i++) {
         if (strncmp(g_apttemps[i].slug, slug, sizeof(g_apttemps[i].slug)) == 0) {
-            container = g_apttemps[i].container;
             for (int k = i; k < g_apttemps_count - 1; k++)
                 g_apttemps[k] = g_apttemps[k + 1];
             g_apttemps_count--;
+            found = true;
             break;
         }
     }
     pthread_mutex_unlock(&g_apttemps_mutex);
-    return container;
+    return found;
 }
 
 /* ---- host staleness registry (WI #1903) ----

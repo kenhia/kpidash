@@ -62,6 +62,20 @@ static void test_content_size(void) {
     CHECK(UNIT_H - 2 * CELL_PAD == 620);
 }
 
+/* Sprint 047 (WI #4848, #4849): the Agents card and the apt-temps widget
+ * share row 2's columns 0-3, the widget one host column wide, and the
+ * widget's right edge is the calendar's left. */
+static void test_row2_split(void) {
+    CHECK(ROW2_APT_W == 376);
+    CHECK(ROW2_AGENTS_W == 2152);
+    CHECK(ROW2_AGENTS_W + ROW2_APT_W == UNIT_W_N(4));
+    CHECK(ROW2_APT_X == COL_X(0) + ROW2_AGENTS_W);
+    CHECK(ROW2_APT_X + ROW2_APT_W == COL_X(4));
+    /* Content inside the cells: the 8 px gap holds on both sides. */
+    CHECK(ROW2_AGENTS_W - 2 * CELL_PAD == 2144);
+    CHECK(ROW2_APT_W - 2 * CELL_PAD == 368);
+}
+
 static void test_constants(void) {
     CHECK(SCR_W == 3840);
     CHECK(SCR_H == 2160);
@@ -85,6 +99,7 @@ int main(void) {
     test_horizontal_sum();
     test_vertical_sum();
     test_content_size();
+    test_row2_split();
 
     printf("test_layout: %d passed, %d failed\n", passed, failed);
     return failed > 0 ? EXIT_FAILURE : EXIT_SUCCESS;

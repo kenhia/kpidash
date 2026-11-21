@@ -333,17 +333,8 @@ typedef struct apttemps_entry {
     int  humidity_pct;
     double last_payload_ts;
     bool valid;
-#ifndef KPIDASH_TEST_STUBS
-    lv_obj_t *container;
-    lv_obj_t *zone_label;
-    lv_obj_t *temp_label;
-    lv_obj_t *humidity_label;
-#else
-    void *container;
-    void *zone_label;
-    void *temp_label;
-    void *humidity_label;
-#endif
+    /* No LVGL handles since sprint 047 (WI #4848): one widget draws every
+     * zone from a snapshot, so an entry owns no card. */
 } apttemps_entry_t;
 
 /* Temperature-band colour; GRAY when stale (>APTTEMPS_FRESH_SECONDS) or invalid. */
@@ -360,7 +351,9 @@ int apttemps_registry_snapshot(apttemps_entry_t *out, int max);
  * (for the caller to destroy on the LVGL thread), or NULL if not found.
  * Returned as void* so registry.h stays LVGL-agnostic under test stubs. */
 void *service_registry_remove(const char *name, const char *host);
-void *apttemps_registry_remove(const char *slug);
+/* WI #374: drop an apt-temps entry by slug. Since sprint 047 there is no card
+ * to hand back: the widget simply stops seeing it. True if it was there. */
+bool apttemps_registry_remove(const char *slug);
 
 /* ============================================================
  * WI #1903: host staleness registry (kdash:stale:<host>:<deployer>)

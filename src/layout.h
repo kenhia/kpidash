@@ -46,6 +46,15 @@
 #define ROW_Y(r) (PAD_TOP + (r)*UNIT_H)
 #define COL_X(c) (PAD_LEFT + (c)*UNIT_W)
 
+/* ---- Row 2's columns 0-3 (sprint 047, WI #4848, #4849): the Agents card,
+ * then the apt-temps widget, one host column wide (the host row's pitch is
+ * 361 + 14 = 375; 376 keeps the widget's content an even 368). Each cell
+ * carries its own CELL_PAD, so the gap either side of the widget is the 8 px
+ * every other pair of cards has. ---- */
+#define ROW2_APT_W 376
+#define ROW2_AGENTS_W (UNIT_W_N(4) - ROW2_APT_W) /* 2152 */
+#define ROW2_APT_X (COL_X(0) + ROW2_AGENTS_W)
+
 /* ---- Compile-time layout validation ---- */
 _Static_assert(PAD_LEFT + COLS * UNIT_W + PAD_RIGHT == SCR_W,
                "Horizontal layout must sum to SCR_W");

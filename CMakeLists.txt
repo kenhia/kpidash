@@ -112,6 +112,7 @@ add_executable(kpidash
     src/widgets/dev_grid.c
     src/widgets/dev_textsize.c
     src/widgets/service_card.c
+    src/atstate.c
     src/widgets/apt_temps_card.c
     src/widgets/net_card.c
     src/netstate.c
