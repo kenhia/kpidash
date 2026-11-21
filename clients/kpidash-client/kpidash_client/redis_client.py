@@ -209,12 +209,20 @@ class RedisClient:
         text: str,
         host: str | None = None,
         icon: int | None = None,
+        title: str | None = None,
+        lines: list[str | dict] | None = None,
+        span: int | None = None,
     ) -> None:
         """Write a kpidash:services:<name>:<host> JSON payload (no TTL).
 
         Sprint 007: the Redis key always includes a host segment. When the
         caller does not supply --host, the sentinel "_" is used; the
         dashboard treats "_" as a no-host marker and hides the host line.
+
+        WI #4847: ``title``, ``lines`` and ``span`` are the optional layout
+        (CLIENT-PROTOCOL §8a, kdashdata CD-32). Each is written only when
+        given, so a call without them writes exactly what it always did.
+        ``text`` stays required: it is what a reader without lines draws.
         """
         host_segment = host if host else "_"
         payload: dict = {"ts": time.time(), "state": state, "text": text}
@@ -222,6 +230,12 @@ class RedisClient:
             payload["host"] = host
         if icon is not None:
             payload["icon"] = icon
+        if title is not None:
+            payload["title"] = title
+        if lines:
+            payload["lines"] = lines
+        if span is not None:
+            payload["span"] = span
         self._cmd("set", f"kpidash:services:{name}:{host_segment}", json.dumps(payload))
 
     # ---- Status / Log path ----

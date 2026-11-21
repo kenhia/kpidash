@@ -36,6 +36,7 @@
 #include "redis.h"
 #include "nasstate.h"
 #include "registry.h"
+#include "svclayout.h"
 #include "widgets/apt_temps_card.h"
 #include "widgets/dev_grid.h"
 #include "widgets/dev_textsize.h"
@@ -195,7 +196,7 @@ void ui_init(void) {
     lv_obj_set_flex_flow(g_service_strip, LV_FLEX_FLOW_ROW);
     lv_obj_set_flex_align(g_service_strip, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER,
                           LV_FLEX_ALIGN_CENTER);
-    lv_obj_set_style_pad_column(g_service_strip, 8, 0);
+    lv_obj_set_style_pad_column(g_service_strip, SVC_STRIP_GAP, 0); /* a span-2 card is 2 units + this */
 
     /* ---- The lamp panel (WI #4777, #4783) in the strip's free width,
      * at the status cards' height and centred on the strip as they are.
@@ -398,14 +399,21 @@ void ui_refresh(void) {
 
     /* ---- WI #4777: the lamp panel takes the strip from the end of the last
      * status card (plus the strip's column gap) to its right edge. Placed
-     * again only when the number of cards changes: the cards are all one
-     * width, so the count is the whole of the geometry, and forcing the
-     * strip's flex layout to read it back costs nothing on the other polls. ---- */
+     * again only when the cards' total width changes, so forcing the strip's
+     * flex layout to read it back costs nothing on the other polls. Until
+     * WI #4847 the cards were all one width and the count was the whole of
+     * the geometry; a span-2 card broke that, so the sum of the widths the
+     * cards were set to (their style, which needs no layout) is the key. ---- */
     {
         static int32_t last_n = -1;
+        static int32_t last_w = -1;
         int32_t n = (int32_t)lv_obj_get_child_count(g_service_strip);
-        if (n != last_n) {
+        int32_t w = 0;
+        for (int32_t i = 0; i < n; i++)
+            w += lv_obj_get_style_width(lv_obj_get_child(g_service_strip, i), 0);
+        if (n != last_n || w != last_w) {
             last_n = n;
+            last_w = w;
             int32_t x0 = lv_obj_get_x(g_service_strip);
             int32_t x1 = x0 + lv_obj_get_width(g_service_strip);
             if (n > 0) {

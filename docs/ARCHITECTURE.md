@@ -238,6 +238,7 @@ kpidash/
 │   ├── calstate.{h,c}          # Time and calendar card: month grid, tags, coming up (pure, 040)
 │   ├── agstate.{h,c}           # Agents card: 3 h detail, name placement, packing, day strip (pure, 041/042)
 │   ├── atstate.{h,c}           # Apt-temps widget: three fixed zones, unknown-sensor flag (pure, 047)
+│   ├── svclayout.{h,c}         # Service card: width per span, line fitting, redraw fingerprint (pure, 048)
 │   ├── altair.{h,c}            # Altair lamp panel: 8080 subset, lamp on-times, layout, palette (pure, 044)
 │   ├── pdp8.{h,c}              # PDP-8/I lamp panel: emulator, lamp sampling, layout, colours (pure, 045)
 │   ├── lampmach.{h,c}          # The lamp panel's machine interface, both adapters, rotation (pure, 045)
@@ -268,7 +269,8 @@ kpidash/
 │   ├── test_layout.c           # Unit system macro arithmetic
 │   ├── test_icon_registry.c    # Nerd-font glyph lookup
 │   ├── test_apttemps_band.c    # Apt-temp band edges via libkdash (sprint 018)
-│   ├── test_service_card.c     # Service state/colour, payload parsing, freshness windows
+│   ├── test_service_card.c     # Service state/colour, payload parsing incl. title/lines/span, freshness windows
+│   ├── test_svclayout.c        # Service card geometry: span widths, line fitting, fingerprint (048)
 │   ├── test_stale_card.c       # Host staleness feed reader (sprint 017)
 │   ├── test_hosthist.c         # History ring: wrap, gaps, eviction (sprint 029)
 │   ├── test_hostcols.c         # Fill-rule table, host order, attention levels
@@ -291,6 +293,7 @@ kpidash/
 │   ├── render_calendar.c       # Offline render of the time and calendar card, 7 states (tool)
 │   ├── render_agents.c         # Offline render of the Agents card, 9 states + live (tool)
 │   ├── render_apt_temps.c      # Offline render of the apt-temps widget, 6 states (tool + fit test)
+│   ├── render_service_card.c   # Offline render of service cards with title/lines/span, 5 states (tool + fit test, 048)
 │   └── render_lamp_panel.c     # Offline render of the lamp panel (either machine) after N status cards (tool + test)
 ├── clients/
 │   └── kpidash-client/         # Python 3.13+ daemon + CLI (psutil, pynvml)
@@ -462,6 +465,21 @@ is registered as LVGL's print callback in `main.c`; `lv_conf.h` therefore has
 - **Service cards** (`src/widgets/service_card.c`): 220×240 px, 6 px coloured
   border, optional icon (lv_font_icons_56), name + status text. Rendered into
   the footer strip; one card per Redis key.
+- **Multi-line cards (sprint 048, WI #4847).** A record may also carry
+  `title`, up to eight `lines` and `span` (kdashdata CD-32; CLIENT-PROTOCOL
+  §8a). `redis_parse_service_payload()` keeps its own acceptance for the
+  original fields and reads the layout through kdashdata's
+  `kdash_parse_service()`, so CD-32's drop-`lines`-whole rule is the shared
+  parser's, not a second copy. The card builds eight hidden line labels up
+  front — a hidden flex child takes no room, which is what keeps a card
+  without the new fields pixel-identical — and redraws its body only when
+  `svc_layout_sig()` changes. A line is one label at a fixed one-line height
+  with `LV_LABEL_LONG_DOT`, so it is cut, never wrapped; lines that do not fit
+  under the header are hidden from the bottom by `svc_lines_fit()`, measured
+  against the header as LVGL laid it out. A card drawing lines closes its row
+  gap to 0. The border stays `service_color()`'s. Since a span-2 card broke
+  "every card is one width", the lamp panel is re-placed when the strip's
+  summed card widths change, not only its card count.
 
 ## Sprint 017 — Host Staleness Cards
 

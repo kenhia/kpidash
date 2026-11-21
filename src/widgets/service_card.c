@@ -1,10 +1,16 @@
 /* service_card.c — Service Status Card widget (T024).
  * Renders one card per registry entry: thick coloured border + optional
- * icon + name + status text. Border colour is driven by service_color(). */
+ * icon + name + status text. Border colour is driven by service_color().
+ *
+ * WI #4847: a publisher may also send a `title` (drawn in place of the name),
+ * up to eight `lines` (drawn in place of `text`, one label each) and a `span`
+ * of two units (kdashdata CD-32). The border stays this side's: state plus
+ * freshness, whatever the record asked for. */
 #include "widgets/service_card.h"
 
 #include "icons.h"
 #include "registry.h"
+#include "svclayout.h"
 #include "widgets/common.h"
 
 #include <stdio.h>
@@ -13,8 +19,9 @@
 #define SC_BORDER_THICK 6
 #define SC_RADIUS 8
 #define SC_PAD 8
-#define SC_WIDTH 220
-#define SC_HEIGHT 240
+#define SC_WIDTH SVC_CARD_W
+#define SC_HEIGHT SVC_CARD_H
+#define SC_LINES_GAP 0 /* row gap on a card drawing `lines` (WI #4847): a font's line height already carries its leading */
 
 static lv_color_t color_for(service_color_t c) {
     switch (c) {
@@ -80,21 +87,123 @@ lv_obj_t *service_card_create(lv_obj_t *parent, struct service_entry *e) {
     lv_obj_set_style_text_align(text, LV_TEXT_ALIGN_CENTER, 0);
     lv_label_set_text(text, e->text[0] ? e->text : "");
 
+    /* WI #4847: one label per publisher line, all built now and hidden until
+     * a record carries `lines`. A hidden flex child takes no room, so a card
+     * without the new fields lays out exactly as it did before them. */
+    for (int i = 0; i < KDASH_SVC_LINES_MAX; i++) {
+        lv_obj_t *ln = lv_label_create(cont);
+        /* One line each, cut with LVGL's "..." at the card's width — never
+         * wrapped, so the publisher's line count is the card's line count. */
+        lv_label_set_long_mode(ln, LV_LABEL_LONG_DOT);
+        lv_obj_set_width(ln, LV_PCT(100));
+        lv_obj_add_flag(ln, LV_OBJ_FLAG_HIDDEN);
+        e->line_labels[i] = ln;
+    }
+
     e->container = cont;
     e->border = cont;
     e->icon_label = icon;
     e->name_label = name;
     e->host_label = host;
     e->text_label = text;
+    e->drawn_sig = 0;
     return cont;
+}
+
+static const lv_font_t *line_font(kdash_line_size_t sz) {
+    switch (sz) {
+        case KDASH_LINE_S: return &lv_font_montserrat_bold_16;
+        case KDASH_LINE_L: return &lv_font_montserrat_bold_24;
+        case KDASH_LINE_M:
+        default:           return &lv_font_montserrat_bold_20;
+    }
+}
+
+static lv_text_align_t line_align(kdash_line_align_t a) {
+    switch (a) {
+        case KDASH_ALIGN_L: return LV_TEXT_ALIGN_LEFT;
+        case KDASH_ALIGN_R: return LV_TEXT_ALIGN_RIGHT;
+        case KDASH_ALIGN_C:
+        default:            return LV_TEXT_ALIGN_CENTER;
+    }
+}
+
+/* Draw the body — width, title, and `lines` or `text` — from the entry. Runs
+ * only when svc_layout_sig() says something it draws from has changed. */
+static void draw_body(struct service_entry *e) {
+    lv_obj_t *cont = e->container;
+    lv_obj_set_width(cont, svc_card_width(e->span));
+
+    const char *title = e->title[0] ? e->title : (e->name[0] ? e->name : "(service)");
+    if (e->name_label) {
+        /* A publisher's title is held to one line and cut, as its lines are:
+         * a wrapped title would take the room the lines are fitted into. A
+         * name keeps the height it always had. */
+        lv_obj_set_height(e->name_label,
+                          e->title[0] ? lv_font_get_line_height(&lv_font_montserrat_bold_24)
+                                      : LV_SIZE_CONTENT);
+        lv_label_set_text(e->name_label, title);
+    }
+
+    int n = e->n_lines < KDASH_SVC_LINES_MAX ? e->n_lines : KDASH_SVC_LINES_MAX;
+    if (n <= 0) {
+        /* The theme's row gap, exactly as before the layout fields existed. */
+        lv_obj_remove_local_style_prop(cont, LV_STYLE_PAD_ROW, LV_PART_MAIN);
+        if (e->text_label) {
+            lv_label_set_text(e->text_label, e->text);
+            lv_obj_clear_flag(e->text_label, LV_OBJ_FLAG_HIDDEN);
+        }
+        for (int i = 0; i < KDASH_SVC_LINES_MAX; i++)
+            if (e->line_labels[i]) lv_obj_add_flag(e->line_labels[i], LV_OBJ_FLAG_HIDDEN);
+        return;
+    }
+
+    /* Lines are set as a block of text, not spaced as separate items. Under
+     * the full header (icon 59 + name 31 + host 21 px) the theme's 14 px row
+     * gap leaves room for one line of the argus card's four; closed up, the
+     * header and all four (S + 3 M = 96 px) fit in the 212 px with 5 to spare. */
+    lv_obj_set_style_pad_row(cont, SC_LINES_GAP, 0);
+    if (e->text_label) lv_obj_add_flag(e->text_label, LV_OBJ_FLAG_HIDDEN);
+    int32_t h[KDASH_SVC_LINES_MAX];
+    for (int i = 0; i < KDASH_SVC_LINES_MAX; i++) {
+        lv_obj_t *ln = e->line_labels[i];
+        if (!ln) continue;
+        lv_obj_add_flag(ln, LV_OBJ_FLAG_HIDDEN);
+        if (i >= n) continue;
+        const kdash_service_line_t *l = &e->lines[i];
+        const lv_font_t *f = line_font(l->size);
+        h[i] = lv_font_get_line_height(f);
+        lv_obj_set_style_text_font(ln, f, 0);
+        lv_obj_set_style_text_align(ln, line_align(l->align), 0);
+        lv_obj_set_style_text_color(ln, l->has_color ? lv_color_hex(l->color) : WS_COLOR_FG, 0);
+        /* A fixed one-line height is what makes LONG_DOT cut rather than
+         * wrap; "" still holds its line, as the blank spacer it is. */
+        lv_obj_set_height(ln, h[i]);
+        lv_label_set_text(ln, l->t);
+    }
+
+    /* Lines that do not fit under the header are dropped from the bottom,
+     * whole: the panel has no input to scroll with, and a half-drawn line
+     * reads as a different line. Measure the header as laid out. */
+    lv_obj_update_layout(cont);
+    int32_t gap = lv_obj_get_style_pad_row(cont, 0);
+    int32_t top = 0;
+    lv_obj_t *hdr[] = {e->icon_label, e->name_label, e->host_label};
+    for (size_t i = 0; i < sizeof(hdr) / sizeof(hdr[0]); i++) {
+        if (!hdr[i] || lv_obj_has_flag(hdr[i], LV_OBJ_FLAG_HIDDEN)) continue;
+        int32_t bottom = lv_obj_get_y(hdr[i]) + lv_obj_get_height(hdr[i]);
+        if (bottom > top) top = bottom;
+    }
+    int32_t avail = lv_obj_get_content_height(cont) - top - (top > 0 ? gap : 0);
+    int fit = svc_lines_fit(h, n, avail, gap);
+    for (int i = 0; i < fit; i++)
+        if (e->line_labels[i]) lv_obj_clear_flag(e->line_labels[i], LV_OBJ_FLAG_HIDDEN);
 }
 
 void service_card_update(struct service_entry *e, double now) {
     if (!e || !e->container) return;
     service_color_t c = service_color(e, now);
     lv_obj_set_style_border_color(e->container, color_for(c), 0);
-    if (e->text_label) lv_label_set_text(e->text_label, e->text);
-    if (e->name_label) lv_label_set_text(e->name_label, e->name[0] ? e->name : "(service)");
     if (e->host_label) {
         if (e->host[0] && strcmp(e->host, "_") != 0) {
             lv_label_set_text(e->host_label, e->host);
@@ -111,6 +220,13 @@ void service_card_update(struct service_entry *e, double now) {
         } else {
             lv_obj_add_flag(e->icon_label, LV_OBJ_FLAG_HIDDEN);
         }
+    }
+    /* After the header, which the body is measured against. */
+    uint32_t sig = svc_layout_sig(e->title, e->span, e->text, e->host, e->icon_index,
+                                  e->lines, e->n_lines);
+    if (sig != e->drawn_sig) {
+        e->drawn_sig = sig;
+        draw_body(e);
     }
 }
 

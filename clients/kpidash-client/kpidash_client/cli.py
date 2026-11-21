@@ -11,6 +11,7 @@ from __future__ import annotations
 import json
 import os
 import platform
+import re
 import signal
 import sys
 from pathlib import Path
@@ -262,6 +263,46 @@ def daemon_stop() -> None:
 # ---------------------------------------------------------------------------
 
 
+# WI #4847: a --line is its text, optionally led by a bracketed style group:
+#   --line "[size=S color=#1e66f5] blip 12m ago"   --line ""   --line "[align=L] OK backups"
+_LINE_STYLE = re.compile(r"^\[([^\]]*)\]\s?(.*)$", re.DOTALL)
+_LINE_KEYS = {"size": ("S", "M", "L"), "align": ("L", "C", "R")}
+_HEX_COLOR = re.compile(r"^#[0-9a-fA-F]{6}$")
+_LINES_MAX = 8  # the schema's maxItems
+
+
+def _parse_line(raw: str) -> str | dict:
+    """One --line value as a contract line: a bare string, or {t, size, align, color}."""
+    m = _LINE_STYLE.match(raw)
+    text = m.group(2) if m else raw
+    if "\n" in text or "\r" in text:
+        raise click.BadParameter(f"a line is one line: {raw!r}", param_hint="--line")
+    if not m:
+        return text
+    line: dict = {"t": text}
+    for tok in m.group(1).split():
+        key, sep, val = tok.partition("=")
+        if not sep:
+            raise click.BadParameter(f"style {tok!r} is not key=value", param_hint="--line")
+        if key in _LINE_KEYS:
+            val = val.upper()
+            if val not in _LINE_KEYS[key]:
+                allowed = "/".join(_LINE_KEYS[key])
+                raise click.BadParameter(
+                    f"{key} must be {allowed}, not {val!r}", param_hint="--line"
+                )
+            line[key] = val
+        elif key == "color":
+            if not _HEX_COLOR.match(val):
+                raise click.BadParameter(f"color must be #rrggbb, not {val!r}", param_hint="--line")
+            line[key] = val.lower()
+        else:
+            raise click.BadParameter(
+                f"unknown style {key!r} (size, align, color)", param_hint="--line"
+            )
+    return line
+
+
 @main.command("service-status")
 @click.option("--name", required=True, help="Service name (key suffix).")
 @click.option(
@@ -277,6 +318,19 @@ def daemon_stop() -> None:
     help="Host the service runs on. Use the default '_' for non-host-scoped services.",
 )
 @click.option("--icon", type=int, default=None, help="Icon index 0..15 (optional).")
+@click.option("--title", default=None, help="Drawn in place of the name (optional).")
+@click.option(
+    "--line",
+    "lines",
+    multiple=True,
+    help=(
+        "A card line, drawn instead of --text; repeat for up to 8. Optional style "
+        'prefix: "[size=S|M|L align=L|C|R color=#rrggbb] text". "" is a blank line.'
+    ),
+)
+@click.option(
+    "--span", type=click.IntRange(1, 2), default=None, help="Card width in units, 1 or 2."
+)
 @click.pass_context
 def service_status(
     ctx: click.Context,
@@ -285,13 +339,30 @@ def service_status(
     text: str,
     host: str,
     icon: int | None,
+    title: str | None,
+    lines: tuple[str, ...],
+    span: int | None,
 ) -> None:
     """Publish a service status payload to kpidash:services:<name>:<host>."""
+    if len(lines) > _LINES_MAX:
+        raise click.BadParameter(
+            f"at most {_LINES_MAX} lines, got {len(lines)}", param_hint="--line"
+        )
+    if title is not None and ("\n" in title or "\r" in title):
+        raise click.BadParameter("a title is one line", param_hint="--title")
+    parsed = [_parse_line(raw) for raw in lines]
     cfg = _load_config(ctx.obj.get("config_path"))
     client = _make_client(cfg)
     try:
         client.set_service_status(
-            name=name, state=state.lower(), text=text, host=host, icon=icon
+            name=name,
+            state=state.lower(),
+            text=text,
+            host=host,
+            icon=icon,
+            title=title,
+            lines=parsed or None,
+            span=span,
         )
     except RedisClientError as e:
         click.echo(f"ERROR: {e}", err=True)

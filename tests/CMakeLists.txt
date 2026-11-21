@@ -84,6 +84,12 @@ add_kpidash_test(test_service_card
 )
 target_compile_definitions(test_service_card PRIVATE KPIDASH_TEST_STUBS=1)
 
+# WI #4847: the service card's width per span and its line fitting. Pure.
+add_kpidash_test(test_svclayout
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_svclayout.c
+    ${CMAKE_SOURCE_DIR}/src/svclayout.c
+)
+
 # WI #1903: host staleness feed reader (kdash:stale:<host>:<deployer>).
 add_kpidash_test(test_stale_card
     ${CMAKE_CURRENT_SOURCE_DIR}/test_stale_card.c
@@ -361,6 +367,33 @@ if(TARGET lvgl)
     foreach(st normal bands stale missing unknown extremes)
         add_test(NAME render_apt_temps_${st}
             COMMAND render_apt_temps ${CMAKE_CURRENT_BINARY_DIR}/render_apt_temps_${st}.bmp ${st})
+    endforeach()
+
+    # Sprint 048 (WI #4847): offline render of the footer strip's service
+    # cards with the contract's title, lines and span, for review. Also a
+    # test: every drawn line sits wholly inside its card and is one line high.
+    add_executable(render_service_card
+        ${CMAKE_CURRENT_SOURCE_DIR}/render_service_card.c
+        ${CMAKE_SOURCE_DIR}/src/widgets/service_card.c
+        ${CMAKE_SOURCE_DIR}/src/svclayout.c
+        ${CMAKE_SOURCE_DIR}/src/registry.c
+        ${CMAKE_SOURCE_DIR}/src/icons.c
+        ${CMAKE_SOURCE_DIR}/src/bmp_write.c
+        ${CMAKE_SOURCE_DIR}/fonts/lv_font_montserrat_bold_16.c
+        ${CMAKE_SOURCE_DIR}/fonts/lv_font_montserrat_bold_20.c
+        ${CMAKE_SOURCE_DIR}/fonts/lv_font_montserrat_bold_24.c
+        ${CMAKE_SOURCE_DIR}/fonts/lv_font_icons_56.c
+    )
+    target_include_directories(render_service_card PRIVATE
+        ${CMAKE_SOURCE_DIR}
+        ${CMAKE_SOURCE_DIR}/src
+        ${CMAKE_SOURCE_DIR}/fonts
+    )
+    target_link_libraries(render_service_card lvgl kdash_core ${PNG_TEST_LIBRARIES} pthread m)
+    target_compile_options(render_service_card PRIVATE -Wall -Wextra -Wno-unused-parameter)
+    foreach(st argus fail plain long full)
+        add_test(NAME render_service_card_${st}
+            COMMAND render_service_card ${CMAKE_CURRENT_BINARY_DIR}/render_service_card_${st}.bmp ${st})
     endforeach()
 
     # Sprint 044: offline render of the lamp panel after N status cards, for

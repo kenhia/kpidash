@@ -4,6 +4,8 @@
  *  - service_parse_state for each enum + NULL/empty/bogus
  *  - service_color truth table per data-model.md §2
  *  - redis_parse_service_payload for valid + 4 malformed cases (FR-022a)
+ *  - WI #4847: the optional layout — title, lines, span — read through
+ *    kdashdata's parser, and carried through apply_payload
  */
 #define KPIDASH_TEST_STUBS 1
 #include "registry.h"
@@ -137,6 +139,108 @@ static void test_parse_payload_optional_fields_absent(void) {
     CHECK(out.icon_index == -1);
 }
 
+/* ---- WI #4847: the optional layout (kdashdata CD-32) ------------------- */
+
+/* A record with none of the new fields: no title, no lines, span 1 — the
+ * card it draws is the card it drew before. */
+static void test_layout_absent_is_plain(void) {
+    service_entry_t out;
+    const char *json = "{\"ts\":1700000000,\"state\":\"ok\",\"text\":\"fine\"}";
+    CHECK(redis_parse_service_payload(json, &out) == 0);
+    CHECK(out.title[0] == '\0');
+    CHECK(out.span == 1);
+    CHECK(out.n_lines == 0);
+    CHECK(strcmp(out.text, "fine") == 0);
+}
+
+/* The argus card the proposal describes: a small blue notice, a blank, two
+ * left-aligned checks; wide. */
+static void test_layout_argus(void) {
+    service_entry_t out;
+    const char *json =
+        "{\"ts\":1700000000,\"state\":\"ok\",\"text\":\"2 checks ok\","
+        "\"title\":\"argus\",\"span\":2,\"lines\":["
+        "{\"t\":\"blip 12m ago\",\"size\":\"S\",\"color\":\"#1e66f5\"},"
+        "\"\","
+        "{\"t\":\"OK  backups\",\"align\":\"L\"},"
+        "{\"t\":\"OK  certs\",\"align\":\"L\",\"size\":\"L\"}]}";
+    CHECK(redis_parse_service_payload(json, &out) == 0);
+    CHECK(strcmp(out.title, "argus") == 0);
+    CHECK(out.span == 2);
+    CHECK(out.n_lines == 4);
+    CHECK(strcmp(out.lines[0].t, "blip 12m ago") == 0);
+    CHECK(out.lines[0].size == KDASH_LINE_S);
+    CHECK(out.lines[0].align == KDASH_ALIGN_C);
+    CHECK(out.lines[0].has_color && out.lines[0].color == 0x1E66F5);
+    CHECK(out.lines[1].t[0] == '\0');          /* the blank spacer */
+    CHECK(!out.lines[1].has_color);
+    CHECK(out.lines[2].align == KDASH_ALIGN_L);
+    CHECK(out.lines[2].size == KDASH_LINE_M);
+    CHECK(out.lines[3].size == KDASH_LINE_L);
+    /* `text` still arrives: it is what a reader without lines draws. */
+    CHECK(strcmp(out.text, "2 checks ok") == 0);
+}
+
+/* CD-32: one bad element voids every line, and the record survives on
+ * `text`. A bad span reads as 1; a title with a newline is absent. */
+static void test_layout_malformed_falls_back(void) {
+    service_entry_t out;
+    const char *bad_line =
+        "{\"ts\":1700000000,\"state\":\"ok\",\"text\":\"fallback\","
+        "\"lines\":[\"good\",{\"t\":\"bad\",\"size\":\"XL\"}]}";
+    CHECK(redis_parse_service_payload(bad_line, &out) == 0);
+    CHECK(out.n_lines == 0);
+    CHECK(strcmp(out.text, "fallback") == 0);
+
+    const char *nine =
+        "{\"ts\":1700000000,\"state\":\"ok\",\"text\":\"t\","
+        "\"lines\":[\"1\",\"2\",\"3\",\"4\",\"5\",\"6\",\"7\",\"8\",\"9\"]}";
+    CHECK(redis_parse_service_payload(nine, &out) == 0);
+    CHECK(out.n_lines == 0);
+
+    const char *odd =
+        "{\"ts\":1700000000,\"state\":\"ok\",\"text\":\"t\","
+        "\"span\":3,\"title\":\"two\\nlines\"}";
+    CHECK(redis_parse_service_payload(odd, &out) == 0);
+    CHECK(out.span == 1);
+    CHECK(out.title[0] == '\0');
+}
+
+/* A record this reader accepted before the layout existed is still accepted,
+ * even where the shared parser would refuse it: acceptance is unchanged, the
+ * layout is simply absent. (kpidash reads `state` case-insensitively.) */
+static void test_layout_acceptance_unchanged(void) {
+    service_entry_t out;
+    const char *json =
+        "{\"ts\":1700000000,\"state\":\"OK\",\"text\":\"t\",\"lines\":[\"x\"]}";
+    CHECK(redis_parse_service_payload(json, &out) == 0);
+    CHECK(out.last_valid_state == SERVICE_STATE_OK);
+    CHECK(out.span == 1);
+}
+
+static void test_layout_applied_to_registry(void) {
+    service_entry_t *e = service_registry_find_or_create("layout", "h1");
+    CHECK(e != NULL);
+    service_entry_t parsed;
+    const char *json =
+        "{\"ts\":1700000000,\"state\":\"ok\",\"text\":\"t\",\"title\":\"T\","
+        "\"span\":2,\"lines\":[\"a\",\"b\"]}";
+    CHECK(redis_parse_service_payload(json, &parsed) == 0);
+    service_registry_apply_payload(e, &parsed);
+    CHECK(strcmp(e->title, "T") == 0);
+    CHECK(e->span == 2);
+    CHECK(e->n_lines == 2);
+    CHECK(strcmp(e->lines[1].t, "b") == 0);
+
+    /* The publisher drops the new fields: the card goes back to plain. */
+    const char *plain = "{\"ts\":1700000001,\"state\":\"ok\",\"text\":\"t\"}";
+    CHECK(redis_parse_service_payload(plain, &parsed) == 0);
+    service_registry_apply_payload(e, &parsed);
+    CHECK(e->title[0] == '\0');
+    CHECK(e->span == 1);
+    CHECK(e->n_lines == 0);
+}
+
 /* Sprint 007 / T003: composite (name, host) registry identity. */
 static void test_registry_composite_key(void) {
     service_entry_t *a = service_registry_find_or_create("svc", "alpha");
@@ -263,6 +367,11 @@ int main(void) {
     test_parse_payload_missing_ts();
     test_parse_payload_missing_text();
     test_parse_payload_optional_fields_absent();
+    test_layout_absent_is_plain();
+    test_layout_argus();
+    test_layout_malformed_falls_back();
+    test_layout_acceptance_unchanged();
+    test_layout_applied_to_registry();
     test_registry_composite_key();
     test_registry_apply_preserves_identity();
     test_fresh_window_lookup();

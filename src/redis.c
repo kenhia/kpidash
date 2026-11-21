@@ -602,8 +602,23 @@ int redis_parse_service_payload(const char *json, service_entry_t *out) {
         strncpy(out->host, host->valuestring, sizeof(out->host) - 1);
     }
     out->icon_index = cJSON_IsNumber(icon) ? (int)icon->valuedouble : -1;
-
     cJSON_Delete(root);
+
+    /* WI #4847: the optional layout (kdashdata CD-32) is read by the shared
+     * parser, so its rules — a malformed `lines` dropped whole, a bad `span`
+     * read as 1 — are kdashdata's by construction rather than a second copy
+     * here. Acceptance stays this function's own, above: a record this reader
+     * took before still draws, and one the shared parser refuses simply has no
+     * layout. Twelve-odd cards a second; the second parse costs nothing. */
+    out->span = 1;
+    kdash_service_t k;
+    if (kdash_parse_service(json, strlen(json), &k)) {
+        if (k.has_title)
+            memcpy(out->title, k.title, sizeof(out->title));
+        out->span = k.span;
+        out->n_lines = k.n_lines;
+        memcpy(out->lines, k.lines, sizeof(out->lines));
+    }
     return 0;
 }
 
