@@ -127,3 +127,14 @@ bottom, with a green border when an unknown sensor is publishing.
 - `just check-warnings-full`: green. The whole tree builds at
   `-O3 -Werror`, and its ctest passes 47/47, including the six
   `render_apt_temps_*` and four `render_agents_*` renders.
+
+## Deployed
+
+- **2026-11-20 18:08 PST:** deployed with `scripts/deploy.sh` from merged `main` (`b762ef2`, PR #51) to rpi53.
+  - The service is active with NRestarts=0.
+  - The running binary reports `b762ef2 (2026-11-21)`.
+  - The cross-build printed no compiler or linker warnings.
+- **Live checks:** all three were `krpidss` captures from kai. The crops are in `/scratch/kpidash-row2-047/live/`.
+  - **Row 2 and the footer:** the Agents card is narrower and anchored at column 0. Living 68.4° / 37 %, Kitchen 67.9° / 38 % and Bedroom 66.6° / 42 % were live, all green. The footer has no apt-temps cards, and the Altair panel takes the width. The crop is attached to WI 4848 (`img-12ff`) and WI 4849 (`img-1300`).
+  - **Unknown sensor:** a hand-published `kpidash:apttemps:test047` with a fresh `ts` turned the border green and was not drawn. `kpidash-cards prune --zone test047` turned it off again. The on/off pair is attached to WI 4848 (`img-1301`), and the key is gone from Redis.
+- No Redis keys were written except `test047` (now deleted), the evict command `kpidash-cards` sends, and the `kpidash:screenshot` command `krpidss` issues.
