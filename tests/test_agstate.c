@@ -255,9 +255,11 @@ static void test_target(void) {
     CHECK(kl->label[0] == '\0' && !kl->label_out);
     CHECK(kl->host == AG_HOST_OTHER && kl->row == 0);
 
-    /* The redesign: 3 h over 2456 px, started 19 minutes in (259.2 px). */
+    /* The redesign: 3 h over 2080 px (sprint 047; 2456 before), started 19
+     * minutes in (219.6 px). */
+    CHECK(AG_PLOT_X1 - AG_PLOT_X0 == 2080);
     const ag_bar_t *o2 = find(&g_v, "KPIDash dashboard redesign", 0);
-    CHECK(o2 && o2->x0 == 36 + 259 && o2->x1 == AG_PLOT_X1);
+    CHECK(o2 && o2->x0 == 36 + 220 && o2->x1 == AG_PLOT_X1);
     CHECK(o2->row == 0 && o2->y == AG_ROW_TOP && o2->running && o2->overseer);
     CHECK(STREQ(o2->label, "KPIDash dashboard redesign") && !o2->label_out);
     const ag_bar_t *kh = find(&g_v, "khow", 0);
@@ -283,15 +285,15 @@ static void test_target(void) {
     /* The detail grid: every half hour from 10:30 to 13:00, hours heavier. */
     CHECK(g_v.nticks == 6);
     CHECK(g_v.ticks[0].hour == 10 && g_v.ticks[0].min == 30 && !g_v.ticks[0].on_hour);
-    CHECK(g_v.ticks[0].x == 36 + 341); /* 25 min in: 341.1 px */
+    CHECK(g_v.ticks[0].x == 36 + 289); /* 25 min in: 288.9 px */
     CHECK(g_v.ticks[1].hour == 11 && g_v.ticks[1].on_hour);
-    CHECK(g_v.ticks[5].hour == 13 && g_v.ticks[5].min == 0 && g_v.ticks[5].x == 36 + 2388);
+    CHECK(g_v.ticks[5].hour == 13 && g_v.ticks[5].min == 0 && g_v.ticks[5].x == 36 + 2022);
 
-    /* The strip: the lighter band opens 21 h into the day (2149 px); the
+    /* The strip: the lighter band opens 21 h into the day (1820 px); the
      * grid every 2 hours from 14:00, midnight heavier. */
-    CHECK(g_v.band_x0 == 36 + 2149);
+    CHECK(g_v.band_x0 == 36 + 1820);
     CHECK(g_v.nhours == 12);
-    CHECK(g_v.hours[0].hour == 14 && g_v.hours[0].x == 36 + 94);
+    CHECK(g_v.hours[0].hour == 14 && g_v.hours[0].x == 36 + 79);
     CHECK(g_v.hours[5].hour == 0 && g_v.hours[5].midnight);
     /* In record order, each in its host's lane; khow is yellow to now. */
     CHECK(g_v.strip[0].lane == AG_HOST_CLEO && !g_v.strip[0].waiting);
@@ -300,7 +302,7 @@ static void test_target(void) {
     CHECK(g_v.strip[13].lane == AG_HOST_CLEO && g_v.strip[13].waiting);
     CHECK(g_v.strip[13].x1 == AG_PLOT_X1);
     /* rpi53-case, 06:18 to 06:33: 17h13m and 17h28m into the day. */
-    CHECK(g_v.strip[5].x0 == 36 + 1762 && g_v.strip[5].x1 == 36 + 1787);
+    CHECK(g_v.strip[5].x0 == 36 + 1492 && g_v.strip[5].x1 == 36 + 1514);
     g_midnight = local(2026, 11, 13, 0, 0, 0);
 }
 
@@ -313,22 +315,23 @@ static void test_target(void) {
 static void test_outside_name(void) {
     g_midnight = local(2026, 11, 13, 0, 0, 0);
     const time_t now = local(2026, 11, 13, 13, 0, 0); /* detail from 10:00 */
-    /* 818.67 px an hour. "long" holds row 0 from 10:30 to 11:30 (x 445 to
-     * 1264, free again from 1280). "k-homelab" is 5 minutes from 11:33
-     * (x 1305): too narrow inside even for "k-ho…", and its whole name
-     * (108 px, from x 1189) would cross into "long"'s room. A name never
+    /* 693.33 px an hour (818.67 before sprint 047). "long" holds row 0 from
+     * 10:30 to 11:30 (x 383 to 1076, free again from 1092). "k-homelab" is 5
+     * minutes from 11:33 (x 1111): too narrow inside even for "k-ho…", and
+     * its whole name (108 px, from x 995) would cross into "long"'s room. A name never
      * pushes its bar down a row, so it stays in row 0, unnamed. */
     const spec_t S[] = {
         /* Starts 3 minutes in: its name would cross the plot's left edge. */
         {"c", "kai", "k-homelab", 10.05, 10.10, "done", 0, 0, NULL},
         {"a", "kai", "long", 10.5, 11.5, "done", 0, 0, NULL},
         {"b", "kubs0", "k-homelab", 11.55, 11.55 + 5.0 / 60, "done", 1, 0, NULL},
-        /* 8 minutes (109 px): "kdashdata" would be "kdashd…" inside, but
+        /* 8 minutes (92 px): "kdashdata" would be "kdas…" inside, but
          * there is room on its left, so it is written there whole. */
         {"d", "cleo", "kdashdata", 12.0, 12.0 + 8.0 / 60, "done", 0, 0, NULL},
         /* Narrow, an overseer with a 24-character name: whole it would run
-         * into "kdashdata"'s room, cut to 20 it fits. */
-        {"o", "cleo", "Stale apt-temps on rpi53", 12.5, 12.55, "done", 0, 1, NULL},
+         * into "kdashdata"'s room, cut to 20 it fits. (12:33, where it was
+         * 12:30: at 12:30 the narrower scale leaves no room for the cut.) */
+        {"o", "cleo", "Stale apt-temps on rpi53", 12.55, 12.6, "done", 0, 1, NULL},
     };
     ag_reset();
     char *s = build((double)now, S, 5);
@@ -338,8 +341,8 @@ static void test_outside_name(void) {
     const ag_bar_t *a = find(&g_v, "long", 0), *b = find(&g_v, "k-homelab", 1),
                    *c = find(&g_v, "k-homelab", 0), *d = find(&g_v, "kdashdata", 0),
                    *o = find(&g_v, "Stale apt-temps on rpi53", 0);
-    CHECK(a && a->row == 0 && a->x1 == 36 + 1228);
-    CHECK(b && b->x0 == 36 + 1269);
+    CHECK(a && a->row == 0 && a->x1 == 36 + 1040);
+    CHECK(b && b->x0 == 36 + 1075);
     CHECK(b->row == 0 && b->label[0] == '\0' && !b->label_out);
     CHECK(c && c->label[0] == '\0' && !c->label_out && c->row == 0);
     CHECK(d && d->row == 0 && d->label_out && STREQ(d->label, "kdashdata"));
@@ -356,11 +359,11 @@ static void test_outside_name(void) {
     CHECK(find(&g_v, "k-homelab", 0)->row == 0 && find(&g_v, "k-homelab", 0)->label_out);
     CHECK(STREQ(find(&g_v, "k-homelab", 0)->label, "k-homelab"));
 
-    /* No room on the left, but room inside for a cut: "k-homelab" over 8
+    /* No room on the left, but room inside for a cut: "k-homelab" over 9.5
      * minutes right after "long" (87 px inside) is "k-home…", not unnamed. */
     const spec_t T[] = {
         {"a", "kai", "long", 10.5, 11.5, "done", 0, 0, NULL},
-        {"e", "kai", "k-homelab", 11.55, 11.55 + 8.0 / 60, "done", 0, 0, NULL},
+        {"e", "kai", "k-homelab", 11.55, 11.55 + 9.5 / 60, "done", 0, 0, NULL},
     };
     ag_reset();
     s = build((double)now, T, 2);
@@ -370,14 +373,14 @@ static void test_outside_name(void) {
     const ag_bar_t *e = find(&g_v, "k-homelab", 0);
     CHECK(e && e->row == 0 && !e->label_out && STREQ(e->label, "k-home\xE2\x80\xA6"));
 
-    /* A 31-character name, after a blocker ending at x 461: whole (372 px)
-     * it would run into the blocker; cut to 20 (240 px) it fits. On a narrow
-     * bar the inside cut keeps 5 characters, so the outside cut wins; on a
-     * wide one the inside cut keeps 24, so it stays inside. */
+    /* A 31-character name, after a blocker whose room ends at x 399: whole
+     * (372 px) it would run into the blocker; cut to 20 (240 px) it fits. On
+     * a narrow bar the inside cut keeps 4 characters, so the outside cut
+     * wins; on a wide one the inside cut keeps 24, so it stays inside. */
     const char *w31 = "abcdefghijklmnopqrstuvwxyzABCDE";
     const spec_t U[] = {
         {"k", "kai", "blk", 10.0, 10.5, "done", 0, 0, NULL},
-        {"n", "kai", "abcdefghijklmnopqrstuvwxyzABCDE", 10.875, 10.875 + 0.125, "done", 0, 0, NULL},
+        {"n", "kai", "abcdefghijklmnopqrstuvwxyzABCDE", 10.95, 10.95 + 0.125, "done", 0, 0, NULL},
     };
     ag_reset();
     s = build((double)now, U, 2);
@@ -390,7 +393,7 @@ static void test_outside_name(void) {
     CHECK(!overlaps(&g_v));
     spec_t V[2];
     memcpy(V, U, sizeof(V));
-    V[1].b = 10.875 + 0.4;
+    V[1].b = 10.95 + 0.47;
     ag_reset();
     s = build((double)now, V, 2);
     CHECK(ag_observe(s) == 1);
@@ -402,7 +405,7 @@ static void test_outside_name(void) {
 
     /* At the left edge nothing goes outside: the 31-character name is cut
      * inside, as 041 did. */
-    const spec_t W[] = {{"n", "kai", "abcdefghijklmnopqrstuvwxyzABCDE", 9.0, 10.2, "done", 0, 0, NULL}};
+    const spec_t W[] = {{"n", "kai", "abcdefghijklmnopqrstuvwxyzABCDE", 9.0, 10.235, "done", 0, 0, NULL}};
     ag_reset();
     s = build((double)now, W, 1);
     ag_observe(s);
@@ -447,10 +450,10 @@ static void test_strip(void) {
     CHECK(g_v.strip[1].lane == AG_HOST_KUBS0);
     CHECK(g_v.strip[2].lane == AG_HOST_OTHER);
     CHECK(g_v.strip[3].lane == AG_HOST_CLEO);
-    /* 10:00-11:00 is 15h18m into the day: 1 h is 102.3 px. */
-    CHECK(g_v.strip[1].x0 == 36 + 1566 && g_v.strip[1].x1 == 36 + 1668);
+    /* 10:00-11:00 is 15h18m into the day: 1 h is 86.7 px. */
+    CHECK(g_v.strip[1].x0 == 36 + 1326 && g_v.strip[1].x1 == 36 + 1413);
     /* The band starts 3 h before now. */
-    CHECK(g_v.band_x0 == 36 + 2149);
+    CHECK(g_v.band_x0 == 36 + 1820);
 
     /* A sliver at the now edge keeps inside the plot. */
     const spec_t T[] = {{"e", "kai", "fresh", 18.7 - 0.5 / 60, 18.7, "waiting", 0, 0, NULL}};
@@ -510,11 +513,11 @@ static void test_clipping(void) {
     const ag_bar_t *a = find(&g_v, "long-runner", 0), *c = find(&g_v, "straddle", 0);
     CHECK(a->x0 == AG_PLOT_X0 && a->x1 == AG_PLOT_X1);
     CHECK(c->x0 == AG_PLOT_X0);
-    CHECK(c->x1 == AG_PLOT_X0 + 819); /* 1 h of 3 = 818.7 px */
+    CHECK(c->x1 == AG_PLOT_X0 + 693); /* 1 h of 3 = 693.3 px */
     CHECK(c->row == 1);               /* the long runner holds row 0 */
     CHECK(g_v.strip[0].x0 == AG_PLOT_X0 && g_v.strip[0].x1 == AG_PLOT_X1);
-    CHECK(g_v.strip[1].x0 == AG_PLOT_X0 && g_v.strip[1].x1 == AG_PLOT_X0 + 102);
-    CHECK(g_v.strip[2].x0 == AG_PLOT_X0 + 2047 && g_v.strip[2].x1 == AG_PLOT_X0 + 2251);
+    CHECK(g_v.strip[1].x0 == AG_PLOT_X0 && g_v.strip[1].x1 == AG_PLOT_X0 + 87);
+    CHECK(g_v.strip[2].x0 == AG_PLOT_X0 + 1733 && g_v.strip[2].x1 == AG_PLOT_X0 + 1907);
 
     /* Two hours later "early" has left the strip, and the long runner is
      * now 2 h past its last publish: stale, so it stops at its own end, an
@@ -526,7 +529,7 @@ static void test_clipping(void) {
     CHECK(STREQ(g_v.hint, "as of 2h"));
     a = find(&g_v, "long-runner", 0);
     CHECK(!a->running);
-    CHECK(a->x1 == AG_PLOT_X0 + 819);
+    CHECK(a->x1 == AG_PLOT_X0 + 693);
 
     /* A sliver of a bar is still wide enough for its border; one at the now
      * line keeps inside the plot. */
@@ -752,10 +755,10 @@ static void test_dst(void) {
     CHECK(g_v.nhours == 11);
     for (int i = 1; i < g_v.nhours; i++)
         CHECK(g_v.hours[i].x > g_v.hours[i - 1].x);
-    /* Midnight is followed by 02:00 three real hours later. */
+    /* Midnight is followed by 02:00 three real hours later (260 px). */
     for (int i = 0; i + 1 < g_v.nhours; i++)
         if (g_v.hours[i].midnight)
-            CHECK(g_v.hours[i + 1].hour == 2 && g_v.hours[i + 1].x - g_v.hours[i].x > 300);
+            CHECK(g_v.hours[i + 1].hour == 2 && g_v.hours[i + 1].x - g_v.hours[i].x > 250);
 }
 
 int main(void) {

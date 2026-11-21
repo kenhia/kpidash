@@ -5,8 +5,10 @@
  * agents_card.h — the Agents card (WI #4695, sprint 041; v2 WI #4733,
  * sprint 042).
  *
- * Row 3, columns 0-3 (ROW_Y(2), COL_X(0) in code): a 4×1 left of the
- * calendar. Since sprint 042 it is view B of
+ * Row 3, columns 0-3 (ROW_Y(2), COL_X(0) in code), left of the
+ * calendar; since sprint 047 (WI #4849) one host column narrower than the
+ * 4×1 it was, with the apt-temps widget in the column it gave up. Since
+ * sprint 042 it is view B of
  * sprints/planning/agents-mockups-v2.html at 3 hours (`focus(3)`), as Ken
  * ruled on 2026-11-14 ("B, last 3 hours"). The detail area holds the last 3
  * hours of agent sessions as bars bordered in their host's colour, packed
@@ -21,9 +23,10 @@
 
 #include <time.h>
 
+#include "layout.h"
 #include "lvgl.h"
 
-#define AG_CARD_W 2520 /* 4 * UNIT_W - 2 * CELL_PAD */
+#define AG_CARD_W (ROW2_AGENTS_W - 2 * CELL_PAD) /* 2144; 2520 before sprint 047 */
 #define AG_CARD_H 620  /* UNIT_H - 2 * CELL_PAD */
 
 lv_obj_t *agents_card_create(lv_obj_t *parent);

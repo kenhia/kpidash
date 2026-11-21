@@ -25,8 +25,8 @@
  *            plot's edge, unnamed
  * live reads a record from a file and draws it at the given time (default:
  * the clock). The zone is pinned to America/Los_Angeles, rpi53's. The canvas
- * is the card's whole 2528 × 628 frame, the card at CELL_PAD inside it, on
- * the panel's crust.
+ * is the card's whole AG_FRAME_W × 628 frame (2152 since sprint 047; 2528
+ * before), the card at CELL_PAD inside it, on the panel's crust.
  *
  * Every state checks that nothing is drawn right of the now line inside the
  * detail area or the strip's lanes (no bar or label runs into the future)
@@ -266,7 +266,7 @@ int main(int argc, char **argv) {
     }
 
     lv_init();
-    const int32_t W = UNIT_W_N(4), H = UNIT_H;
+    const int32_t W = AG_FRAME_W, H = UNIT_H;
     lv_display_t *disp = lv_display_create(W, H);
     static uint8_t buf[UNIT_W_N(4) * 64 * 4];
     lv_display_set_buffers(disp, buf, NULL, sizeof(buf), LV_DISPLAY_RENDER_MODE_PARTIAL);

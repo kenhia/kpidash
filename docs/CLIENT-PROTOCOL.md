@@ -391,14 +391,14 @@ uv run kpidash-client service-status --name api --state ok --text "API respondin
 
 ---
 
-## 8b. Apt-Temps Cards (Sprint 012, WI #364)
+## 8b. Apt-Temps (Sprint 012, WI #364; one widget since Sprint 047, WI #4848)
 
 | Key | Type | Written by | Read by | TTL |
 |-----|------|-----------|---------|-----|
 | `kpidash:apttemps:{zone}` | STRING (JSON) | apt-temps publisher | dashboard | **none** |
 
-One key per zone → one card per zone. `{zone}` is a lowercase slug (no spaces),
-e.g. `living`, `kitchen`, `bedroom`.
+One key per zone. `{zone}` is a lowercase slug (no spaces), e.g. `living`,
+`kitchen`, `bedroom`.
 
 ```json
 { "zone": "Living", "temp_f": 75.6, "humidity_pct": 58, "ts": 1743292800.0 }
@@ -412,12 +412,20 @@ e.g. `living`, `kitchen`, `bedroom`.
 | `ts` | number | yes | Unix seconds; drives staleness |
 
 TTL-less — the dashboard owns freshness via `ts` (mirrors the services-card
-idiom). Dashboard polls `SCAN MATCH kpidash:apttemps:*` and renders one card per
-key (sorted by slug) in the footer strip, **to the right of the service cards**.
-Temperature colour: Blue `<65.0` · Green `65.0–75.0` · Orange `75.1–79.9` ·
-Red `>79.9`; the card goes GRAY when `(now − ts) ≥ 300 s`. Keys are published by
-the separate **apt-temps** project; the dashboard only reads them. Delete a
-key to remove its card.
+idiom). Dashboard polls `SCAN MATCH kpidash:apttemps:*` each second.
+
+**Render** (sprint 047; until then one footer card per key). One widget in
+row 2, between the Agents card and the time + calendar card, always shows
+three zones top to bottom — **`living`, `kitchen`, `bedroom`** — each with
+its name, the temperature to one decimal and the humidity. A zone whose key
+is absent keeps its slot, muted ("no reading"). Temperature colour: Blue
+`<65.0` · Green `65.0–75.0` · Orange `75.1–79.9` · Red `>79.9`; a zone goes
+GRAY when `(now − ts) ≥ 300 s`. **A fresh key with any other slug is not
+drawn: it turns the widget's border green**, the sign that a new sensor has
+registered itself in apt-temps and wants naming or disabling. A stale one
+does not count. Keys are published by the separate **apt-temps** project; the
+dashboard only reads them. A deleted key's reading stays in the dashboard's
+registry, ageing to gray, until the evict command (§9.6) drops it.
 
 ---
 
@@ -590,7 +598,7 @@ the key standing and therefore leaves the card up.
 
 Dashboard polls `SCAN MATCH kdash:stale:*` inside the same once-a-second cycle
 that scans `kpidash:services:*`, and paints one card into the footer strip after
-the service and apt-temps cards, same 220×240 footprint and warn-coloured band:
+the service cards, same 220×240 footprint and warn-coloured band:
 
 ```
   komarchy stale
@@ -673,8 +681,9 @@ part-way abandons the cycle and leaves the previous cards up.
 ### Render
 
 `SCAN MATCH kdash:update:*` in the same once-a-second cycle as §8c. One card per
-host in the footer strip, **after the staleness cards and before apt-temps**,
-same 220×240 footprint and warn band:
+host in the footer strip, **after the staleness cards** (and, until sprint 047
+moved apt-temps to row 2, before the apt-temps cards), same 220×240 footprint
+and warn band:
 
 ```
       rpi53 update

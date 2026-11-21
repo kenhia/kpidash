@@ -202,8 +202,15 @@ LVGL/DRM/KMS with no mouse or keyboard interaction.
     `agstate.c` (libkdash's parser and bar-end rule, plus the 3-hour detail
     axis, where each name goes, the row packing with legs under their
     overseer, the grids, and the 24-hour day strip) and draws
-    `widgets/agents_card.c` in row 2, columns 0-3. Read only. See
-    CLIENT-PROTOCOL.md §8k (sprints 041, 042).
+    `widgets/agents_card.c` in row 2, columns 0-3 less one host column
+    (sprint 047). Read only. See CLIENT-PROTOCOL.md §8k (sprints 041, 042).
+18. **Apt-temps widget**: apt-temps writes `kpidash:apttemps:{slug}` per
+    enabled sensor. Dashboard SCANs `kpidash:apttemps:*` each poll into the
+    apt-temps registry; `atstate.c` turns a snapshot into three fixed zones
+    (Living, Kitchen, Bedroom) and a green-border flag for any other fresh
+    slug, and `widgets/apt_temps_card.c` draws them in row 2 between the
+    Agents and calendar cards. Read only. See CLIENT-PROTOCOL.md §8b (WI
+    #364; one widget since sprint 047, WI #4848).
 
 ## Source Structure
 
@@ -230,6 +237,7 @@ kpidash/
 │   ├── kkstate.{h,c}           # korg + klams card: debounce, scanners, 30-day line (pure, 038)
 │   ├── calstate.{h,c}          # Time and calendar card: month grid, tags, coming up (pure, 040)
 │   ├── agstate.{h,c}           # Agents card: 3 h detail, name placement, packing, day strip (pure, 041/042)
+│   ├── atstate.{h,c}           # Apt-temps widget: three fixed zones, unknown-sensor flag (pure, 047)
 │   ├── altair.{h,c}            # Altair lamp panel: 8080 subset, lamp on-times, layout, palette (pure, 044)
 │   ├── pdp8.{h,c}              # PDP-8/I lamp panel: emulator, lamp sampling, layout, colours (pure, 045)
 │   ├── lampmach.{h,c}          # The lamp panel's machine interface, both adapters, rotation (pure, 045)
@@ -247,9 +255,9 @@ kpidash/
 │       ├── korg_klams_card.{h,c} # korg + klams, row 1 column 5 (038)
 │       ├── limits_card.{h,c}   # Claude limits, row 1 column 0 (037)
 │       ├── calendar_card.{h,c} # Time and calendar, row 2 columns 4-5 (040)
-│       ├── agents_card.{h,c}   # Agents, last 3 hours + 24 h strip, row 2 columns 0-3 (041/042)
+│       ├── agents_card.{h,c}   # Agents, last 3 hours + 24 h strip, row 2 columns 0-3 less one host column (041/042/047)
 │       ├── service_card.{h,c}  # Service status card + host staleness card
-│       ├── apt_temps_card.{h,c}# Per-zone temp/humidity card (footer, WI #364)
+│       ├── apt_temps_card.{h,c}# Apt-temps widget, three zones, row 2 beside Agents (047; footer cards until then)
 │       ├── lamp_panel.{h,c}    # Lamp panel after the footer's status cards, one machine at a time (044, 045)
 │       ├── status_bar.{h,c}    # Bottom status bar (warning/error)
 │       ├── dev_grid.{h,c}      # Pixel grid overlay (dev command)
@@ -270,6 +278,7 @@ kpidash/
 │   ├── test_kkstate.c          # korg + klams model against both schemas (038)
 │   ├── test_calstate.c         # Calendar model: schema, full-cap record, midnight, DST (040)
 │   ├── test_agstate.c          # Agents model: schema, packing, legs, names, strip, crowding (041/042)
+│   ├── test_atstate.c          # Apt-temps model: zone order, missing/stale, unknown-sensor flag (047)
 │   ├── test_altair.c           # Altair panel model: T-states, Kill the Bit, lamp on-times, layout (044)
 │   ├── test_pdp8.c             # PDP-8 model: instructions, programs vs the mock-up, lamp time, layout (045)
 │   ├── test_lampmach.c         # Machine interface (the Altair unchanged), palettes, rotation (045)
@@ -281,6 +290,7 @@ kpidash/
 │   ├── render_korg_klams.c     # Offline render of the korg + klams card, 6 states (tool)
 │   ├── render_calendar.c       # Offline render of the time and calendar card, 7 states (tool)
 │   ├── render_agents.c         # Offline render of the Agents card, 9 states + live (tool)
+│   ├── render_apt_temps.c      # Offline render of the apt-temps widget, 6 states (tool + fit test)
 │   └── render_lamp_panel.c     # Offline render of the lamp panel (either machine) after N status cards (tool + test)
 ├── clients/
 │   └── kpidash-client/         # Python 3.13+ daemon + CLI (psutil, pynvml)
@@ -338,10 +348,10 @@ Widget content (1×1): UNIT_W - 2×CELL_PAD = 624, UNIT_H - 2×CELL_PAD = 620
 │ Claude limits │  Row 1:      │  Row 1:      │  korg + klams  │
 │ (1×1, 037)    │  10G card    │  NAS card    │  (1×1, 038)    │
 │               │  (2×1)       │  (2×1)       │                │
-├───────────────┴──────────────┴──────────────┼────────────────┤
-│  Row 2: Agents, 3 h + day (4×1, 041/042)    │ time + calendar│
-│                                             │ (2×1, 040)     │
-├─────────────────────────────────────────────┴────────────────┤
+├───────────────┴──────────────┴───────┬──────┼────────────────┤
+│  Row 2: Agents, 3 h + day (041/042;   │ apt- │ time + calendar│
+│  047: 4×1 less one host column)       │ temps│ (2×1, 040)     │
+├───────────────────────────────────────┴──────┴────────────────┤
 │  Footer (276px): service strip, lamp panel after it (044/5), │
 │  status bar                                                  │
 └──────────────────────────────────────────────────────────────┘
@@ -352,6 +362,13 @@ until then the limits card was last and the 10G card first). Every row-1 card
 has a fixed slot: the limits card is hidden until `claude:limits` has published
 and the NAS card until `kdash:nas` has, but their slots stay reserved, so the
 10G card never moves. Every other cell has a fixed slot too (sprints 037-041).
+
+Row 2's columns 0-3 are split since sprint 047 (WI #4848, #4849): the Agents
+card's cell is 2152 wide (`ROW2_AGENTS_W`, was 2528) and the apt-temps
+widget's 376 (`ROW2_APT_W`, one host column: the host row's pitch is 375),
+each with its own `CELL_PAD`, so the gap on either side of the widget is the
+8 px every pair of cards has. `layout.h` holds the split and `test_layout`
+asserts it ends at `COL_X(4)`.
 
 ## Removed widgets
 
@@ -412,8 +429,10 @@ quotes, bullet, ellipsis), Nerd Font Logos (0xF300-0xF381), and Git icons
 used for the host columns' labels.
 
 `lv_font_montserrat_bold_96_digits` (sprint 034) is the weather filler's
-temperature: 0-9, minus, degree and em dash only, so it is checked for exactly
-those by `just check-fonts` rather than against `RANGE`.
+temperature: 0-9, minus, degree and em dash, the colon since sprint 040 (the
+calendar's clock) and the full stop since sprint 047 (the apt-temps widget's
+one decimal), so it is checked for exactly those by `just check-fonts` rather
+than against `RANGE`.
 
 The glyph set is declared once, in `RANGE` in `fonts/generate.sh`; it is
 stated as a contract in `docs/CLIENT-PROTOCOL.md` §8a, and `just check-fonts`
@@ -467,11 +486,12 @@ is registered as LVGL's print callback in `main.c`; `lv_conf.h` therefore has
   wrapping title (the panel has no input devices, so an elided title can never
   be revealed), and a fixed warn border — there is no freshness computation to
   do, which is why `stale_card_update()` takes no `now`.
-- **Footer strip order** is `[services][stale, host-sorted][apt-temps,
-  slug-sorted]`, per Ken's ruling from the panel. Because the strip is a flex
-  row whose child order is *creation* order, each of the two trailing groups
-  walks its sorted snapshot moving every card to last — otherwise a host going
-  stale long after boot would append at the end of the row.
+- **Footer strip order** is `[services][stale, host-sorted][update,
+  host-sorted]`, per Ken's ruling from the panel. Because the strip is a flex
+  row whose child order is *creation* order, each trailing group walks its
+  sorted snapshot moving every card to last — otherwise a host going stale
+  long after boot would append at the end of the row. (Apt-temps cards closed
+  the row until sprint 047 moved them into one row-2 widget.)
 
 ## Lamp panel: Altair 8800 (sprint 044) and PDP-8/I (sprint 045)
 
@@ -732,14 +752,18 @@ Real sessions run 10 to 30 minutes, about 25 px on that axis, so no name
 fit. Sprint 042 (WI #4733) made it view B of
 `sprints/planning/agents-mockups-v2.html` at 3 hours (`focus(3)`), Ken's
 "B, last 3 hours": a **detail area** for the last 3 hours with everything
-041 drew, and a **day strip** under it for all 24 hours. A 4×1 in row 2,
-columns 0-3 ("row 3, columns 0-3" counting rows from one), 2520 × 620 at
-`CELL_PAD` inside its frame. Always shown. The model is `src/agstate.c`.
+041 drew, and a **day strip** under it for all 24 hours. In row 2 from
+column 0 ("row 3, columns 0-3" counting rows from one), 2144 × 620 at
+`CELL_PAD` inside its 2152 frame. Sprint 047 (WI #4849) narrowed it by one
+host column, from 2520, keeping its left edge, for the apt-temps widget; the
+window stayed 3 hours and the scale shrank. Always shown. The model is
+`src/agstate.c`.
 
 - **Bars.** The last 3 hours (`AG_DETAIL_S`, one constant) of agent sessions
   from `kdash:agents` (CD-31), one bar per stretch of activity, on a time axis
-  from x 36 to the now line at 2492: 13.6 px a minute, so a 15-minute leg is
-  205 px. No host lanes: each bar has a 4 px border in its host's colour (cleo
+  from x 36 to the now line at 2116 (`AG_FRAME_W - 36`): 11.6 px a minute, so
+  a 15-minute leg is 173 px (13.6 and 205 before sprint 047). The header's
+  legend moved left with the frame (x 1470) so it ends at the now line. No host lanes: each bar has a 4 px border in its host's colour (cleo
   blue, kai peach, kubs0 green, anything else mauve). Finished: the host colour
   pre-mixed 14 % into Base. Working: solid host colour, dark text. Waiting on
   Ken: yellow, dark text, host border kept. A bar still in progress ends square
@@ -811,6 +835,44 @@ columns 0-3 ("row 3, columns 0-3" counting rows from one), 2520 × 620 at
   scratch, both static. The widget's view and its fitted names are heap,
   allocated once at creation.
 
+## Apt-Temps Widget (sprint 047)
+
+`src/widgets/apt_temps_card.c`, WI #4848. Until sprint 047 each
+`kpidash:apttemps:{slug}` key had its own 220 × 240 card at the end of the
+footer strip. Ken, 2026-11-20: with the lamp panels worth their space, those
+cards leave the strip for one widget in row 2, in the host column the Agents
+card gave up. 368 × 620 at `CELL_PAD` inside its 376 frame, between the
+Agents card and the time + calendar card. Always shown. The model is
+`src/atstate.c`.
+
+- **Three zones, fixed.** Living, Kitchen, Bedroom (slugs `living`,
+  `kitchen`, `bedroom`), top to bottom, each a third of the height with a
+  Surface0 rule between. Each draws its name (bold 28) and humidity (bold 28,
+  right-aligned) on one line, and the temperature to one decimal in the 96 px
+  digits face, centred, in its band colour. The names are the widget's own,
+  not the payload's `zone`.
+- **Colour and age, unchanged.** `apttemps_color()`: kdashdata's band
+  (`kdash_apttemps_band`), and gray once the reading is 300 s old or more.
+  A stale zone keeps its numbers, gray.
+- **No reading.** A zone with no key, or one that never parsed, keeps its
+  slot: the name muted, "no reading" where the humidity goes, and an em dash
+  in Surface1 for the temperature. The widget never changes shape.
+- **A sensor nobody has named.** Any other slug with a fresh reading is not
+  drawn; it turns the widget's 4 px border green. That is apt-temps saying a
+  new sensor has registered itself and wants naming or `enabled = false`. A
+  stale unknown does not count, and evicting its key (`kpidash-cards`, the
+  `kpidash:cmd:services:evict` command with `kind: apttemps`) drops it from
+  the registry at once. Without one the widget has no border, like the other
+  row-2 cards.
+- **Repaint.** One `DRAW_MAIN` pass, opaque fills only (the green border is a
+  green rounded rect with the base inset over it). The widget rebuilds its
+  view each poll and repaints only when it differs (`memcmp`).
+- **Review.** `tests/render_apt_temps.c` draws six states (normal, bands,
+  stale, missing, unknown, extremes); under `check-warnings-full`'s ctest it
+  also fails if the widest temperature or a zone's name beside "100%" or "no
+  reading" would not fit. `sprints/planning/row2-047.png` and
+  `apt-temps-states-047.png` are its output.
+
 ## Memory Telemetry
 
 The dashboard self-reports process and LVGL heap usage every 60 s via
@@ -838,5 +900,3 @@ the `mem_sample` schema and
 [contracts/redis-keys.md](../sprints/005-fix-memory-leaks/contracts/redis-keys.md)
 for the on-the-wire key contract. Client CLIs may consume these keys
 diagnostically but they are not part of the supported public API.
-
-

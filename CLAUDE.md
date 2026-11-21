@@ -159,7 +159,7 @@ package that feeds it (the telemetry daemon + CLI). Its repo scanner and the
 - **Two git submodules.** Clone with `--recurse-submodules`. `lib/lvgl` is the
   big one and only a Pi/native build needs it. `lib/kdashdata` (sprint 018,
   WI #2244) is small and **the gate does need it** — `src/registry.c` calls
-  `kdash_apttemps_band()`, and registry.c compiles into nine gate test targets.
+  `kdash_apttemps_band()`, and registry.c compiles into eight gate test targets.
   kpidash links `kdash_core` only: the pure logic, no sockets, no hiredis —
   the I/O shell (`kdash`) is deliberately not linked, because kpidash has its
   own Redis layer and is not migrating it.
@@ -186,7 +186,7 @@ package that feeds it (the telemetry daemon + CLI). Its repo scanner and the
   - `just check-release` compiles at `-O3 -Werror`, but **only what TESTS_ONLY
     compiles**: `config.c`, `redis.c`, `registry.c`, `hosthist.c`, `hostcols.c`,
     `icons.c`, `admitted.c`, `logfilter.c`, `netstate.c`, `nasstate.c`,
-    `wxstate.c`, `limstate.c`, `kkstate.c`, `calstate.c`, `agstate.c`, `altair.c`, `pdp8.c`, `lampmach.c` (`memstat.c` links only into the LVGL
+    `wxstate.c`, `limstate.c`, `kkstate.c`, `calstate.c`, `agstate.c`, `atstate.c`, `altair.c`, `pdp8.c`, `lampmach.c` (`memstat.c` links only into the LVGL
     leak test).
     Worth knowing why that is not enough: neither of the two warnings it was
     written in response to was in those files, so on its own it could not have

@@ -21,10 +21,13 @@
  * is reachable from the gate. Text width is the one thing it cannot know, so
  * the view takes a measuring callback (the widget passes the font's).
  *
- * Geometry is in the mock-up's 2528 × 628 frame (agents-mockups-v2.html,
- * `focus(3)`): the plot runs from x 36 to 2492, detail rows from y 104 to
- * 430 with 8 px between them, the strip's lanes from y 486. The right edge
- * of both is the now line.
+ * Geometry is in the card's frame, the mock-up's (agents-mockups-v2.html,
+ * `focus(3)`) narrowed by one host column in sprint 047 (WI #4849): 2152 ×
+ * 628, where it was 2528. The plot runs from x 36 to 2116, 36 px short of
+ * the frame's right edge as it was, so the 3 hours are 2080 px (11.6 px a
+ * minute; 13.6 before). Detail rows run from y 104 to 430 with 8 px between
+ * them, the strip's lanes from y 486. The right edge of both is the now
+ * line. Nothing vertical changed.
  *
  * Anti-flicker (sprint 035's rule):
  *   - an absent key or a rejected record keeps the last good record;
@@ -46,11 +49,13 @@
 
 #include <kdash/kdash_payload.h>
 
+#include "layout.h"
+
 /* ---- Geometry, in the card's frame (agents-mockups-v2.html, `focus(3)`) ---- */
-#define AG_FRAME_W 2528
+#define AG_FRAME_W ROW2_AGENTS_W /* 2152 since sprint 047; the mock-up's 2528 */
 #define AG_FRAME_H 628
 #define AG_PLOT_X0 36
-#define AG_PLOT_X1 2492 /* the now line, in the detail area and the strip */
+#define AG_PLOT_X1 (AG_FRAME_W - 36) /* the now line, in the detail area and the strip */
 
 /* The detail area: the last AG_DETAIL_S seconds, bars with names. */
 #define AG_DETAIL_S 10800 /* 3 hours (Ken, 2026-11-14: "B, last 3 hours") */
