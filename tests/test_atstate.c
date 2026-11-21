@@ -59,11 +59,11 @@ static void test_order_and_format(void) {
                              ent("kitchen", 76.0f, 38, 10)};
     at_view_t v;
     at_view(e, 3, NOW, &v);
-    CHECK(v.zone[0].present && STREQ(v.zone[0].temp, "72.0\xC2\xB0") && STREQ(v.zone[0].hum, "45%"));
+    CHECK(v.zone[0].present && STREQ(v.zone[0].temp, "72.0\xC2\xB0" "F") && STREQ(v.zone[0].hum, "45%"));
     CHECK(v.zone[0].color == APTTEMPS_COLOR_GREEN);
-    CHECK(v.zone[1].present && STREQ(v.zone[1].temp, "76.0\xC2\xB0") && STREQ(v.zone[1].hum, "38%"));
+    CHECK(v.zone[1].present && STREQ(v.zone[1].temp, "76.0\xC2\xB0" "F") && STREQ(v.zone[1].hum, "38%"));
     CHECK(v.zone[1].color == APTTEMPS_COLOR_ORANGE);
-    CHECK(v.zone[2].present && STREQ(v.zone[2].temp, "63.2\xC2\xB0") && STREQ(v.zone[2].hum, "41%"));
+    CHECK(v.zone[2].present && STREQ(v.zone[2].temp, "63.2\xC2\xB0" "F") && STREQ(v.zone[2].hum, "41%"));
     CHECK(v.zone[2].color == APTTEMPS_COLOR_BLUE);
     CHECK(!v.unknown);
 }
@@ -91,7 +91,7 @@ static void test_stale_zone(void) {
     at_view(e, 2, NOW, &v);
     CHECK(v.zone[0].color == APTTEMPS_COLOR_GREEN);
     CHECK(v.zone[1].present && v.zone[1].color == APTTEMPS_COLOR_GRAY);
-    CHECK(STREQ(v.zone[1].temp, "70.0\xC2\xB0"));
+    CHECK(STREQ(v.zone[1].temp, "70.0\xC2\xB0" "F"));
 }
 
 /* The green-border signal: fresh unknown only. */
@@ -103,7 +103,7 @@ static void test_unknown(void) {
     CHECK(v.unknown);
     /* ...and it is not drawn in any slot. */
     for (int i = 0; i < AT_ZONES; i++)
-        CHECK(STREQ(v.zone[i].temp, "70.0\xC2\xB0"));
+        CHECK(STREQ(v.zone[i].temp, "70.0\xC2\xB0" "F"));
 
     e[3].last_payload_ts = NOW - 300.0; /* stale: does not count */
     at_view(e, 4, NOW, &v);
@@ -134,8 +134,8 @@ static void test_extremes(void) {
     apttemps_entry_t e[2] = {ent("living", -40.0f, 0, 10), ent("kitchen", 140.0f, 100, 10)};
     at_view_t v;
     at_view(e, 2, NOW, &v);
-    CHECK(STREQ(v.zone[0].temp, "-40.0\xC2\xB0") && STREQ(v.zone[0].hum, "0%"));
-    CHECK(STREQ(v.zone[1].temp, "140.0\xC2\xB0") && STREQ(v.zone[1].hum, "100%"));
+    CHECK(STREQ(v.zone[0].temp, "-40.0\xC2\xB0" "F") && STREQ(v.zone[0].hum, "0%"));
+    CHECK(STREQ(v.zone[1].temp, "140.0\xC2\xB0" "F") && STREQ(v.zone[1].hum, "100%"));
 }
 
 int main(void) {

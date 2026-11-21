@@ -14,8 +14,8 @@
  *
  * The canvas is the widget's whole 376 × 628 cell, the widget at CELL_PAD
  * inside it, on the panel's crust. Every state also checks that the widest
- * temperature, and each zone's name beside its widest right-hand text, fit
- * inside the widget: it exits non-zero if not. */
+ * temperature, each zone's name and the widest humidity line fit inside the
+ * widget: it exits non-zero if not. */
 #include <stdio.h>
 #include <string.h>
 
@@ -52,28 +52,31 @@ static int32_t width(const lv_font_t *f, const char *s) {
     return lv_text_get_width(s, (uint32_t)strlen(s), f, 0);
 }
 
-/* The widest things the widget can be asked to draw, against its room. */
+/* The widest things the widget can be asked to draw, against its room. Since
+ * WI #4870 each is on its own line and centred, so each meets the whole
+ * width less a margin on either side. */
 static int fits(void) {
     int bad = 0;
-    const int32_t room = AT_CARD_W - 2 * 16;
-    static const char *const TEMPS[] = {"-40.0\xC2\xB0", "140.0\xC2\xB0", "100.0\xC2\xB0",
-                                        "88.8\xC2\xB0"};
+    const int32_t room = AT_CARD_W - 2 * 24;
+    static const char *const TEMPS[] = {"-40.0\xC2\xB0" "F", "140.0\xC2\xB0" "F",
+                                        "100.0\xC2\xB0" "F", "88.8\xC2\xB0" "F"};
     for (size_t i = 0; i < sizeof(TEMPS) / sizeof(TEMPS[0]); i++) {
-        int32_t w = width(&lv_font_montserrat_bold_96_digits, TEMPS[i]);
+        int32_t w = width(&lv_font_montserrat_bold_48, TEMPS[i]);
         if (w > room) {
             fprintf(stderr, "temperature %s is %d px, room %d\n", TEMPS[i], (int)w, (int)room);
             bad++;
         }
     }
     for (int i = 0; i < AT_ZONES; i++) {
-        int32_t name = width(&lv_font_montserrat_bold_28, at_zone_name(i));
-        int32_t hum = width(&lv_font_montserrat_bold_28, "100%");
-        int32_t note = width(&lv_font_montserrat_24, "no reading");
-        int32_t right = hum > note ? hum : note;
-        if (name + 24 + right > AT_CARD_W - 2 * 24) {
-            fprintf(stderr, "%s and its right-hand text do not fit\n", at_zone_name(i));
+        if (width(&lv_font_montserrat_bold_28, at_zone_name(i)) > room) {
+            fprintf(stderr, "%s does not fit\n", at_zone_name(i));
             bad++;
         }
+    }
+    if (width(&lv_font_montserrat_bold_28, "100%") > room ||
+        width(&lv_font_montserrat_24, "no reading") > room) {
+        fprintf(stderr, "the humidity line does not fit\n");
+        bad++;
     }
     return bad;
 }

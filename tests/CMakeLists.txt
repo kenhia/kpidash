@@ -344,8 +344,8 @@ if(TARGET lvgl)
         COMMAND render_agents ${CMAKE_CURRENT_BINARY_DIR}/render_agents_long.bmp long)
 
     # Sprint 047 (WI #4848): offline render of the apt-temps widget in each
-    # state it draws, for review. Also a test: the widest temperature and
-    # each zone's name beside its widest right-hand text must fit.
+    # state it draws, for review. Also a test: the widest temperature, each
+    # zone's name and the widest humidity must fit (each centred, WI #4870).
     add_executable(render_apt_temps
         ${CMAKE_CURRENT_SOURCE_DIR}/render_apt_temps.c
         ${CMAKE_SOURCE_DIR}/src/widgets/apt_temps_card.c
@@ -353,7 +353,7 @@ if(TARGET lvgl)
         ${CMAKE_SOURCE_DIR}/src/registry.c
         ${CMAKE_SOURCE_DIR}/src/bmp_write.c
         ${CMAKE_SOURCE_DIR}/fonts/lv_font_montserrat_bold_28.c
-        ${CMAKE_SOURCE_DIR}/fonts/lv_font_montserrat_bold_96_digits.c
+        ${CMAKE_SOURCE_DIR}/fonts/lv_font_montserrat_bold_48.c
     )
     target_include_directories(render_apt_temps PRIVATE
         ${CMAKE_SOURCE_DIR}
@@ -363,7 +363,7 @@ if(TARGET lvgl)
     target_link_libraries(render_apt_temps lvgl kdash_core ${PNG_TEST_LIBRARIES} pthread m)
     target_compile_options(render_apt_temps PRIVATE -Wall -Wextra -Wno-unused-parameter)
     target_compile_definitions(render_apt_temps PRIVATE
-        LV_FONT_MONTSERRAT_BOLD_28=1 LV_FONT_MONTSERRAT_BOLD_96_DIGITS=1)
+        LV_FONT_MONTSERRAT_BOLD_28=1 LV_FONT_MONTSERRAT_BOLD_48=1)
     foreach(st normal bands stale missing unknown extremes)
         add_test(NAME render_apt_temps_${st}
             COMMAND render_apt_temps ${CMAKE_CURRENT_BINARY_DIR}/render_apt_temps_${st}.bmp ${st})

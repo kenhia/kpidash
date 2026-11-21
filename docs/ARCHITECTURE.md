@@ -209,7 +209,8 @@ LVGL/DRM/KMS with no mouse or keyboard interaction.
     apt-temps registry; `atstate.c` turns a snapshot into three fixed zones
     (Living, Kitchen, Bedroom) and a green-border flag for any other fresh
     slug, and `widgets/apt_temps_card.c` draws them in row 2 between the
-    Agents and calendar cards. Read only. See CLIENT-PROTOCOL.md §8b (WI
+    Agents and calendar cards: per zone the name, the temperature in bold 48
+    ("72.4°F") and the humidity, each centred (sprint 048, WI #4870). Read only. See CLIENT-PROTOCOL.md §8b (WI
     #364; one widget since sprint 047, WI #4848).
 
 ## Source Structure
@@ -434,7 +435,8 @@ used for the host columns' labels.
 `lv_font_montserrat_bold_96_digits` (sprint 034) is the weather filler's
 temperature: 0-9, minus, degree and em dash, the colon since sprint 040 (the
 calendar's clock) and the full stop since sprint 047 (the apt-temps widget's
-one decimal), so it is checked for exactly those by `just check-fonts` rather
+one decimal — though since sprint 048, WI #4870, that widget draws its
+temperature in bold 48 and nothing draws the full stop at 96), so it is checked for exactly those by `just check-fonts` rather
 than against `RANGE`.
 
 The glyph set is declared once, in `RANGE` in `fonts/generate.sh`; it is

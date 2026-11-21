@@ -39,7 +39,7 @@ void at_view(const apttemps_entry_t *e, int n, double now, at_view_t *out) {
         at_zone_t *z = &out->zone[i];
         z->present = true;
         z->color = apttemps_color(a, now);
-        snprintf(z->temp, sizeof(z->temp), "%.1f\xC2\xB0", (double)a->temp_f);
+        snprintf(z->temp, sizeof(z->temp), "%.1f\xC2\xB0" "F", (double)a->temp_f);
         snprintf(z->hum, sizeof(z->hum), "%d%%", a->humidity_pct % 1000);
     }
 }

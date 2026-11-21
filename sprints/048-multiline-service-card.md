@@ -1,6 +1,8 @@
 # 048 — Service card draws multi-line cards (`title`, `lines`, `span`)
 
-Proposal korg:4853 covers WI 4847. It is slice 2 of 3 in program korg:4855, and
+Proposal korg:4853 covers WI 4847, and since the overseer's reply (handoff
+korg:4871) WI 4870 as well: Ken's changes to the apt-temps widget after seeing
+047 on the panel. It is slice 2 of 3 in program korg:4855, and
 the reader half of the multi-line status card. kdashdata 028 (korg:4851, merge
 `d3f2d09`) is the contract half, and argus-status (korg:4854) is the first
 publisher; argus waits on this being deployed. The sprint ran as a karc leg
@@ -113,6 +115,37 @@ changing.
   `img-1304` (one red FAIL line). Each shows an ordinary card, the argus card
   at span 1, and the argus card at span 2.
 
+## The apt-temps widget, restyled (WI 4870)
+
+Added mid-sprint by the overseer after the first wrap-up. Ken's words, after
+seeing the 047 widget on the panel: the temperature font is too big; use a
+face between the 10G card's bold 48 and the 96 px digits if the repo has one,
+otherwise bold 48; humidity under the temperature, as the old footer cards
+had it; centre everything.
+
+- **Bold 48.** The repo builds bold 14, 16, 20, 24, 28, 36 and 48, then the
+  96 px digits-only face — nothing in between — and Ken's rule was "use what
+  we have", so no new size was generated.
+- **Zone, temperature, humidity, each centred.** Line boxes are 35 / 59 /
+  35 px with 6 px gaps. The stack is placed 4 px below the zone's centre,
+  because a line box carries more leading above its glyphs than below: at
+  exact centre the render showed 40 px over the name and 31 under the
+  humidity. Baselines are 62 / 129 / 174. A missing zone keeps the same
+  stack: name, em dash, "no reading".
+- **"72.4°F", not "72.4°".** The WI left it to the render, and both were
+  rendered (`.scratch/at`, `.scratch/atF`). Bold 48 has letters, which the
+  digits face did not; the F reads well, and it is what the old footer cards
+  printed (`%.1f°F`). The string is atstate's, so `test_atstate` changed with
+  it.
+- **The 96 px face keeps its full stop.** Nothing draws one at 96 now; it
+  stays rather than regenerate a committed font, and `generate.sh` and
+  ARCHITECTURE say so.
+- `render_apt_temps`' fit check now checks each line against the whole width
+  (the widest is "140.0°F" and "-40.0°F").
+- Renders, kept as 047's were: `sprints/planning/apt-temps-states-048.png`
+  (the six states) and `row2-048.png` (Agents `target` + the widget + the
+  calendar `now`), attached to WI 4870 as `img-1308` and `img-1309`.
+
 ## Repaired in passing
 
 None.
@@ -123,4 +156,6 @@ None.
   (-O3 -Werror), the client (ruff + 172 tests), units, scripts and fonts.
 - `just check-warnings-full`: green (whole tree, -O3 -Werror).
 - Full native tree, `ctest --no-tests=error`: 53 of 53 pass, including the
-  five `render_service_card_*` renders and `test_widget_leak`.
+  five `render_service_card_*` renders, the six `render_apt_temps_*` fit
+  checks and `test_widget_leak`.
+- All three were re-run after WI 4870 and are still green.

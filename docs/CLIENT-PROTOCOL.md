@@ -483,7 +483,8 @@ idiom). Dashboard polls `SCAN MATCH kpidash:apttemps:*` each second.
 **Render** (sprint 047; until then one footer card per key). One widget in
 row 2, between the Agents card and the time + calendar card, always shows
 three zones top to bottom — **`living`, `kitchen`, `bedroom`** — each with
-its name, the temperature to one decimal and the humidity. A zone whose key
+its name, the temperature to one decimal (`72.4°F`) and the humidity under it,
+all centred (sprint 048, WI #4870). A zone whose key
 is absent keeps its slot, muted ("no reading"). Temperature colour: Blue
 `<65.0` · Green `65.0–75.0` · Orange `75.1–79.9` · Red `>79.9`; a zone goes
 GRAY when `(now − ts) ≥ 300 s`. **A fresh key with any other slug is not
