@@ -13,9 +13,8 @@
 
 static lim_record_t g_rec;
 static bool g_have;
-static lim_mode_t g_mode;    /* the layout drawn */
-static lim_mode_t g_pending; /* a different answer being counted… */
-static int g_streak;         /* …on this many consecutive new, fresh records */
+static kdash_codex_limits_t g_codex;
+static bool g_have_codex;
 
 /* The schema's host pattern, ^[A-Za-z0-9._-]{1,63}$. The field is display and
  * provenance only; anything else is not drawn rather than drawn wrong. */
@@ -58,41 +57,7 @@ static void carry_scoped(lim_record_t *dst, const lim_record_t *src) {
     d->scoped_expected_refresh_s = s->scoped_expected_refresh_s;
 }
 
-lim_mode_t lim_mode_of(const lim_record_t *r) {
-    if (!r->l.valid || !r->l.five_hour_none)
-        return LIM_MODE_FIVE;
-    return r->l.scoped_valid ? LIM_MODE_SCOPED : LIM_MODE_SEVEN;
-}
-
-/* One new record's vote. A record is new when its stamp moved, so the 1 s poll
- * reading one record many times casts one vote, as sprint 035 keyed on `ts`.
- * The first record sets the mode outright: there is no drawn layout to flap. */
-static void vote(const lim_record_t *r, double now) {
-    if (!g_have) {
-        g_mode = lim_mode_of(r);
-        g_streak = 0;
-        return;
-    }
-    if (r->l.updated_at == g_rec.l.updated_at || lim_headline_stale(r, now))
-        return;
-    lim_mode_t m = lim_mode_of(r);
-    if (m == g_mode) {
-        g_streak = 0;
-        return;
-    }
-    if (g_streak > 0 && m == g_pending) {
-        g_streak++;
-    } else {
-        g_pending = m;
-        g_streak = 1;
-    }
-    if (g_streak >= LIM_MODE_STREAK) {
-        g_mode = m;
-        g_streak = 0;
-    }
-}
-
-int lim_observe(const char *const *fields, const char *const *values, int n, double now) {
+int lim_observe(const char *const *fields, const char *const *values, int n) {
     if (!fields || !values || n <= 0)
         return 0;
     lim_record_t r;
@@ -102,14 +67,9 @@ int lim_observe(const char *const *fields, const char *const *values, int n, dou
         carry_scoped(&r, &g_rec);
     if (g_have && memcmp(&r, &g_rec, sizeof(r)) == 0)
         return 0;
-    vote(&r, now);
     g_rec = r;
     g_have = true;
     return 1;
-}
-
-lim_mode_t lim_mode(void) {
-    return g_mode;
 }
 
 bool lim_has_record(void) {
@@ -123,9 +83,37 @@ const lim_record_t *lim_record(void) {
 void lim_reset(void) {
     memset(&g_rec, 0, sizeof(g_rec));
     g_have = false;
-    g_mode = LIM_MODE_FIVE;
-    g_pending = LIM_MODE_FIVE;
-    g_streak = 0;
+    memset(&g_codex, 0, sizeof(g_codex));
+    g_have_codex = false;
+}
+
+int lim_codex_observe(const char *const *fields, const char *const *values, int n) {
+    if (!fields || !values || n <= 0)
+        return 0;
+    kdash_codex_limits_t c;
+    if (!kdash_parse_codex_limits(fields, values, n, &c))
+        return -1;
+    if (g_have_codex && memcmp(&c, &g_codex, sizeof(c)) == 0)
+        return 0;
+    g_codex = c;
+    g_have_codex = true;
+    return 1;
+}
+
+const kdash_codex_limits_t *lim_codex(void) {
+    return g_have_codex ? &g_codex : NULL;
+}
+
+bool lim_codex_stale(const kdash_codex_limits_t *c, double now) {
+    return kdash_codex_limits_stale(c, (long long)now, KDASH_CADENCE_GRACE_S);
+}
+
+bool lim_has_any(void) {
+    return g_have || g_have_codex;
+}
+
+bool lim_resets_agree(double a, double b) {
+    return a > 0 && b > 0 && fabs(a - b) <= LIM_RESET_AGREE_S;
 }
 
 bool lim_headline_stale(const lim_record_t *r, double now) {
@@ -229,10 +217,6 @@ void lim_fmt_header(const lim_record_t *r, double now, bool stale, char *buf, si
         snprintf(buf, n, "%s \xC2\xB7 %s ago", r->host, d);
     else
         snprintf(buf, n, "%s ago", d);
-}
-
-void lim_fmt_scoped_label(const lim_record_t *r, char *buf, size_t n) {
-    snprintf(buf, n, "%s, 7 day", r->l.scoped_model);
 }
 
 void lim_fmt_scoped_ring_label(const lim_record_t *r, bool window, char *buf, size_t n) {

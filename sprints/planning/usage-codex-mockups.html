@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>kpidash — Usage card and Codex bars (sprint 049)</title>
+<style>
+/* Same chrome as the other kpidash mock-up pages. Single dark look by choice: the subject is a dark panel. */
+:root{
+  color-scheme:dark;
+  --crust:#11111B; --base:#1E1E2E; --s0:#313244;
+  --muted:#6C7086; --sub:#A6ADC8; --fg:#CDD6F4; --codex:#1D9E75;
+  --font:"Montserrat",system-ui,-apple-system,"Segoe UI",sans-serif;
+}
+body{background:var(--crust);color:var(--fg);font-family:var(--font);font-size:16px;line-height:1.55;
+  max-width:1400px;margin:0 auto;padding:32px 16px 80px}
+h1{font-size:26px;margin:0 0 4px}
+h2{font-size:20px;margin:40px 0 8px;color:var(--sub)}
+p,li{color:var(--sub);max-width:80ch}
+figure{margin:16px 0}
+figcaption{color:var(--muted);font-size:14px}
+img{display:block;max-width:100%;height:auto;border:1px solid var(--s0);border-radius:8px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:16px}
+code{color:var(--fg)}
+.dot{display:inline-block;width:10px;height:10px;border-radius:50%;background:var(--codex);
+  box-shadow:0 0 0 4px var(--crust);margin:0 6px}
+</style>
+</head>
+<body>
+<h1>Usage card and Codex bars</h1>
+<p>Sprint 049, korg WI 4941 (proposal korg:4950). These are the dashboard's own
+pixels: renders by <code>tests/render_limits</code> and
+<code>tests/render_agents</code> from the shipped widgets, not a sketch. The
+decisions they implement are Ken's, from the 2026-11-25 mockup session (korg WI
+4940, comments 5112 and 5113).</p>
+
+<h2>Usage card — layout C, the triangle</h2>
+<p>Claude 7 day and Claude Fable on top, Codex 7 day centred below in the Codex
+green (<code>#1D9E75</code>). Long windows only. A pace tick on every ring; a
+reset line under each, with the Fable line dropped when it resets within 2 h of
+Claude's week. Every ring shifts to yellow at 75&nbsp;% and red at 90&nbsp;%.</p>
+<div class="grid">
+<figure><img src="usage-049-ok.png" alt="Usage card, normal"><figcaption>ok — everything fresh, Fable resets with Claude (one line)</figcaption></figure>
+<figure><img src="usage-049-warn.png" alt="Usage card, high usage"><figcaption>warn — Claude 78 % yellow, Fable 91 % red, Codex 82 % yellow</figcaption></figure>
+<figure><img src="usage-049-codex-high.png" alt="Usage card, Codex red"><figcaption>codex-high — Codex 93 % red</figcaption></figure>
+<figure><img src="usage-049-codex-stale.png" alt="Usage card, Codex stale"><figcaption>codex-stale — the Codex record 22 minutes old: grey, and said in the header</figcaption></figure>
+</div>
+<figure><img src="usage-049.png" alt="All usage card states"><figcaption>Every state. Top: ok, split resets, warn, codex-high, codex-stale. Bottom: all stale, claude-only, codex-only, the live records of 2026-11-25, 100 % everywhere</figcaption></figure>
+
+<h2>Agents Timeline — the Codex marker</h2>
+<p>A Codex bar carries a green <span class="dot"></span> on a small Crust patch at
+its left end, before the name. Claude bars stay unmarked; host keeps the border
+and fill, state keeps the fill. The dot stays with the bar when the name is
+drawn to its left (<code>kdeskdash codex-pub</code>), and a Codex bar too short
+for its marker is widened to hold it (<code>korg</code>, far right) rather than
+losing it. The day strip stays by host; the legend gains "codex".</p>
+<figure><img src="agents-codex-049.png" alt="Agents card with Codex bars"><figcaption>codex — finished (kai), working on kubs0's green, needs-you yellow (cleo), outside name, widened bar</figcaption></figure>
+</body>
+</html>

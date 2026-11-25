@@ -1,4 +1,5 @@
-/* test_limstate.c — the Claude limits card's model (WI #4609, sprint 037).
+/* test_limstate.c — the usage card's model (WI #4609, sprint 037; Codex,
+ * sprint 049).
  *
  * Parsing and staleness are libkdash's, so these tests hold the card to the
  * rules it adds on top: the colour bands, the pace tick, the reset and age
@@ -46,9 +47,6 @@ static const char *bare_f[] = {"five_hour_pct", "seven_day_pct", "updated_at",
                                "expected_refresh_s", "host"};
 static const char *bare_v[] = {"42", "61", "1794617000", "60", "cleo"};
 
-/* A read time at which both fixtures above are fresh. */
-#define T_READ 1794617010.0
-
 /* HGETALL claude:limits on rpi53, 2026-11-14 02:48:52Z: kai's oauth poll once
  * the plan had no five-hour window (CD-29's five_hour_none, sprint 039). */
 static const char *none_f[] = {
@@ -91,6 +89,13 @@ static void test_parse_live(void) {
     lim_record_t r2;
     CHECK(lim_parse(live_f, live_v, NF(live_f), &r2));
     CHECK(memcmp(&r, &r2, sizeof(r)) == 0);
+
+    /* No five-hour window (CD-29): the card draws long windows only since
+     * sprint 049, so the flag changes nothing it draws — but the record is
+     * still valid and its seven-day reading intact. */
+    CHECK(lim_parse(none_f, none_v, NF(none_f), &r));
+    CHECK(r.l.five_hour_none && r.l.five_hour_pct == 0 && r.l.seven_day_pct == 11);
+    CHECK(r.l.updated_at == NONE_UPDATED);
 }
 
 static void test_parse_rejects(void) {
@@ -127,22 +132,22 @@ static void test_host_display_only(void) {
 static void test_observe(void) {
     lim_reset();
     CHECK(!lim_has_record());
-    CHECK(lim_observe(NULL, NULL, 0, T_READ) == 0); /* absent, nothing seen: not drawn */
+    CHECK(lim_observe(NULL, NULL, 0) == 0); /* absent, nothing seen: not drawn */
     CHECK(!lim_has_record());
 
-    CHECK(lim_observe(live_f, live_v, NF(live_f), T_READ) == 1);
+    CHECK(lim_observe(live_f, live_v, NF(live_f)) == 1);
     CHECK(lim_has_record());
-    CHECK(lim_observe(live_f, live_v, NF(live_f), T_READ) == 0); /* the same again */
+    CHECK(lim_observe(live_f, live_v, NF(live_f)) == 0); /* the same again */
 
     /* A brief gap keeps the record. */
-    CHECK(lim_observe(NULL, NULL, 0, T_READ) == 0);
+    CHECK(lim_observe(NULL, NULL, 0) == 0);
     CHECK(lim_has_record());
     CHECK(lim_record()->l.five_hour_pct == 8);
 
     /* A rejected record keeps the previous one. */
     const char *f[] = {"five_hour_pct"};
     const char *v[] = {"x"};
-    CHECK(lim_observe(f, v, NF(f), T_READ) == -1);
+    CHECK(lim_observe(f, v, NF(f)) == -1);
     CHECK(lim_record()->l.five_hour_pct == 8);
     CHECK(STREQ(lim_record()->host, "kai"));
 }
@@ -151,8 +156,8 @@ static void test_observe(void) {
  * reflow the card: it keeps its last numbers and greys by its own stamp. */
 static void test_scoped_carry(void) {
     lim_reset();
-    CHECK(lim_observe(live_f, live_v, NF(live_f), T_READ) == 1);
-    CHECK(lim_observe(bare_f, bare_v, NF(bare_f), T_READ) == 1);
+    CHECK(lim_observe(live_f, live_v, NF(live_f)) == 1);
+    CHECK(lim_observe(bare_f, bare_v, NF(bare_f)) == 1);
     const lim_record_t *r = lim_record();
     CHECK(r->l.five_hour_pct == 42 && r->l.seven_day_pct == 61);
     CHECK(STREQ(r->host, "cleo"));
@@ -162,11 +167,11 @@ static void test_scoped_carry(void) {
     CHECK(r->l.scoped_updated_at == LIVE_UPDATED); /* its OWN stamp, not the headline's */
 
     /* Repeating the bare write is still "nothing changed". */
-    CHECK(lim_observe(bare_f, bare_v, NF(bare_f), T_READ) == 0);
+    CHECK(lim_observe(bare_f, bare_v, NF(bare_f)) == 0);
 
     /* With no scoped set ever seen there is nothing to carry. */
     lim_reset();
-    CHECK(lim_observe(bare_f, bare_v, NF(bare_f), T_READ) == 1);
+    CHECK(lim_observe(bare_f, bare_v, NF(bare_f)) == 1);
     CHECK(!lim_record()->l.scoped_valid);
 }
 
@@ -295,8 +300,6 @@ static void test_fmt_dur_and_header(void) {
     lim_fmt_header(&r, LIVE_UPDATED + 120, false, b, sizeof(b));
     CHECK(STREQ(b, "2m ago"));
 
-    lim_fmt_scoped_label(&r, b, sizeof(b));
-    CHECK(STREQ(b, "Fable, 7 day"));
     lim_fmt_scoped_ring_label(&r, true, b, sizeof(b));
     CHECK(STREQ(b, "FABLE \xC2\xB7 7 DAY"));
     lim_fmt_scoped_ring_label(&r, false, b, sizeof(b));
@@ -306,159 +309,61 @@ static void test_fmt_dur_and_header(void) {
     CHECK(STREQ(b, "CLAUDE-OPUS-5 \xC2\xB7 7 DAY"));
 }
 
-/* ---- Layout mode (WI #4631, sprint 039) ---- */
+/* ---- codex:limits (sprint 049, WI #4941) ---- */
 
-/* A record stamped `upd`: none = -1 writes no five_hour_none field (a writer
- * that predates CD-29), 0 or 1 writes it; `scoped` adds a scoped set. */
-static const char *mf[16], *mv[16];
-static char mstore[16][24];
-static int mrec(double upd, int none, bool scoped) {
-    int n = 0;
-#define PUT(field, fmt, val)                                                                       \
-    do {                                                                                           \
-        snprintf(mstore[n], sizeof(mstore[n]), fmt, val);                                          \
-        mf[n] = field;                                                                             \
-        mv[n] = mstore[n];                                                                         \
-        n++;                                                                                       \
-    } while (0)
-    PUT("five_hour_pct", "%d", none == 1 ? 0 : 9);
-    PUT("seven_day_pct", "%d", 11);
-    PUT("updated_at", "%.0f", upd);
-    PUT("expected_refresh_s", "%d", 300);
-    if (none >= 0)
-        PUT("five_hour_none", "%d", none);
-    if (scoped) {
-        PUT("scoped_model", "%s", "Fable");
-        PUT("scoped_pct", "%d", 13);
-        PUT("scoped_updated_at", "%.0f", upd);
-        PUT("scoped_expected_refresh_s", "%d", 300);
-    }
-#undef PUT
-    return n;
+/* HGETALL codex:limits on rpi53, 2026-11-25 21:50Z: kdeskdash's codex-pub on
+ * kai, Ken's Pro plan, so no five-hour window. */
+static const char *cx_f[] = {
+    "five_hour_none", "five_hour_pct", "five_hour_resets_at", "seven_day_pct",
+    "seven_day_resets_at", "updated_at", "expected_refresh_s", "host", "source", "plan_type", "ts",
+};
+static const char *cx_v[] = {
+    "1", "0", "0", "1", "1796175971", "1795643144", "300", "kai", "app-server", "prolite",
+    "1795643145",
+};
+#define CX_UPDATED 1795643144.0
+
+static void test_codex_observe(void) {
+    lim_reset();
+    CHECK(lim_codex() == NULL);
+    CHECK(!lim_has_any());
+    CHECK(lim_codex_observe(NULL, NULL, 0) == 0); /* absent, never seen: no ring */
+    CHECK(lim_codex() == NULL);
+
+    CHECK(lim_codex_observe(cx_f, cx_v, NF(cx_f)) == 1);
+    CHECK(lim_has_any() && !lim_has_record()); /* the card draws on Codex alone */
+    const kdash_codex_limits_t *c = lim_codex();
+    CHECK(c && c->valid && c->five_hour_none && c->seven_day_pct == 1);
+    CHECK(c->seven_day_resets_at == 1796175971.0 && STREQ(c->host, "kai"));
+    CHECK(lim_codex_observe(cx_f, cx_v, NF(cx_f)) == 0); /* the same again */
+
+    /* A gap and a rejected record both keep the last reading, which then
+     * ages by its own stamp: stale, never 0 %. */
+    CHECK(lim_codex_observe(NULL, NULL, 0) == 0);
+    const char *bad_v[] = {
+        "true", "0", "0", "1", "1796175971", "1795643144", "300", "kai", "app-server",
+    };
+    CHECK(lim_codex_observe(cx_f, bad_v, NF(bad_v)) == -1);
+    c = lim_codex();
+    CHECK(c && c->seven_day_pct == 1 && c->updated_at == CX_UPDATED);
+    CHECK(!lim_codex_stale(c, CX_UPDATED + 360)); /* cadence 300 + grace 60 */
+    CHECK(lim_codex_stale(c, CX_UPDATED + 361));
+
+    /* The two feeds are independent. */
+    CHECK(lim_observe(live_f, live_v, NF(live_f)) == 1);
+    CHECK(lim_codex() && lim_record());
+    lim_reset();
+    CHECK(lim_codex() == NULL && !lim_has_any());
 }
 
-/* Feed one record read 10 s after its stamp, so it is fresh. */
-static int feed(double upd, int none, bool scoped) {
-    int n = mrec(upd, none, scoped);
-    return lim_observe(mf, mv, n, upd + 10);
-}
-
-static void test_mode_of(void) {
-    lim_record_t r;
-    CHECK(lim_parse(none_f, none_v, NF(none_f), &r));
-    CHECK(r.l.five_hour_none && r.l.five_hour_pct == 0);
-    CHECK(lim_mode_of(&r) == LIM_MODE_SCOPED);
-
-    CHECK(lim_parse(live_f, live_v, NF(live_f), &r)); /* no flag: a window */
-    CHECK(lim_mode_of(&r) == LIM_MODE_FIVE);
-
-    int n = mrec(1000, 1, false);
-    CHECK(lim_parse(mf, mv, n, &r));
-    CHECK(lim_mode_of(&r) == LIM_MODE_SEVEN);
-    n = mrec(1000, 0, true); /* stated: a window */
-    CHECK(lim_parse(mf, mv, n, &r));
-    CHECK(lim_mode_of(&r) == LIM_MODE_FIVE);
-    n = mrec(1000, 0, false);
-    CHECK(lim_parse(mf, mv, n, &r));
-    CHECK(lim_mode_of(&r) == LIM_MODE_FIVE);
-
-    /* Unknown or invalid never reads as "no window". */
-    memset(&r, 0, sizeof(r));
-    r.l.five_hour_none = true;
-    CHECK(lim_mode_of(&r) == LIM_MODE_FIVE);
-}
-
-static void test_mode_first_record(void) {
-    lim_reset();
-    CHECK(lim_mode() == LIM_MODE_FIVE);
-    CHECK(lim_observe(none_f, none_v, NF(none_f), NONE_UPDATED + 47) == 1);
-    CHECK(lim_mode() == LIM_MODE_SCOPED); /* nothing drawn yet, so nothing to flap */
-
-    /* Even a stale first record: the card has to be drawn some way. */
-    lim_reset();
-    CHECK(lim_observe(none_f, none_v, NF(none_f), NONE_UPDATED + 3600) == 1);
-    CHECK(lim_mode() == LIM_MODE_SCOPED);
-}
-
-static void test_mode_debounce(void) {
-    lim_reset();
-    CHECK(feed(1000, -1, true) == 1);
-    CHECK(lim_mode() == LIM_MODE_FIVE);
-
-    /* One record read many times by the 1 s poll is one vote. */
-    for (int i = 0; i < 5; i++)
-        feed(1100, 1, true);
-    CHECK(lim_mode() == LIM_MODE_FIVE);
-    CHECK(feed(1200, 1, true) == 1);
-    CHECK(lim_mode() == LIM_MODE_FIVE); /* two records */
-    CHECK(feed(1300, 1, true) == 1);
-    CHECK(lim_mode() == LIM_MODE_SCOPED); /* the third */
-
-    /* Two writers disagreeing record by record never move it (kai with the
-     * flag, komarchy's older publisher without). */
-    for (int i = 0; i < 6; i++) {
-        feed(1400 + 200 * i, -1, true);
-        feed(1500 + 200 * i, 1, true);
-        CHECK(lim_mode() == LIM_MODE_SCOPED);
-    }
-
-    /* Two in a row, then one agreeing record: the count starts over. */
-    feed(3000, -1, true);
-    feed(3100, -1, true);
-    feed(3200, 1, true);
-    feed(3300, -1, true);
-    feed(3400, -1, true);
-    CHECK(lim_mode() == LIM_MODE_SCOPED);
-    feed(3500, -1, true);
-    CHECK(lim_mode() == LIM_MODE_FIVE);
-}
-
-static void test_mode_not_on_stale_or_missing(void) {
-    lim_reset();
-    CHECK(feed(1000, -1, true) == 1);
-
-    /* Each record already stale when first read: no vote. */
-    for (int i = 1; i <= 4; i++) {
-        int n = mrec(1000 + 100 * i, 1, true);
-        CHECK(lim_observe(mf, mv, n, 1000 + 100 * i + 361) == 1);
-    }
-    CHECK(lim_mode() == LIM_MODE_FIVE);
-
-    /* Absent and rejected: no vote either, and the streak survives a gap. */
-    feed(2000, 1, true);
-    feed(2100, 1, true);
-    CHECK(lim_observe(NULL, NULL, 0, 2111) == 0);
-    const char *f[] = {"five_hour_pct"};
-    const char *v[] = {"x"};
-    CHECK(lim_observe(f, v, NF(f), 2111) == -1);
-    CHECK(lim_mode() == LIM_MODE_FIVE);
-    feed(2200, 1, true);
-    CHECK(lim_mode() == LIM_MODE_SCOPED);
-}
-
-static void test_mode_scoped_and_seven(void) {
-    /* A statusline write with no scoped set carries the last one, so it
-     * still votes SCOPED: the right ring stays and greys by its own stamp. */
-    lim_reset();
-    feed(1000, 1, true);
-    CHECK(lim_mode() == LIM_MODE_SCOPED);
-    for (int i = 1; i <= 4; i++)
-        feed(1000 + 100 * i, 1, false);
-    CHECK(lim_mode() == LIM_MODE_SCOPED);
-    CHECK(lim_record()->l.scoped_valid);
-    CHECK(lim_record()->l.scoped_updated_at == 1000);
-
-    /* No scoped set ever seen: one ring, until a scoped set has held for
-     * three records. */
-    lim_reset();
-    feed(1000, 1, false);
-    CHECK(lim_mode() == LIM_MODE_SEVEN);
-    feed(1100, 1, true);
-    CHECK(lim_mode() == LIM_MODE_SEVEN);
-    feed(1200, 1, false); /* carried: still a SCOPED vote */
-    CHECK(lim_mode() == LIM_MODE_SEVEN);
-    feed(1300, 1, false);
-    CHECK(lim_mode() == LIM_MODE_SCOPED);
+static void test_resets_agree(void) {
+    const double t = 1795089599;
+    CHECK(lim_resets_agree(t, t));
+    CHECK(lim_resets_agree(t, t + 2 * 3600));  /* within 2 h: one line */
+    CHECK(lim_resets_agree(t + 2 * 3600, t));
+    CHECK(!lim_resets_agree(t, t + 2 * 3600 + 1));
+    CHECK(!lim_resets_agree(0, t)); /* unknown never agrees */
+    CHECK(!lim_resets_agree(t, 0));
 }
 
 int main(void) {
@@ -475,11 +380,8 @@ int main(void) {
     test_gauge_deg();
     test_fmt_reset();
     test_fmt_dur_and_header();
-    test_mode_of();
-    test_mode_first_record();
-    test_mode_debounce();
-    test_mode_not_on_stale_or_missing();
-    test_mode_scoped_and_seven();
+    test_codex_observe();
+    test_resets_agree();
     printf("test_limstate: %d passed, %d failed\n", passed, failed);
     return failed ? 1 : 0;
 }

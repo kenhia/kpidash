@@ -152,10 +152,11 @@ void ui_init(void) {
     lv_obj_set_y(g_weather, ROW_Y(0) + HOSTCOLS_Y0);
     lv_obj_add_flag(g_weather, LV_OBJ_FLAG_HIDDEN);
 
-    /* ---- Row 1 (sprint 043, WI #4752): the Claude limits card in column 0
+    /* ---- Row 1 (sprint 043, WI #4752): the usage (limits) card in column 0
      * (sprint 037), the 10G card in columns 1-2, the NAS card in columns 3-4
      * (sprint 032) and the korg + klams card in column 5 (sprint 038). The
-     * limits card is shown only once claude:limits has published and the
+     * usage card is shown only once claude:limits or codex:limits has
+     * published (sprint 049) and the
      * NAS card only once kdash:nas has, but every slot is fixed, so no card
      * moves when another appears. ---- */
     g_limits = limits_card_create(g_screen); /* WI #4609 */
@@ -271,10 +272,11 @@ void ui_refresh(void) {
          * colour or the green-border signal changes. */
         apt_temps_card_update(g_apttemps, now_s);
 
-        /* WI #4609: not drawn before claude:limits has ever published. Once
-         * it has, it stays — limstate keeps the last record through a gap and
-         * greys it by its own stamps, so the card never blinks out. */
-        if (lim_has_record()) {
+        /* WI #4609: not drawn before claude:limits or (sprint 049)
+         * codex:limits has ever published. Once one has, it stays —
+         * limstate keeps the last records through a gap and greys each by
+         * its own stamps, so the card never blinks out. */
+        if (lim_has_any()) {
             limits_card_update(g_limits, now_s);
             if (lv_obj_has_flag(g_limits, LV_OBJ_FLAG_HIDDEN))
                 lv_obj_clear_flag(g_limits, LV_OBJ_FLAG_HIDDEN);

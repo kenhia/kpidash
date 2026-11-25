@@ -1164,11 +1164,13 @@ void redis_poll_weather(void) { /* test stub */ }
  * and the panel never does. It lives on this same Redis: KDASH_CLAUDE_REDIS
  * and the central stem both answer rpi53:6379 (verified 2026-11-14), so no
  * second connection. An empty reply (key absent) and a failed command both
- * keep the last record; a record libkdash rejects is logged and skipped. */
+ * keep the last record; a record libkdash rejects is logged and skipped.
+ * Sprint 049 (WI #4941): codex:limits beside it, the same way — CD-33 puts it
+ * on central alongside claude:limits. */
 #ifndef KPIDASH_TEST_STUBS
-void redis_poll_limits(void) {
-    if (!g_ctx || g_ctx->err) return;
-    redisReply *r = redisCommand(g_ctx, "HGETALL " KDASH_KEY_CLAUDE_LIMITS);
+static void poll_limits_hash(const char *key,
+                             int (*observe)(const char *const *, const char *const *, int)) {
+    redisReply *r = redisCommand(g_ctx, "HGETALL %s", key);
     if (!r) return;
     if (r->type == REDIS_REPLY_ARRAY && r->elements >= 2) {
         enum { MAXF = 32 };
@@ -1181,10 +1183,17 @@ void redis_poll_limits(void) {
             v[n] = x->str;
             n++;
         }
-        if (lim_observe(f, v, n, (double)time(NULL)) < 0)
-            fprintf(stderr, "redis: " KDASH_KEY_CLAUDE_LIMITS " is off-contract; keeping the last record\n");
+        if (observe(f, v, n) < 0)
+            fprintf(stderr, "redis: %s is off-contract; keeping the last record\n", key);
     }
     freeReplyObject(r);
+}
+
+void redis_poll_limits(void) {
+    if (!g_ctx || g_ctx->err) return;
+    poll_limits_hash(KDASH_KEY_CLAUDE_LIMITS, lim_observe);
+    if (!g_ctx || g_ctx->err) return;
+    poll_limits_hash(KDASH_KEY_CODEX_LIMITS, lim_codex_observe);
 }
 #else
 void redis_poll_limits(void) { /* test stub */ }

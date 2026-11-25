@@ -3,7 +3,7 @@
  * Not a test: a review tool, built with the full native tree (it needs LVGL),
  * so the card can be compared with the mock-up without a Pi.
  *
- *   render_agents <out.bmp> [target|mock|quiet|empty|nofeed|stale|crowded|legs|long]
+ *   render_agents <out.bmp> [target|mock|quiet|empty|nofeed|stale|crowded|legs|long|codex]
  *   render_agents <out.bmp> live <agents.json> [unix-time]
  *
  *   target   the v2 mock-up's day (agents-mockups-v2.html, `S`) at 13:05 on
@@ -23,6 +23,9 @@
  *            to 20 left of its bar; and two bars too narrow for a name
  *            inside: one named on its left, one whose name would cross the
  *            plot's edge, unnamed
+ *   codex    Codex bars (sprint 049) on each fill — kubs0 working (green),
+ *            kai finished, cleo needs-you (yellow) — beside Claude bars; one
+ *            too short for its name, one shorter than its marker
  * live reads a record from a file and draws it at the given time (default:
  * the clock). The zone is pinned to America/Los_Angeles, rpi53's. The canvas
  * is the card's whole AG_FRAME_W × 628 frame (2152 since sprint 047; 2528
@@ -84,15 +87,22 @@ typedef struct {
 } spec_t;
 
 static time_t g_midnight;
+/* Per-bar `provider`, parallel to the spec array `build` is given; NULL (the
+ * default) leaves the field absent, as every record before CD-31's addendum. */
+static const char *const *g_prov;
 
 static int build(char *buf, size_t cap, double ts, const spec_t *s, int n) {
     size_t k = (size_t)snprintf(buf, cap,
                                 "{\"ts\":%.1f,\"expected_refresh_s\":60,\"window_s\":86400,\"bars\":[",
                                 ts);
     for (int i = 0; i < n && k < cap; i++) {
-        char parent[64] = "";
+        char parent[96] = "";
         if (s[i].parent)
             snprintf(parent, sizeof(parent), ",\"parent\":\"%s\"", s[i].parent);
+        if (g_prov && g_prov[i]) {
+            size_t pl = strlen(parent);
+            snprintf(parent + pl, sizeof(parent) - pl, ",\"provider\":\"%s\"", g_prov[i]);
+        }
         k += (size_t)snprintf(buf + k, cap - k,
                               "%s{\"id\":\"%s\",\"host\":\"%s\",\"name\":\"%s\",\"start\":%.1f,"
                               "\"end\":%.1f,\"state\":\"%s\",\"shipped\":%s,\"overseer\":%s%s}",
@@ -192,10 +202,27 @@ static const spec_t LONG[] = {
     {"f", "kubs0", "k-homelab", 18.08, 18.14, "done", 1, 0, NULL},
 };
 
+/* Sprint 049 (WI #4941): Codex bars on every fill beside Claude bars, one too
+ * short for its name (named on its left, the dot staying with the bar), and
+ * one shorter than its marker (widened to AG_CODEX_MIN_W rather than losing
+ * the dot). */
+static const spec_t CODEX[] = {
+    {"o", "cleo", "Codex as a first-class agent", 15.75, NOW_H, "working", 0, 1, NULL},
+    {"a", "kai", "kdashdata", 15.85, 16.35, "done", 1, 0, "o"},
+    {"b", "kai", "kpidash", 16.45, 17.2, "done", 1, 0, "o"},
+    {"c", "kubs0", "k-homelab codex-poll", 16.3, NOW_H, "working", 0, 0, NULL},
+    {"d", "kubs0", "ksitrep", 17.3, NOW_H, "working", 0, 0, "o"},
+    {"e", "cleo", "khow", 17.6, NOW_H, "waiting", 0, 0, NULL},
+    {"f", "kai", "kdeskdash codex-pub", 17.85, 18.0, "done", 1, 0, NULL},
+    {"g", "kai", "korg", 18.25, 18.27, "done", 0, 0, NULL},
+    {"h", "thrall", "kpong", 17.4, 18.3, "done", 0, 0, NULL},
+};
+static const char *const CODEX_PROV[] = {"claude", "codex", "claude", "codex", "claude", "codex", "codex", "codex", "other"};
+
 int main(int argc, char **argv) {
     if (argc < 2) {
         fprintf(stderr,
-                "usage: %s out.bmp [target|mock|quiet|empty|nofeed|stale|crowded|legs|long]\n"
+                "usage: %s out.bmp [target|mock|quiet|empty|nofeed|stale|crowded|legs|long|codex]\n"
                 "       %s out.bmp live agents.json [unix-time]\n",
                 argv[0], argv[0]);
         return 2;
@@ -252,6 +279,10 @@ int main(int argc, char **argv) {
         ok = build(rec, sizeof(rec), (double)now, S, 30) && ag_observe(rec) == 1;
     } else if (strcmp(state, "legs") == 0) {
         ok = build(rec, sizeof(rec), (double)now, LEGS, (int)(sizeof(LEGS) / sizeof(LEGS[0]))) &&
+             ag_observe(rec) == 1;
+    } else if (strcmp(state, "codex") == 0) {
+        g_prov = CODEX_PROV;
+        ok = build(rec, sizeof(rec), (double)now, CODEX, (int)(sizeof(CODEX) / sizeof(CODEX[0]))) &&
              ag_observe(rec) == 1;
     } else if (strcmp(state, "long") == 0) {
         ok = build(rec, sizeof(rec), (double)now, LONG, (int)(sizeof(LONG) / sizeof(LONG[0]))) &&

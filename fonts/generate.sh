@@ -74,6 +74,20 @@ npx lv_font_conv \
     -o "lv_font_montserrat_bold_96_digits.c" \
     --lv-font-name "lv_font_montserrat_bold_96_digits"
 
+# Sprint 049 (WI #4941): the usage card's ring numbers. Three rings in two
+# rows shrank each ring from r 106 to r 80, and 96 px no longer fits inside
+# one. Digits only — the "%" beside it is bold 28.
+echo "Generating lv_font_montserrat_bold_72_digits.c ..."
+npx lv_font_conv \
+    --bpp "${BPP}" \
+    --size 72 \
+    --format lvgl \
+    --no-compress \
+    --no-prefilter \
+    --font "${BOLD_TTF}" -r 0x30-0x39 \
+    -o "lv_font_montserrat_bold_72_digits.c" \
+    --lv-font-name "lv_font_montserrat_bold_72_digits"
+
 # Sprint 006 / T010: large icon-only font for service status cards.
 # Symbols-only (no ASCII); used by widgets/service_card.c.
 echo "Generating lv_font_icons_56.c ..."

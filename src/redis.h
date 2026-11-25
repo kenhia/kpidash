@@ -209,7 +209,8 @@ void redis_poll_net(void);
 void redis_poll_nas(void);
 /* WI #4576: GET kdash:weather:home into wxstate (read only — kweather owns it). */
 void redis_poll_weather(void);
-/* WI #4609: HGETALL claude:limits into limstate (read only — never written here). */
+/* WI #4609: HGETALL claude:limits (and, since sprint 049, codex:limits) into
+ * limstate (read only — never written here). */
 void redis_poll_limits(void);
 
 /* WI #4613: GET kdash:korg:pulse and kdash:klams:status into kkstate (read
