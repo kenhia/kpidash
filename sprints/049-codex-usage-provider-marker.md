@@ -121,3 +121,22 @@ Gates: `just check` green; `just check-warnings-full` (whole tree, `-O3
   that counterexample; `just check` proves it.
 - kdashdata's registry still called the `codex:limits` writer "planned"; it
   names kdeskdash's `codex-pub.sh poll` now (in kdashdata#31).
+
+## Deployed
+
+On 2026-11-25 at 15:11 PST, on the karc ship turn, under the overseer's clearance (korg:4950 comment 5129). The steps ran in this order:
+
+1. **kdashdata#31** squash-merged as `2d59768`.
+   - kai's kdashdata checkout was pulled to `main`, and the leg's hand lock was removed.
+   - `just publish` was a no-op: `0.1.0-6381ec3` is already in the store.
+   - `just deploy` (Knarr `01a214f9-…`) reinstalled that same version on kai, kubs0, cleo, komarchy, kbook2 and thrall. kimac and thrall-arch were skipped; both are optional hosts.
+   - The record is in kdashdata `sprints/030-…`.
+2. **kpidash pin.** `lib/kdashdata` was repointed to `2d59768` (`24b4a95`). The tree is identical to the branch head that was gated. `just check` passed again.
+3. **kpidash merge.** PR #53 squash-merged as `3d13741`. `scripts/deploy.sh` cross-built from merged `main`, installed, and restarted. The service is active with NRestarts=0, and the dashboard reports version `3d13741 (2026-11-25)`.
+4. **Live check from kai**, with a `krpidss` screenshot at 15:11. A crop is in `sprints/planning/usage-049-live.png`.
+   - **Usage card:** it shows "Usage" with three rings, matching Redis at the same moment.
+     - CLAUDE · 7 DAY reads 38 %; `claude:limits` `seven_day_pct` was 38.
+     - FABLE · 7 DAY reads 31 %; `scoped_pct` was 31. Its reset line was dropped because Fable resets with Claude.
+     - CODEX · 7 DAY reads 1 % in green, "resets Tue 17:46"; `codex:limits` `seven_day_pct` was 1.
+   - **Agents Timeline:** the "codex" legend item is drawn. No Codex bar falls in the 3-hour detail window: the newest Codex bar on `kdash:agents` ended about 4 h earlier (kubs0, agent-skills), so no dot can show yet.
+     - The marker on real data was verified instead by rendering today's live `kdash:agents` record through the shipped widget (`.scratch/049/a-live.png`, 13:58). It showed the dot on a kubs0 Codex bar.
