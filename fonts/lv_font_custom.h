@@ -17,6 +17,7 @@ LV_FONT_DECLARE(lv_font_montserrat_bold_48);
  * 0-9, minus, degree and em dash, so it costs a fraction of a full face.
  * Sprint 040 (WI #4665) added the colon for the calendar card's clock. */
 LV_FONT_DECLARE(lv_font_montserrat_bold_96_digits);
+LV_FONT_DECLARE(lv_font_montserrat_bold_72_digits);
 
 /* Sprint 006 / T010: large icon-only font (no ASCII) for service cards. */
 LV_FONT_DECLARE(lv_font_icons_56);

@@ -86,6 +86,17 @@
 #define AG_LABEL_PAD 14
 #define AG_LABEL_PAD_R 8
 #define AG_LABEL_SHIP 18
+/* A Codex bar (provider "codex", CD-31 addendum; sprint 049, WI #4941) carries
+ * its marker at the left end: a Codex-green dot on a Crust patch, AG_CODEX_PATCH
+ * square, AG_CODEX_PATCH_X in from the bar's outer left edge. Its inside name
+ * starts AG_CODEX_LABEL_DX further right than a Claude bar's, and a Codex bar
+ * is never drawn narrower than AG_CODEX_MIN_W, so the patch always fits inside
+ * the border with room to spare: the marker is never dropped. Claude and
+ * every other provider stay unmarked. */
+#define AG_CODEX_PATCH 18
+#define AG_CODEX_PATCH_X 8
+#define AG_CODEX_LABEL_DX (AG_CODEX_PATCH_X + AG_CODEX_PATCH + 8 - AG_LABEL_PAD)
+#define AG_CODEX_MIN_W (AG_CODEX_PATCH_X + AG_CODEX_PATCH + 8)
 /* A name is never shortened while there is room to write it whole (the
  * overseer's ruling on korg:4734). In order of preference:
  *   1. whole, inside the bar;
@@ -132,6 +143,7 @@ typedef struct {
     bool running;       /* still open and running to now: square right end */
     bool shipped;
     bool overseer;
+    bool codex;         /* provider "codex": the green-dot marker (sprint 049) */
     bool label_out;     /* the label is left of the bar, right-aligned at
                            x0 - AG_LABEL_OUT_GAP; else inside             */
     char name[KDASH_AGENTS_NAME_MAX];

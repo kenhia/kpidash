@@ -142,6 +142,7 @@ add_executable(kpidash
     fonts/lv_font_montserrat_bold_36.c
     fonts/lv_font_montserrat_bold_48.c
     fonts/lv_font_montserrat_bold_96_digits.c
+    fonts/lv_font_montserrat_bold_72_digits.c
     fonts/lv_font_icons_56.c
 )
 
@@ -180,6 +181,7 @@ target_compile_definitions(kpidash PRIVATE
     LV_FONT_MONTSERRAT_BOLD_36=1
     LV_FONT_MONTSERRAT_BOLD_48=1
     LV_FONT_MONTSERRAT_BOLD_96_DIGITS=1
+    LV_FONT_MONTSERRAT_BOLD_72_DIGITS=1
     LV_FONT_ICONS_56=1
 )
 

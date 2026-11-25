@@ -28,6 +28,9 @@
 #define AG_CRUST lv_color_hex(0x11111B)
 #define AG_MANTLE lv_color_hex(0x181825)
 #define AG_SUBTEXT0 lv_color_hex(0xA6ADC8)
+/* The Codex green: kctrldeck's --accent-codex, as on the usage card. */
+#define AG_CODEX_GREEN lv_color_hex(0x1D9E75)
+#define CODEX_DOT 10 /* the dot's diameter, centred on its patch */
 
 #define FONT_TITLE (&lv_font_montserrat_bold_28)
 #define FONT_SUBTITLE (&lv_font_montserrat_24)
@@ -43,7 +46,11 @@
 #define SUBTITLE_X 170
 #define HOSTS_X 470
 #define NOTE_X 1000
-#define LEGEND_X 1470 /* its right end ~10 px short of the now line (sprint 047; 1500 at 2528 wide) */
+/* Its right end ~10 px short of the now line. Sprint 047 moved it to 1470 at
+ * 2152 wide (1500 at 2528); sprint 049 added the "codex" item and tightened
+ * the item spacing (LEGEND_GAP 78 -> 64) to keep it there. */
+#define LEGEND_X 1380
+#define LEGEND_GAP 64
 #define TICK_BASE 466  /* the detail grid's labels */
 #define STRIP_BASE 604 /* the strip grid's labels */
 #define STRIP_B0 (AG_STRIP_Y - AG_STRIP_PAD)
@@ -222,6 +229,15 @@ int32_t agents_card_measure(const char *s, void *ctx) {
 
 /* ---- The pieces ---- */
 
+/* The Codex marker (sprint 049, WI #4941): a Codex-green dot on a Crust
+ * patch, top-left at (x, y). The patch is what keeps the dot readable on
+ * kubs0's green fill and on the yellow needs-you fill. */
+static void codex_marker(lv_layer_t *layer, int32_t x, int32_t y) {
+    rect(layer, x, y, AG_CODEX_PATCH, AG_CODEX_PATCH, AG_CRUST, 5);
+    const int32_t d = (AG_CODEX_PATCH - CODEX_DOT) / 2;
+    rect(layer, x + d, y + d, CODEX_DOT, CODEX_DOT, AG_CODEX_GREEN, CODEX_DOT / 2);
+}
+
 static void draw_header(lv_layer_t *layer, int32_t ox, int32_t oy, const ag_view_t *v) {
     text_at(layer, FONT_TITLE, ox + AG_PLOT_X0, oy + HEAD_BASE, "AGENTS", WS_COLOR_LAVENDER,
             LV_TEXT_ALIGN_LEFT, 1);
@@ -249,11 +265,12 @@ static void draw_header(lv_layer_t *layer, int32_t ox, int32_t oy, const ag_view
                 0);
     }
 
-    /* The state legend (mock-up `legend`). */
-    static const char *const ITEMS[4] = {"working", "finished", "needs you", "shipped"};
+    /* The state legend (mock-up `legend`), and since sprint 049 the Codex
+     * marker. */
+    static const char *const ITEMS[5] = {"working", "finished", "needs you", "shipped", "codex"};
     const lv_color_t base = WS_COLOR_BG;
     int32_t x = LEGEND_X;
-    for (int i = 0; i < 4; i++) {
+    for (int i = 0; i < 5; i++) {
         const int32_t lx = ox + x, ly = oy + 38;
         if (i == 0)
             rect(layer, lx, ly, 18, 18, AG_SUBTEXT0, 4);
@@ -261,11 +278,13 @@ static void draw_header(lv_layer_t *layer, int32_t ox, int32_t oy, const ag_view
             ring_rect(layer, lx - 1, ly - 1, 20, 20, base, AG_SUBTEXT0, 3, 5, LV_BORDER_SIDE_FULL);
         else if (i == 2)
             rect(layer, lx, ly, 18, 18, WS_COLOR_YELLOW, 4);
-        else
+        else if (i == 3)
             diamond(layer, lx + 9, ly + 9, 16, WS_COLOR_TEAL);
+        else
+            codex_marker(layer, lx, ly);
         text_at(layer, FONT_LEGEND, lx + 30, oy + 55, ITEMS[i], AG_SUBTEXT0, LV_TEXT_ALIGN_LEFT,
                 0);
-        x += (int32_t)lround(strlen(ITEMS[i]) * 12.4 + 78);
+        x += (int32_t)lround(strlen(ITEMS[i]) * 12.4 + LEGEND_GAP);
     }
 }
 
@@ -354,9 +373,13 @@ static void draw_bar(lv_layer_t *layer, int32_t ox, int32_t oy, const ag_bar_t *
         const bool dark = b->state == KDASH_AGENT_WAITING ||
                           (b->state == KDASH_AGENT_WORKING && !b->overseer);
         const lv_color_t tc = dark ? AG_CRUST : b->overseer ? WS_COLOR_ORANGE : WS_COLOR_FG;
-        text_at(layer, FONT_BAR, x + AG_LABEL_PAD, y + b->h / 2 + 7, label, tc,
-                LV_TEXT_ALIGN_LEFT, 0);
+        text_at(layer, FONT_BAR, x + AG_LABEL_PAD + (b->codex ? AG_CODEX_LABEL_DX : 0),
+                y + b->h / 2 + 7, label, tc, LV_TEXT_ALIGN_LEFT, 0);
     }
+    /* The marker stays with the bar, wherever its name went; agstate keeps a
+     * Codex bar at least AG_CODEX_MIN_W wide, so it always fits. */
+    if (b->codex)
+        codex_marker(layer, x + AG_CODEX_PATCH_X, y + (b->h - AG_CODEX_PATCH) / 2);
     if (b->shipped) {
         const int32_t cx = x + w, cy = y + b->h / 2;
         diamond(layer, cx, cy, SHIP_SIDE + 4, AG_CRUST);

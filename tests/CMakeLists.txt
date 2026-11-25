@@ -247,8 +247,7 @@ if(TARGET lvgl)
         ${CMAKE_SOURCE_DIR}/fonts/lv_font_montserrat_bold_20.c
         ${CMAKE_SOURCE_DIR}/fonts/lv_font_montserrat_bold_24.c
         ${CMAKE_SOURCE_DIR}/fonts/lv_font_montserrat_bold_28.c
-        ${CMAKE_SOURCE_DIR}/fonts/lv_font_montserrat_bold_36.c
-        ${CMAKE_SOURCE_DIR}/fonts/lv_font_montserrat_bold_96_digits.c
+        ${CMAKE_SOURCE_DIR}/fonts/lv_font_montserrat_bold_72_digits.c
     )
     target_include_directories(render_limits PRIVATE
         ${CMAKE_SOURCE_DIR}
@@ -257,8 +256,7 @@ if(TARGET lvgl)
     )
     target_link_libraries(render_limits lvgl kdash_core ${PNG_TEST_LIBRARIES} pthread m)
     target_compile_options(render_limits PRIVATE -Wall -Wextra -Wno-unused-parameter)
-    target_compile_definitions(render_limits PRIVATE LV_FONT_MONTSERRAT_BOLD_96_DIGITS=1)
-
+    
     # Sprint 038: offline render of the korg + klams card in the mock-up's
     # ok / warn / stale states (and down, nofeed, live), for review against
     # sprints/planning/row2-cards-mockups.html (`combo()`).

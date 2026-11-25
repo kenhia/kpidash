@@ -263,8 +263,9 @@ static void name_forms(cand_t *k, const kdash_agent_bar_t *b, ag_measure_fn meas
     k->form = NAME_NONE;
     if (!measure || !b->name[0])
         return;
-    const int32_t avail =
-        (k->x1 - k->x0) - AG_LABEL_PAD - (b->shipped ? AG_LABEL_SHIP : AG_LABEL_PAD_R);
+    const int32_t avail = (k->x1 - k->x0) - AG_LABEL_PAD -
+                          (b->shipped ? AG_LABEL_SHIP : AG_LABEL_PAD_R) -
+                          (b->provider == KDASH_AGENT_PROVIDER_CODEX ? AG_CODEX_LABEL_DX : 0);
     k->out_w = measure(b->name, ctx);
     if (k->out_w <= avail) {
         k->in_whole = true;
@@ -349,11 +350,13 @@ void ag_view(time_t now, ag_measure_fn measure, void *ctx, ag_view_t *v) {
         k->running = b->state != KDASH_AGENT_DONE && e >= (double)nowm;
         k->x0 = xof(s, (double)ds, AG_DETAIL_S);
         k->x1 = xof(e, (double)ds, AG_DETAIL_S);
-        if (k->x1 - k->x0 < AG_BAR_MIN_W) {
-            k->x1 = k->x0 + AG_BAR_MIN_W;
+        const int32_t min_w =
+            b->provider == KDASH_AGENT_PROVIDER_CODEX ? AG_CODEX_MIN_W : AG_BAR_MIN_W;
+        if (k->x1 - k->x0 < min_w) {
+            k->x1 = k->x0 + min_w;
             if (k->x1 > AG_PLOT_X1) {
                 k->x1 = AG_PLOT_X1;
-                k->x0 = k->x1 - AG_BAR_MIN_W;
+                k->x0 = k->x1 - min_w;
             }
         }
         name_forms(k, b, measure, ctx);
@@ -407,6 +410,7 @@ void ag_view(time_t now, ag_measure_fn measure, void *ctx, ag_view_t *v) {
         a->running = c[j].running;
         a->shipped = b->shipped;
         a->overseer = b->overseer;
+        a->codex = b->provider == KDASH_AGENT_PROVIDER_CODEX;
         a->label_out = c[j].form == NAME_OUT_WHOLE || c[j].form == NAME_OUT_CUT;
         snprintf(a->name, sizeof(a->name), "%s", b->name);
         const char *lbl = c[j].form == NAME_IN_WHOLE || c[j].form == NAME_OUT_WHOLE ? b->name

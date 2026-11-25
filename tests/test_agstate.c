@@ -182,11 +182,19 @@ static void test_schema(void) {
     n = 0;
     cJSON_ArrayForEach(ex, cJSON_GetObjectItemCaseSensitive(root, "x-counterexamples")) {
         char *s = cJSON_PrintUnformatted(cJSON_GetObjectItemCaseSensitive(ex, "record"));
+        const cJSON *why = cJSON_GetObjectItemCaseSensitive(ex, "why");
         ag_reset();
         int r = ag_observe(s);
         const kdash_agents_t *a = ag_record();
-        CHECK(r == -1 || (a && ((a->bars_skipped > 0 && a->bars_count == 0) ||
-                                a->parents_dropped > 0)));
+        if (cJSON_IsString(why) && strstr(why->valuestring, "provider")) {
+            /* A writer obligation the reader tolerates (CD-31 addendum):
+             * an unrecognized provider keeps the bar, read as `other`. */
+            CHECK(r == 1 && a && a->bars_count == 1 &&
+                  a->bars[0].provider == KDASH_AGENT_PROVIDER_OTHER);
+        } else {
+            CHECK(r == -1 || (a && ((a->bars_skipped > 0 && a->bars_count == 0) ||
+                                    a->parents_dropped > 0)));
+        }
         free(s);
         n++;
     }
@@ -712,6 +720,60 @@ static void test_leg_floor(void) {
 
 /* ---- the label ---- */
 
+/* Sprint 049 (WI #4941): `provider` reaches the view as `codex`, a Codex
+ * bar's inside name starts AG_CODEX_LABEL_DX further right, and no Codex bar
+ * is narrower than its marker needs. */
+static void test_codex(void) {
+    const double t0 = (double)g_midnight;
+    const double now = t0 + NOW_H * 3600;
+    char rec[2048];
+    /* Two bars ~12.1 minutes long (~140 px): "kdashdata" (108 px at 12 a
+     * character) fits inside a Claude bar (14 + 108 + 8 = 130) but not a Codex
+     * one (150). Then a 6-second Codex bar and a 6-second Claude bar. */
+    snprintf(rec, sizeof(rec),
+             "{\"ts\":%.1f,\"expected_refresh_s\":60,\"window_s\":86400,\"bars\":["
+             "{\"id\":\"x\",\"host\":\"kai\",\"name\":\"kdashdata\",\"start\":%.1f,"
+             "\"end\":%.1f,\"state\":\"done\",\"shipped\":false,\"overseer\":false,"
+             "\"provider\":\"codex\"},"
+             "{\"id\":\"y\",\"host\":\"kai\",\"name\":\"kdashdata\",\"start\":%.1f,"
+             "\"end\":%.1f,\"state\":\"done\",\"shipped\":false,\"overseer\":false,"
+             "\"provider\":\"claude\"},"
+             "{\"id\":\"z\",\"host\":\"kubs0\",\"name\":\"k\",\"start\":%.1f,"
+             "\"end\":%.1f,\"state\":\"done\",\"shipped\":false,\"overseer\":false,"
+             "\"provider\":\"codex\"},"
+             "{\"id\":\"w\",\"host\":\"cleo\",\"name\":\"k\",\"start\":%.1f,"
+             "\"end\":%.1f,\"state\":\"done\",\"shipped\":false,\"overseer\":false}]}",
+             now, t0 + 17.0 * 3600, t0 + 17.0 * 3600 + 726, t0 + 17.5 * 3600,
+             t0 + 17.5 * 3600 + 726, t0 + 18.2 * 3600, t0 + 18.2 * 3600 + 6, t0 + 18.4 * 3600,
+             t0 + 18.4 * 3600 + 6);
+    ag_reset();
+    CHECK(ag_observe(rec) == 1);
+    view((time_t)now);
+    CHECK(g_v.nbars == 4);
+    const ag_bar_t *cx = NULL, *cl = NULL, *cs = NULL, *ws = NULL;
+    for (int i = 0; i < g_v.nbars; i++) {
+        const ag_bar_t *b = &g_v.bars[i];
+        if (b->host == AG_HOST_KAI && b->codex)
+            cx = b;
+        else if (b->host == AG_HOST_KAI)
+            cl = b;
+        else if (b->host == AG_HOST_KUBS0)
+            cs = b;
+        else
+            ws = b;
+    }
+    CHECK(cx && cl && cs && ws);
+    if (!cx || !cl || !cs || !ws)
+        return;
+    CHECK(cx->x1 - cx->x0 == cl->x1 - cl->x0);
+    CHECK(!cl->codex && !ws->codex && cs->codex); /* claude and absent: unmarked */
+    CHECK(!cl->label_out && STREQ(cl->label, "kdashdata"));
+    CHECK(cx->label_out || !STREQ(cx->label, "kdashdata")); /* the patch takes the room */
+    CHECK(cs->x1 - cs->x0 == AG_CODEX_MIN_W); /* widened to hold the marker */
+    CHECK(ws->x1 - ws->x0 == AG_BAR_MIN_W);
+    CHECK(AG_CODEX_MIN_W > AG_CODEX_PATCH_X + AG_CODEX_PATCH + 4); /* clear of the 4 px border */
+}
+
 static void test_label(void) {
     char out[KDASH_AGENTS_NAME_MAX + 4];
     CHECK(ag_fit_label("kdashdata", 108, measure12, NULL, out, sizeof(out)));
@@ -776,6 +838,7 @@ int main(void) {
     test_working_overseer();
     test_leg_floor();
     test_label();
+    test_codex();
     test_dst();
     ag_reset();
     printf("test_agstate: %d passed, %d failed\n", passed, failed);

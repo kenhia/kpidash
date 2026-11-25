@@ -1,34 +1,23 @@
-/* render_limits.c — offline render of the Claude limits card to BMP (sprint
- * 037). Not a test: a review tool, built with the full native tree (it needs
- * LVGL), so the card can be compared with the mock-up without a Pi.
+/* render_limits.c — offline render of the usage card to BMP (sprint 037; the
+ * triangle and Codex, sprint 049). Not a test: a review tool, built with the
+ * full native tree (it needs LVGL), so the card can be checked without a Pi.
  *
- *   render_limits <out.bmp> [ok|warn|stale|bare|live037|nofive-ok|nofive-warn|
- *                            nofive-stale|nofive-long|seven|live]
+ *   render_limits <out.bmp> [state]
  *
- * ok, warn and stale are the mock-up's three states (row2-cards-mockups.html,
- * `limits()`, data D.ok / D.warn / D.stale), built as claude:limits hashes
- * whose reset times put each pace tick where the mock-up draws it:
- *   ok     cleo, 40 s old: 42 % / 61 % / Fable 38 %, all peach
- *   warn   kai, 2 m old: 91 % (red), 78 % (yellow), Fable 84 % (yellow)
- *   stale  the ok record read 22 minutes on: every gauge grey
- * and two more the mock-up does not draw:
- *   bare   a statusline write with no scoped set: no bar
- *   live037 the record kai published on 2026-11-14 00:42Z, read 47 s on
- * Sprint 039 (WI #4631) adds the layouts for a record that says there is no
- * five-hour window (five_hour_none 1), which no mock-up draws:
- *   nofive-ok     7 DAY 61 % and FABLE · 7 DAY 38 %, both peach, ticks at 0.72
- *   nofive-warn   7 DAY 78 % (yellow), Fable 91 % (red)
- *   nofive-stale  nofive-ok read 22 minutes on: both rings grey
- *   seven         no five-hour window and no scoped set: one 7 DAY ring
- *   nofive-long   nofive-ok with the schema's example model, "claude-opus-5",
- *                 whose ring label is too wide with the window: model alone
- *   live          the record kai published at 2026-11-14 02:44Z, read 47 s on
- * Sprint 046 (WI #4801) opens the rings into 270° arcs and adds one more state
- * for reviewing them at any value and pace:
- *   gauge <five|scoped|seven> <pct1> <pace1> <pct2> <pace2> [stale]
- *                 ring 1 (5 HOUR, or 7 DAY with no five-hour window) and ring 2
- *                 at pct % with the tick at pace (0..1); the five-hour layout's
- *                 bar sits at Fable 38 %, 0.72. stale reads it 22 minutes on.
+ * Sprint 049 (WI #4941) replaced the earlier states with the triangle's:
+ *   ok           Claude 61 %, Fable 38 % (resetting with Claude: one reset
+ *                line), Codex 24 % in its green; everything fresh
+ *   split        as ok, but Fable resets a day after Claude: both lines
+ *   warn         Claude 78 % (yellow), Fable 91 % (red), Codex 82 % (yellow)
+ *   codex-high   Claude and Fable as ok, Codex 93 % (red)
+ *   codex-stale  as ok, but Codex last observed 22 minutes ago: grey ring,
+ *                "codex: no data 22m" in the header
+ *   stale        as ok, every record 22 minutes old: all grey
+ *   claude-only  no Codex record ever: the bottom slot is empty
+ *   codex-only   no Claude record ever: only the bottom ring
+ *   live         the records rpi53 held at 2026-11-25 21:50Z, read 47 s on
+ *   gauge <c7> <fable> <codex> [pace]
+ *                any three percentages, ticks at `pace` (default 0.72)
  * Times are drawn in America/Los_Angeles, rpi53's zone. The canvas is the
  * whole 632 x 628 cell, the card at CELL_PAD inside it, on the panel's crust. */
 #include <stdio.h>
@@ -63,7 +52,6 @@ static time_t local_time(int y, int mo, int d, int h, int mi) {
 static const char *F[MAXF], *V[MAXF];
 static char store[MAXF][32];
 static int nf;
-static const char *g_model = "Fable";
 
 static void put(const char *f, const char *fmt, double v) {
     snprintf(store[nf], sizeof(store[nf]), fmt, v);
@@ -78,79 +66,71 @@ static void put_s(const char *f, const char *v) {
     nf++;
 }
 
-/* A record whose rings and bar sit at `p5`/`p7`/`ps` percent, with each pace
- * tick at `k5`/`k7`/`ks` of its window, observed `age` seconds before `now`. */
-static void build(double now, double age, const char *host, double p5, double k5, double p7,
-                  double k7, double ps, double ks, bool scoped, double five_reset) {
+/* A claude:limits record as kai's oauth poll writes it on Ken's plan (no
+ * five-hour window): 7-day at `p7`, Fable at `ps`, both resetting at `reset`
+ * unless `fable_reset` says otherwise, observed `age` seconds before `now`. */
+static void claude(double now, double age, double p7, double ps, double reset,
+                   double fable_reset) {
     nf = 0;
     double obs = now - age;
-    put("five_hour_pct", "%.0f", p5 < 0 ? 0 : p5);
+    put("five_hour_pct", "%.0f", 0);
+    put("five_hour_none", "%.0f", 1);
+    put("five_hour_resets_at", "%.0f", 0);
     put("seven_day_pct", "%.0f", p7);
-    if (p5 < 0) /* no five-hour window, as CD-29's writers publish it */
-        put("five_hour_none", "%.0f", 1);
-    put("five_hour_resets_at", "%.0f",
-        p5 < 0 ? 0 : five_reset > 0 ? five_reset : now + (1 - k5) * LIM_FIVE_HOUR_S);
-    put("seven_day_resets_at", "%.0f", now + (1 - k7) * LIM_SEVEN_DAY_S);
+    put("seven_day_resets_at", "%.0f", reset);
     put("updated_at", "%.0f", obs);
     put("expected_refresh_s", "%.0f", 300);
-    put_s("host", host);
-    if (scoped) {
-        put_s("scoped_model", g_model);
-        put("scoped_pct", "%.0f", ps);
-        put("scoped_resets_at", "%.0f", now + (1 - ks) * LIM_SEVEN_DAY_S);
-        put("scoped_updated_at", "%.0f", obs);
-        put("scoped_expected_refresh_s", "%.0f", 300);
-    }
+    put_s("host", "kai");
+    put_s("scoped_model", "Fable");
+    put("scoped_pct", "%.0f", ps);
+    put("scoped_resets_at", "%.0f", fable_reset > 0 ? fable_reset : reset);
+    put("scoped_updated_at", "%.0f", obs);
+    put("scoped_expected_refresh_s", "%.0f", 300);
+}
+
+/* A codex:limits record as kdeskdash's codex-pub writes it on Pro. */
+static void codex(double now, double age, double p7, double reset) {
+    nf = 0;
+    put("five_hour_none", "%.0f", 1);
+    put("five_hour_pct", "%.0f", 0);
+    put("five_hour_resets_at", "%.0f", 0);
+    put("seven_day_pct", "%.0f", p7);
+    put("seven_day_resets_at", "%.0f", reset);
+    put("updated_at", "%.0f", now - age);
+    put("expected_refresh_s", "%.0f", 300);
+    put_s("host", "kai");
+    put_s("source", "app-server");
+    put_s("plan_type", "prolite");
+}
+
+static int feed_claude(void) {
+    return lim_observe(F, V, nf);
+}
+
+static int feed_codex(void) {
+    return lim_codex_observe(F, V, nf);
 }
 
 int main(int argc, char **argv) {
     if (argc < 2) {
-        fprintf(stderr, "usage: %s out.bmp [ok|warn|stale|bare|live037|nofive-ok|nofive-warn|nofive-stale|nofive-long|seven|live|gauge ...]\n", argv[0]);
+        fprintf(stderr,
+                "usage: %s out.bmp [ok|split|warn|codex-high|codex-stale|stale|claude-only|"
+                "codex-only|live|gauge c7 fable codex [pace]]\n",
+                argv[0]);
         return 2;
     }
     const char *state = argc > 2 ? argv[2] : "ok";
     setenv("TZ", "America/Los_Angeles", 1);
     tzset();
 
-    /* The 7-day ring resets "Mon 09:00", as in the mock-up; `now` is placed
-     * so its tick lands at the mock-up's fraction. */
-    const double mon = (double)local_time(2026, 11, 16, 9, 0);
-    double now;
+    /* Claude's week resets Mon 09:00 and Codex's Mon 21:50 (its real weekly
+     * reset), `now` placed so the Claude ticks sit at 0.72. */
+    const double mon = (double)local_time(2026, 11, 30, 9, 0);
+    const double cx_reset = (double)local_time(2026, 11, 30, 21, 50);
+    double now = mon - (1 - 0.72) * LIM_SEVEN_DAY_S;
     lim_reset();
-    if (strcmp(state, "warn") == 0) {
-        now = mon - (1 - 0.60) * LIM_SEVEN_DAY_S;
-        /* "resets in 2h 36m": 1 - 156/300 = 0.48, the mock-up's tick. */
-        build(now, 120, "kai", 91, 0, 78, 0.60, 84, 0.60, true, now + 156 * 60 - 30);
-    } else if (strncmp(state, "nofive-", 7) == 0 || strcmp(state, "seven") == 0) {
-        bool warn = strcmp(state, "nofive-warn") == 0;
-        if (strcmp(state, "nofive-long") == 0)
-            g_model = "claude-opus-5";
-        now = mon - (1 - 0.72) * LIM_SEVEN_DAY_S;
-        if (warn)
-            build(now, 120, "kai", -1, 0, 78, 0.72, 91, 0.72, true, 0);
-        else
-            build(now, 40, "kai", -1, 0, 61, 0.72, 38, 0.72, strcmp(state, "seven") != 0, 0);
-        if (strcmp(state, "nofive-stale") == 0)
-            now += 22 * 60;
-    } else if (strcmp(state, "gauge") == 0) {
-        if (argc < 8) {
-            fprintf(stderr, "gauge <five|scoped|seven> <pct1> <pace1> <pct2> <pace2> [stale]\n");
-            return 2;
-        }
-        const char *lay = argv[3];
-        double a = atof(argv[4]), ka = atof(argv[5]), b = atof(argv[6]), kb = atof(argv[7]);
-        /* The 7-day tick is set by `now`, the rest by their reset times. */
-        if (strcmp(lay, "five") == 0) {
-            now = mon - (1 - kb) * LIM_SEVEN_DAY_S;
-            build(now, 40, "cleo", a, 0, b, kb, 38, 0.72, true,
-                  now + (1 - ka) * LIM_FIVE_HOUR_S);
-        } else {
-            now = mon - (1 - ka) * LIM_SEVEN_DAY_S;
-            build(now, 40, "kai", -1, 0, a, ka, b, kb, strcmp(lay, "seven") != 0, 0);
-        }
-        if (argc > 8 && strcmp(argv[8], "stale") == 0)
-            now += 22 * 60;
-    } else if (strcmp(state, "live") == 0) {
+    int built = 1;
+    if (strcmp(state, "live") == 0) {
         static const char *lf[] = {
             "five_hour_pct", "seven_day_pct", "updated_at", "host", "source",
             "expected_refresh_s", "ts", "five_hour_resets_at", "seven_day_resets_at",
@@ -158,39 +138,52 @@ int main(int argc, char **argv) {
             "scoped_expected_refresh_s", "scoped_resets_at", "five_hour_none",
         };
         static const char *lv[] = {
-            "0", "11", "1794621843", "kai", "oauth", "300", "1794621844", "0",
-            "1795089599", "Fable", "13", "1", "1", "1794621843", "300", "1795089599", "1",
+            "0", "37", "1795643204", "kai", "oauth", "300", "1795643205", "0", "1795694399",
+            "Fable", "30", "0", "1", "1795643204", "300", "1795694399", "1",
         };
-        nf = (int)(sizeof(lf) / sizeof(lf[0]));
-        memcpy(F, lf, sizeof(lf));
-        memcpy(V, lv, sizeof(lv));
-        now = 1794621843 + 47;
-    } else if (strcmp(state, "live037") == 0) {
-        static const char *lf[] = {
-            "five_hour_pct", "seven_day_pct", "updated_at", "host", "source",
-            "expected_refresh_s", "ts", "five_hour_resets_at", "seven_day_resets_at",
-            "scoped_model", "scoped_pct", "scoped_active", "scoped_count", "scoped_updated_at",
-            "scoped_expected_refresh_s", "scoped_resets_at",
+        static const char *cf[] = {
+            "five_hour_none", "five_hour_pct", "five_hour_resets_at", "seven_day_pct",
+            "seven_day_resets_at", "updated_at", "expected_refresh_s", "host", "source",
+            "plan_type", "ts",
         };
-        static const char *lv[] = {
-            "8", "8", "1794616923", "kai", "oauth", "300", "1794616924", "1795089599",
-            "1795089599", "Fable", "11", "1", "1", "1794616923", "300", "1795089599",
+        static const char *cv[] = {
+            "1", "0", "0", "1", "1796175971", "1795643144", "300", "kai", "app-server",
+            "prolite", "1795643145",
         };
-        nf = (int)(sizeof(lf) / sizeof(lf[0]));
-        memcpy(F, lf, sizeof(lf));
-        memcpy(V, lv, sizeof(lv));
-        now = 1794616923 + 47;
+        built = lim_observe(lf, lv, (int)(sizeof(lf) / sizeof(lf[0]))) == 1 &&
+             lim_codex_observe(cf, cv, (int)(sizeof(cf) / sizeof(cf[0]))) == 1;
+        now = 1795643204 + 47;
+    } else if (strcmp(state, "gauge") == 0) {
+        if (argc < 6) {
+            fprintf(stderr, "gauge <c7> <fable> <codex> [pace]\n");
+            return 2;
+        }
+        double k = argc > 6 ? atof(argv[6]) : 0.72;
+        now = mon - (1 - k) * LIM_SEVEN_DAY_S;
+        claude(now, 40, atof(argv[3]), atof(argv[4]), mon, 0);
+        built = feed_claude() == 1;
+        codex(now, 40, atof(argv[5]), now + (1 - k) * LIM_SEVEN_DAY_S);
+        built = built && feed_codex() == 1;
     } else {
-        now = mon - (1 - 0.72) * LIM_SEVEN_DAY_S;
-        bool stale = strcmp(state, "stale") == 0;
-        bool bare = strcmp(state, "bare") == 0;
-        /* "resets in 2h 14m": 1 - 134/300 = 0.553, the mock-up's 0.55. */
-        build(now, 40, "cleo", 42, 0, 61, 0.72, 38, 0.72, !bare, now + 134 * 60 - 30);
-        if (stale)
-            now += 22 * 60;
+        bool warn = strcmp(state, "warn") == 0;
+        bool high = strcmp(state, "codex-high") == 0;
+        double age_c = 40, age_x = 40;
+        if (strcmp(state, "stale") == 0)
+            age_c = age_x = 22 * 60;
+        if (strcmp(state, "codex-stale") == 0)
+            age_x = 22 * 60;
+        if (strcmp(state, "codex-only") != 0) {
+            claude(now, age_c, warn ? 78 : 61, warn ? 91 : 38, mon,
+                   strcmp(state, "split") == 0 ? mon + 86400 : 0);
+            built = feed_claude() == 1;
+        }
+        if (built && strcmp(state, "claude-only") != 0) {
+            codex(now, age_x, warn ? 82 : high ? 93 : 24, cx_reset);
+            built = feed_codex() == 1;
+        }
     }
-    if (lim_observe(F, V, nf, now) != 1) {
-        fprintf(stderr, "cannot build the %s record\n", state);
+    if (!built) {
+        fprintf(stderr, "cannot build the %s records\n", state);
         return 1;
     }
 

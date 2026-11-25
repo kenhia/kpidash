@@ -19,13 +19,15 @@
  * which then greys by ITS stamp rather than vanishing and reflowing the card.
  * No record ever seen: the card is not drawn.
  *
- * Layout mode (WI #4631, sprint 039): a record that says there is no five-hour
- * window (CD-29's five_hour_none) draws the 7-day and scoped windows as the two
- * rings, or the 7-day ring alone with no scoped set. The mode shown follows the
- * record but is debounced the way sprint 035 debounced NO PATH: it changes only
- * after LIM_MODE_STREAK consecutive new, fresh records give the same different
- * answer, so two hosts publishing different shapes cannot flap the card. A
- * stale record, an absent key and a rejected record never move it.
+ * Sprint 049 (WI #4941, korg:4950): the card became "Usage", three rings in a
+ * triangle — Claude 7 day and Claude's scoped (Fable) window on top, Codex 7
+ * day centred below — and it carries the long windows only. codex:limits is
+ * read through libkdash (kdash_parse_codex_limits, CD-33) and held the same
+ * way: an absent key or a rejected record keeps the last one, which greys by
+ * its own observation stamp; never seen, no ring. Sprint 039's layout mode
+ * (LIM_MODE_FIVE / SCOPED / SEVEN and its debounce) is gone: no five-hour
+ * window is drawn whatever a record says, so nothing in the layout depends on
+ * five_hour_none any more and there is nothing left to debounce.
  *
  * Touched only from the LVGL thread, so there is no lock.
  */
@@ -47,13 +49,6 @@ typedef enum {
     LIM_BAND_CRIT,   /* red */
 } lim_band_t;
 
-typedef enum {
-    LIM_MODE_FIVE = 0, /* 5 HOUR and 7 DAY rings, the scoped bar (sprint 037) */
-    LIM_MODE_SCOPED,   /* no five-hour window: 7 DAY and the scoped window as rings */
-    LIM_MODE_SEVEN,    /* no five-hour window and no scoped set: one 7 DAY ring */
-} lim_mode_t;
-
-#define LIM_MODE_STREAK 3 /* sprint 035's NET_WAN_MISS_STREAK, the same rule */
 
 typedef struct {
     kdash_claude_limits_t l;
@@ -65,23 +60,32 @@ typedef struct {
  * way, so two parses of the same list compare equal with memcmp. */
 bool lim_parse(const char *const *fields, const char *const *values, int n, lim_record_t *out);
 
-/* Feed one poll read at `now`: n <= 0 (or NULL lists) means the key is
- * absent. Returns 1 when the record changed, 0 when nothing changed (the same
- * record again, or absent), -1 when this record was rejected (logged by the
- * caller; the previous record stays). `now` is for the mode debounce only: a
- * record already stale when read does not count toward a layout change. */
-int lim_observe(const char *const *fields, const char *const *values, int n, double now);
+/* Feed one poll read: n <= 0 (or NULL lists) means the key is absent. Returns
+ * 1 when the record changed, 0 when nothing changed (the same record again, or
+ * absent), -1 when this record was rejected (logged by the caller; the
+ * previous record stays). */
+int lim_observe(const char *const *fields, const char *const *values, int n);
 bool lim_has_record(void);
 const lim_record_t *lim_record(void);
 void lim_reset(void); /* test hook */
 
-/* The layout one record calls for, on its own. Only a valid record that says
- * five_hour_none is "no window"; a record without the flag (an older writer)
- * has one. Run after the scoped carry, so a carried set counts as present. */
-lim_mode_t lim_mode_of(const lim_record_t *r);
-/* The layout drawn: the first record's answer, then debounced. FIVE before
- * any record. */
-lim_mode_t lim_mode(void);
+/* ---- codex:limits (sprint 049) ---- */
+
+/* The same contract as lim_observe, for codex:limits: absent keeps the last
+ * record, rejected returns -1 and keeps it too. */
+int lim_codex_observe(const char *const *fields, const char *const *values, int n);
+/* The last valid Codex record, or NULL before one has ever been read. */
+const kdash_codex_limits_t *lim_codex(void);
+/* libkdash's rule: older than the writer's cadence plus KDASH_CADENCE_GRACE_S. */
+bool lim_codex_stale(const kdash_codex_limits_t *c, double now);
+/* The card is drawn once either feed has published. */
+bool lim_has_any(void);
+
+/* Two windows reset "together" when both resets are known and within
+ * LIM_RESET_AGREE_S of each other: the Fable ring then drops its reset line and
+ * the Claude 7-day ring's carries it (Ken's rule, korg WI 4940 comment 5109). */
+#define LIM_RESET_AGREE_S (2.0 * 3600)
+bool lim_resets_agree(double a, double b);
 
 /* Per-gauge staleness, libkdash's rule at libkdash's default grace and legacy
  * window. The two rings share the headline stamp; the bar has its own. */
@@ -117,8 +121,6 @@ void lim_fmt_dur(double secs, char *buf, size_t n);
 /* The header's right-hand text. Fresh: "kai · 40s ago" ("40s ago" with no
  * host). Headline stale: "no data 22m". */
 void lim_fmt_header(const lim_record_t *r, double now, bool stale, char *buf, size_t n);
-/* The bar's label: "Fable, 7 day". */
-void lim_fmt_scoped_label(const lim_record_t *r, char *buf, size_t n);
 /* The scoped window's RING label, in the rings' capitals: "FABLE · 7 DAY", or
  * with `window` false the model alone, "FABLE". ASCII is upper-cased; other
  * bytes pass through. The card picks the longest that fits under the ring. */

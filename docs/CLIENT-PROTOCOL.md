@@ -890,42 +890,53 @@ redis-cli -h rpi53 GET kdash:weather:home
 
 ---
 
-## 8h. Claude Limits Card (Sprints 037 and 039, WI #4609, #4631)
+## 8h. Usage Card (Sprints 037, 039 and 049, WI #4609, #4631, #4941)
 
 | Key | Type | Written by | Read by | TTL |
 |-----|------|-----------|---------|-----|
-| `claude:limits` | HASH | Claude Code statusline and oauth poll, every host running it (kdeskdash `publisher/claude-pub.sh`) | dashboard, kdeskdash | none |
+| `claude:limits` | HASH | Claude Code statusline and oauth poll, every host running it (kdeskdash `publisher/claude-pub.sh`) | dashboard, kdeskdash, kctrldeck | none |
+| `codex:limits` | HASH | kdeskdash `publisher/codex-pub.sh poll` on kai | dashboard, kctrldeck | none |
 
-**The contract is kdashdata's**: schema
-`lib/kdashdata/contracts/schemas/claude-limits.schema.json`, notes in
-`contracts/registry.md`. It is the `KDASH_CLAUDE_REDIS` family, which answers
-`rpi53:6379` — the same Redis the dashboard already reads, so the card uses
-the existing connection. **If that stem ever moves off rpi53, the card needs
-a second connection**: kpidash links `kdash_core` only, not libkdash's
+**The contracts are kdashdata's**: schemas
+`lib/kdashdata/contracts/schemas/claude-limits.schema.json` and
+`codex-limits.schema.json` (CD-33), notes in `contracts/registry.md`. Both are
+on central, `rpi53:6379` — the same Redis the dashboard already reads, so the
+card uses the existing connection. **If that ever moves off rpi53, the card
+needs a second connection**: kpidash links `kdash_core` only, not libkdash's
 stem-resolving I/O shell.
 
-**The dashboard only reads it.** Never hand-write a fake record to the live
-key; `tests/render_limits` draws ok / warn / stale / bare / live037 and, for a
-record with no five-hour window, nofive-ok / nofive-warn / nofive-stale /
-nofive-long / seven / live offline.
+**The dashboard only reads them.** Never hand-write a fake record to a live
+key; `tests/render_limits` draws ok / split / warn / codex-high / codex-stale
+/ stale / claude-only / codex-only / live and `gauge c7 fable codex [pace]`
+offline.
 
 **Panel** (`src/limstate.c` model, `src/widgets/limits_card.c`): one
-`HGETALL` per poll, parsed by libkdash (`kdash_parse_claude_limits`).
+`HGETALL` of each per poll, parsed by libkdash (`kdash_parse_claude_limits`,
+`kdash_parse_codex_limits`). Since sprint 049 the card is titled "Usage" and
+draws Ken's layout C (korg WI 4940, comment 5112): three rings in a triangle,
+**long windows only**.
 
-- **Freshness is per gauge**: headline and scoped sets carry independent
-  stamps and cadences, judged by libkdash at a 60 s grace.
-- **Absent key, rejected record:** the last record stays. A write with no
-  scoped set keeps the last scoped set (greying by its own stamp).
-- **Never seen** this run: not drawn.
-- **`five_hour_none 1`** (CD-29) draws 7 DAY and the scoped window as the two
-  rings (7 DAY alone with no scoped set); absent or `0` draws the 5 HOUR /
-  7 DAY layout. The panel switches only after three consecutive new, fresh
-  records agree (the first record sets it), so a mix of writers with and
-  without the flag does not flap it.
+- **Top left, Claude 7 DAY**; **top right, the scoped (Fable) window**, paced
+  on the seven-day clock; **bottom centre, Codex 7 DAY** in the Codex green
+  (`#1D9E75`, kctrldeck's `--accent-codex`). Claude's rings are peach in the
+  normal band; every ring turns yellow at 75 % and red at 90 %.
+- **No five-hour ring**, whatever a record publishes: kctrldeck carries the
+  5-hour bars. `five_hour_none` therefore changes nothing on this card.
+- **Pace tick on every ring.** A reset line under each; the Fable ring drops
+  its own when it resets within 2 h of Claude's 7-day window.
+- **Freshness is per ring**: Claude's headline and scoped sets carry their own
+  stamps and cadences (60 s grace); Codex is judged on `updated_at` plus its
+  `expected_refresh_s` plus 60 s. A stale ring greys; the header says so
+  ("no data 22m" for Claude, "codex: no data 22m" for Codex).
+- **Absent key, rejected record:** the last record stays and ages, never 0 %.
+  A Claude write with no scoped set keeps the last scoped set.
+- **Never seen** this run: that ring is not drawn (its slot stays empty, so
+  nothing moves when it appears); neither seen, the card is not drawn.
 
 ```sh
 # What the card reads (rpi53 Redis needs auth) — read only
 redis-cli -h rpi53 HGETALL claude:limits
+redis-cli -h rpi53 HGETALL codex:limits
 ```
 
 ---
@@ -1021,12 +1032,14 @@ redis-cli -h rpi53 GET kdash:calendar
 `expected_refresh_s`, `window_s` (86400 from ksitrep), and `bars`, at most 96
 ascending by `start`. Each bar has `id`, `host`, `name` (1-31 UTF-8
 characters), `start`, `end`, `state` (`done`, `working` or `waiting`),
-`shipped`, `overseer`, and an optional `parent` naming another bar whose
-`overseer` is true. A running bar's `end` is the publish time.
+`shipped`, `overseer`, an optional `parent` naming another bar whose
+`overseer` is true, and an optional `provider` (`claude`, `ghcp`, `codex` or
+`other`; CD-31 addendum — absent or unknown reads as `other`). A running bar's
+`end` is the publish time.
 
 **The dashboard only reads it.** Never hand-write a record to the live key;
 `tests/render_agents` draws target / mock / quiet / empty / nofeed / stale /
-crowded / legs / long / live offline, and a test record belongs on a scratch Redis.
+crowded / legs / long / codex / live offline, and a test record belongs on a scratch Redis.
 
 **Panel** (`src/agstate.c` model, `src/widgets/agents_card.c`): one `GET` per
 poll, parsed by libkdash (`kdash_parse_agents`). kpidash links `kdash_core`
@@ -1040,6 +1053,12 @@ returns the whole value (up to 64 KB) and agstate copies it unclamped.
 - **Absent key, rejected record:** the last good record stays.
 - **What the parser dropped** (bad bars, past 96, unresolved parents) is one
   log line when an adopted record has any, never panel text.
+- **A Codex bar** (`provider: codex`, sprint 049) carries a Codex-green dot on
+  a small Crust patch at its left end, before the name; every other provider
+  is unmarked. Host keeps the border and fill, state keeps the fill. The dot
+  stays with the bar when the name is drawn left of it, and a Codex bar is
+  never drawn narrower than its marker needs (34 px) rather than lose it.
+  The 24-hour strip stays by host only; the header legend has a "codex" item.
 
 ```sh
 # What the card reads (rpi53 Redis needs auth) — read only

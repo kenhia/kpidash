@@ -172,13 +172,14 @@ LVGL/DRM/KMS with no mouse or keyboard interaction.
     poll into `wxstate.c` (pure model; an unchanged value is one strcmp) and
     draws `widgets/weather_card.c` in the host row's spare columns. Read only:
     kweather owns the key. See CLIENT-PROTOCOL.md §8g (sprint 034).
-14. **Claude limits card**: Claude Code's statusline and oauth poll write
+14. **Usage card**: Claude Code's statusline and oauth poll write
     `claude:limits` (a HASH, no TTL, several writers) from every host that
-    runs it. Dashboard HGETALLs it each poll into `limstate.c` (libkdash's
-    parser and per-gauge staleness, plus the card's own pace, bands and
-    strings) and, once it has published, draws `widgets/limits_card.c` in
-    row 1, column 0, in the layout the record calls for (sprint 039). Read
-    only. See CLIENT-PROTOCOL.md §8h (sprint 037).
+    runs it, and kdeskdash's `codex-pub.sh` on kai writes `codex:limits`
+    (sprint 049). Dashboard HGETALLs both each poll into `limstate.c`
+    (libkdash's parsers and staleness, plus the card's own pace, bands and
+    strings) and, once either has published, draws `widgets/limits_card.c`
+    in row 1, column 0: three rings, Claude 7 day, Fable and Codex 7 day.
+    Read only. See CLIENT-PROTOCOL.md §8h (sprints 037, 049).
 15. **korg + klams card**: korg's `bin/korg-pulse` on kai writes
     `kdash:korg:pulse` every 5 min, and klams-monitor on kubs0 writes
     `kdash:klams:status` every 60 s (kdashdata CD-28: one JSON document each,
@@ -234,7 +235,7 @@ kpidash/
 │   ├── hosthist.{h,c}          # Per-host 10-min CPU/top-core/GPU ring (sprint 029)
 │   ├── hostcols.{h,c}          # Host columns fill rule, order, attention (pure)
 │   ├── wxstate.{h,c}           # Weather filler: parse, trust, space, scale (pure, sprint 034)
-│   ├── limstate.{h,c}          # Claude limits card: pace, bands, strings, carry (pure, 037)
+│   ├── limstate.{h,c}          # Usage card: Claude + Codex records, pace, bands, strings, carry (pure, 037/049)
 │   ├── kkstate.{h,c}           # korg + klams card: debounce, scanners, 30-day line (pure, 038)
 │   ├── calstate.{h,c}          # Time and calendar card: month grid, tags, coming up (pure, 040)
 │   ├── agstate.{h,c}           # Agents card: 3 h detail, name placement, packing, day strip (pure, 041/042)
@@ -289,7 +290,7 @@ kpidash/
 │   ├── render_host_columns.c   # Offline render of the host columns to BMP (tool)
 │   ├── render_nas_card.c       # Offline render of the NAS card, four states (tool)
 │   ├── render_weather.c        # Offline render of the weather filler, 4 states × 4 widths (tool)
-│   ├── render_limits.c         # Offline render of the Claude limits card, 5 states (tool)
+│   ├── render_limits.c         # Offline render of the usage card, 9 states + gauge (tool)
 │   ├── render_korg_klams.c     # Offline render of the korg + klams card, 6 states (tool)
 │   ├── render_calendar.c       # Offline render of the time and calendar card, 7 states (tool)
 │   ├── render_agents.c         # Offline render of the Agents card, 9 states + live (tool)
@@ -361,9 +362,9 @@ Widget content (1×1): UNIT_W - 2×CELL_PAD = 624, UNIT_H - 2×CELL_PAD = 620
 └──────────────────────────────────────────────────────────────┘
 ```
 
-Row 1 reads Claude limits, 10G, NAS, korg + klams (sprint 043, WI #4752;
+Row 1 reads usage (Claude limits until sprint 049), 10G, NAS, korg + klams (sprint 043, WI #4752;
 until then the limits card was last and the 10G card first). Every row-1 card
-has a fixed slot: the limits card is hidden until `claude:limits` has published
+has a fixed slot: the usage card is hidden until `claude:limits` or `codex:limits` has published
 and the NAS card until `kdash:nas` has, but their slots stay reserved, so the
 10G card never moves. Every other cell has a fixed slot too (sprints 037-041).
 
@@ -631,49 +632,48 @@ nothing depends on it.
   (once a minute) or a strip around the day bar's marker (when its minute
   moves) is invalidated.
 
-## Claude Limits Card (sprints 037, 039)
+## Usage Card (sprints 037, 039, 049)
 
-`src/widgets/limits_card.c`, the "CLAUDE LIMITS" card Ken picked on
-2026-11-13 (`sprints/planning/row2-cards-mockups.html`, function `limits()`).
-A 1×1 in row 1, column 0 (Ken's "row 2", counting from one), at the start
-of the row: Ken moved it there from column 5 in sprint 043 (WI #4752).
+`src/widgets/limits_card.c`. It began as the "CLAUDE LIMITS" card Ken picked
+on 2026-11-13 (`sprints/planning/row2-cards-mockups.html`, `limits()`); since
+sprint 049 (WI #4941) it is the "Usage" card, Ken's layout C from the
+2026-11-25 mockup session (korg WI 4940, comment 5112; mock-up
+`sprints/planning/usage-codex-mockups.html`). A 1×1 in row 1, column 0.
 
-- **Layout.** "Claude" in peach and, at the right, the writing host and the
-  record's age. Two rings, 5 HOUR and 7 DAY, each with its percentage in the
-  96 px digits and a 36 px "%", its label and its reset ("resets in 2h 14m"
-  under a day away, else "resets Mon 09:00" in the panel's local time). Below,
-  one bar for the model-scoped weekly window ("Fable, 7 day"), left out
-  entirely when the record has never carried a scoped set.
-- **No five-hour window** (sprint 039, WI #4631; Ken's ruling 2026-11-13).
-  When the record says `five_hour_none` (kdashdata CD-29), the rings are
-  7 DAY and the scoped window ("FABLE · 7 DAY", or the model alone when that
-  is too wide to sit under its ring), each with its own reset and tick. The
-  bar and its rule go, and the rings move down 50 px to sit centred between
-  the header and the caption; nothing new fills the height. With no scoped set
-  ever seen, one 7 DAY ring is drawn centred. Same rings, colours and type.
-- **Which layout** (`lim_mode_of`, `lim_mode`). Only a valid record with the
-  flag is "no window"; a record without it (a pre-CD-29 writer) has one. The
-  first record sets the layout outright; after that it changes only when three
-  consecutive new records (by `updated_at`), each fresh when read, give the
-  same different answer, sprint 035's NO PATH rule. A stale record, an absent
-  key or a rejected one never moves it, so two hosts publishing different
-  shapes cannot flap the card.
+- **Layout.** "Usage" in peach and, at the right, the Claude writer's host
+  and the record's age. Three peer rings in a triangle: **CLAUDE · 7 DAY**
+  top left, **the scoped window** ("FABLE · 7 DAY", or the model alone when
+  that is too wide) top right, **CODEX · 7 DAY** centred below. Each has its
+  percentage in the 72 px digits and a 28 px "%", its label and its reset
+  ("resets in 2h 14m" under a day away, else "resets Mon 09:00" in the
+  panel's local time). Every slot is fixed: a ring whose feed has never
+  published is not drawn, and nothing moves when it appears.
+- **Long windows only.** No five-hour ring whatever a record publishes —
+  kctrldeck carries the 5-hour bars and goes dark when Ken is away; this card
+  keeps showing. So `five_hour_none` changes nothing here, and sprint 039's
+  layout mode and its three-record debounce were removed with the 5-hour
+  layout in sprint 049: there is no longer any shape for a record to vote on.
+- **One reset line when the Claude windows agree** (Ken's rule): the Fable
+  ring drops its reset when it is within 2 h of Claude's 7-day reset
+  (`lim_resets_agree`).
 - **The pace tick** (`lim_pace`) is the fraction of the window already
-  elapsed, from the reset time and the window's length (5 h, 7 d). A ring past
-  its tick is burning faster than the clock. No tick when the reset is unknown,
-  or further away than the window is long (no consistent record says that).
-- **Colour** (Ken's ruling): peach below 75 %, yellow from 75, red from 90,
-  banded on the percentage as drawn. Ring tracks are Surface0, opaque.
-- **Staleness is per gauge, and libkdash's** (`kdash_claude_limits_stale`,
-  `kdash_claude_limits_scoped_stale`): the rings share the headline stamp, the
-  bar has its own, each greys at its writer's cadence plus 60 s (an hour for a
-  pre-cadence writer). A stale headline greys the title and reads "no data
-  22m" in yellow; a stale gauge keeps its last number.
-- **Anti-flicker** (sprint 035's rule). An absent key or a rejected record keeps
-  the last record. A write with no scoped set (a statusline write) keeps the
-  last scoped set, which then greys by its own stamp instead of vanishing and
-  reflowing the card. In the no-window layout that set is the right ring.
-- **Repaint cost.** One callback-drawn object. A change to any gauge (a
+  elapsed, from the reset time and the window's length — seven days for all
+  three rings (the deck paces Fable on the same `LIM_SEVEN_DAY_S`). No tick
+  when the reset is unknown or further away than the window is long.
+- **Colour** (Ken's ruling): Claude rings peach below 75 %, yellow from 75,
+  red from 90, banded on the percentage as drawn. The Codex ring is the Codex
+  green (`#1D9E75`, kctrldeck's `--accent-codex`) below 75 and shifts to the
+  same yellow and red. Tracks are Surface0, opaque.
+- **Staleness is per ring, and libkdash's**: Claude's headline and scoped
+  sets by `kdash_claude_limits_stale` / `_scoped_stale`, Codex by
+  `kdash_codex_limits_stale` on `updated_at` plus its own cadence plus 60 s.
+  A stale ring greys and keeps its last number. The header reads "no data
+  22m" in yellow for a stale Claude headline, else "codex: no data 22m" for a
+  stale Codex record; the title greys only when every ring drawn is stale.
+- **Anti-flicker** (sprint 035's rule). An absent key or a rejected record
+  keeps the last record of that feed. A Claude write with no scoped set keeps
+  the last scoped set, which greys by its own stamp instead of vanishing.
+- **Repaint cost.** One callback-drawn object. A change to any ring (a
   number, a tick's half-degree step, a reset string's minute, a stale flip)
   repaints the card; the header age, which moves every second, repaints only
   its strip.
@@ -763,7 +763,7 @@ A 2×1 at the right end of row 2 (columns 4-5; "row 3" counting from one),
   kdashdata 026 bounded its names in characters) and one parse scratch, both
   static; nothing that size is on the stack per frame.
 
-## Agents Card (sprints 041, 042)
+## Agents Card (sprints 041, 042, 049)
 
 `src/widgets/agents_card.c`. Sprint 041 built the "Border colour" view with
 links "On" of the agents mock-ups Ken picked on 2026-11-14
@@ -789,6 +789,17 @@ window stayed 3 hours and the scale shrank. Always shown. The model is
   Ken: yellow, dark text, host border kept. A bar still in progress ends square
   at the now line (a square patch over its rounded end); a finished one is
   rounded all round. A ship is a teal diamond on the bar's right end.
+- **Codex bars** (sprint 049, WI #4941; Ken's decision 4, korg WI 4940
+  comment 5113). A bar whose `provider` is `codex` carries a Codex-green dot
+  on an 18 px Crust patch at its left end, before the name; Claude and every
+  other provider stay unmarked. Host keeps the border and fill, state the
+  fill; the patch is what keeps the dot readable on kubs0's green and the
+  yellow needs-you fill. The inside name starts `AG_CODEX_LABEL_DX` (20 px)
+  further right, which agstate budgets before choosing where the name goes.
+  When the name is drawn left of the bar, the dot stays with the bar. A Codex
+  bar is never narrower than `AG_CODEX_MIN_W` (34 px) — widened, like any bar
+  to `AG_BAR_MIN_W`, rather than lose its marker. The day strip stays by host;
+  the header legend gained a "codex" item.
 - **Overseers.** An overseer's name is Claude peach, and a working overseer
   keeps the dark finished fill so the peach stays readable; its square end
   marks it as working. (A waiting overseer is yellow with a dark name: peach
