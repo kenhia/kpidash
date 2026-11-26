@@ -68,7 +68,14 @@ handoff.
 
 ## Rollout plan (the ship turn, after clearance)
 
-1. Check the apt ring is not mid-run.
+1. Check the apt ring is not mid-run. The ring is two user timers on kubs0
+   (`apt-maintenance-apply.timer` Sun 05:00 PST,
+   `apt-maintenance-preview.timer` Wed 05:00 PST). Run
+   `ssh kubs0 'systemctl --user is-active apt-maintenance@apply.service
+   apt-maintenance@preview.service'`: both must read `inactive` (not
+   `active`/`activating`). Also check that no `apt`/`dpkg` process is running
+   and the dpkg lock is free on each target before its upgrade. Overseer's
+   answer, handoff korg:5083 thread.
 2. `just publish` (2.1.1 to the store on kubsdb).
 3. One host at a time: kai, kubs0, kubsdb, gratch: `uv tool upgrade
    kpidash-client`, restart the system unit. rpi53 by sprint 036's route
