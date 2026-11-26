@@ -100,7 +100,7 @@ Same file and path as Linux. Two differences:
   type  = "ssd"
   ```
 
-- **No GPU, no temperatures.** GPU telemetry is NVIDIA-only (`pynvml`), so a Mac
+- **No GPU, no temperatures.** GPU telemetry is NVIDIA-only (`nvidia-ml-py`), so a Mac
   reports `"gpu": null` like any GPU-less host. The card shows empty GPU arcs rather
   than zeros. The client collects no temperatures on any platform.
 

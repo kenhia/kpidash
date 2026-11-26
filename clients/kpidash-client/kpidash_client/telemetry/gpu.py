@@ -1,4 +1,4 @@
-"""telemetry/gpu.py — NVIDIA GPU collection via pynvml (T022)"""
+"""telemetry/gpu.py — NVIDIA GPU collection via nvidia-ml-py (imported as pynvml) (T022)"""
 
 from __future__ import annotations
 

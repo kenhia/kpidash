@@ -42,7 +42,7 @@ LVGL/DRM/KMS with no mouse or keyboard interaction.
 | JSON parsing (C) | cJSON | Tiny, single-file C lib; no dynamic allocation surprises |
 | Redis client (C) | hiredis 1.2.0 | Official C client; `find_package(hiredis)` on Debian Trixie |
 | Shared feed logic | libkdash (`kdash_core`) | kdashdata's pure-logic half — shared payload/threshold rules across the dashboards. Sprint 018 links it for the apartment-temperature band classifier. The I/O shell (`kdash`) is deliberately NOT linked: kpidash keeps its own hiredis layer |
-| Client language | Python 3.13+ | psutil, pynvml, GitPython>=3.1 available on all platforms |
+| Client language | Python 3.13+ | psutil, nvidia-ml-py (`import pynvml`) available on all platforms |
 | Client Redis | redis-py 5+ | Official Python client with pipeline support |
 | MCP server | Python + `mcp>=1` | FastMCP for tool registration; stdio transport |
 | Build system | CMake 3.22+ | LVGL ships CMakeLists; standard for C projects |
@@ -298,7 +298,7 @@ kpidash/
 │   ├── render_service_card.c   # Offline render of service cards with title/lines/span, 5 states (tool + fit test, 048)
 │   └── render_lamp_panel.c     # Offline render of the lamp panel (either machine) after N status cards (tool + test)
 ├── clients/
-│   └── kpidash-client/         # Python 3.13+ daemon + CLI (psutil, pynvml)
+│   └── kpidash-client/         # Python 3.13+ daemon + CLI (psutil, nvidia-ml-py)
 ├── scripts/
 │   └── load_test.py            # 8-client concurrent write stress test
 └── docs/

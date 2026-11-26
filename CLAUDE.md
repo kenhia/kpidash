@@ -210,5 +210,5 @@ package that feeds it (the telemetry daemon + CLI). Its repo scanner and the
   gate, though `.clang-format` exists and the retired Spec-Kit constitution
   claimed both as pre-commit checks. Format new C to match surrounding style by
   hand.
-- GPU telemetry is NVIDIA-only (via `pynvml`); Windows client disk types come
+- GPU telemetry is NVIDIA-only (via `nvidia-ml-py`, imported as `pynvml`); Windows client disk types come
   from user config rather than detection.
