@@ -84,3 +84,41 @@ handoff.
    restart, the unit is `active` with `NRestarts=0`, and health and telemetry
    are fresh on rpi53. On kai and kubs0, check the GPU fields in
    `kpidash:client:<host>:telemetry`.
+
+## Deployed
+
+2026-11-26, 10:16–10:19 PST, from kai under the overseer's clearance
+(korg:5076 comment 5164). Merged as `9dd60a2` (#54). There is no CI.
+
+- **Apt ring clear first.** `apt-maintenance@apply` and `@preview` on kubs0 were
+  both `inactive`. The dpkg lock was free on every target, and only the
+  resident `unattended-upgr` daemon was running.
+- **Published** with `just publish`: `kpidash_client-2.1.1` wheel and sdist
+  are in the store on kubsdb.
+- **Upgraded one host at a time.** Each upgrade removed `pynvml==13.0.1`. Each
+  unit came back `active` with `NRestarts=0`, had **0** deprecation notices and
+  0 error-level lines in the journal since the restart, and its health key on
+  rpi53 was fresh.
+
+  | host | from → to | how | GPU on rpi53 after |
+  |---|---|---|---|
+  | kai | 2.0.0 → 2.1.1 | `uv tool upgrade`, restart system unit | RTX 5090, 31047/32607 MB, unchanged |
+  | kubs0 | 2.0.0 → 2.1.1 | same | RTX 4080 SUPER, 13710/16376 MB |
+  | kubsdb | 2.0.0 → 2.1.1 | same | none (no NVIDIA), as before |
+  | gratch | 2.0.0 → 2.1.1 | same | none, as before |
+  | rpi53 | 2.0.0 → 2.1.1 | rsync of kai's checkout, `uv sync`, restart | none, as before |
+
+  On kai, `uv tool upgrade` also moved `redis` 8.1.0 → 8.2.0, a fresh resolve
+  within the existing `redis>=5`.
+- **rpi53's checkout** now reads `## main...origin/main` at `9dd60a2`. The
+  rsync used a filter file that excludes build trees, `.venv`, `dist/`,
+  `.env` and `.git/karc.lock`. A dry run showed nothing to delete. It turned
+  up a **stale `.git/karc.lock` on rpi53**: sprint 036's leg `kpidash-669d1d`
+  (host kai, proposal 4596). Sprint 036's whole-tree rsync copied it there on
+  2026-11-13. It is inert on rpi53, and it was left alone, because it is not
+  this leg's to remove.
+- **Not upgraded:** kimac. From kai at 10:19 PST, ssh answered
+  "This system is locked … use a local account name and password" (FileVault
+  pre-boot unlock), and `kpidash:client:kimac:health` is absent. Its client
+  is not running at all until someone unlocks it at the machine. kwork was
+  left out per the brief, and cleo runs the separate Windows client.
