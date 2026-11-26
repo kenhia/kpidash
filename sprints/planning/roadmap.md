@@ -6,7 +6,17 @@
 
 ## Now
 
-- **043 — Row 2 order: Claude usage first** (korg proposal 4756, WI 4752).
+- **050 — kpidash-client 2.1.1: `nvidia-ml-py` replaces `pynvml`** (korg
+  proposal 5076, WI 4608). Same `import pynvml`, without the deprecation
+  notice the shim printed on every client start. Patch release + fleet rollout.
+- **049** (shipped). Usage card with Codex; Codex marker on Agents bars (korg:4950).
+- **048** (shipped). Service card draws multi-line cards (`title`, `lines`,
+  `span`); client 2.1.0 (korg:4853).
+- **047** (shipped). Row 2: narrower Agents card, apt-temps widget beside it (korg:4852).
+- **046** (shipped). Claude limits card: split-circle gauges (korg:4802).
+- **045** (shipped). PDP-8/I lamp panel and rotation between panels (korg:4784).
+- **044** (shipped). Altair 8800 lamp panel after the status cards (korg:4778).
+- **043** (shipped). **Row 2 order: Claude usage first** (korg proposal 4756, WI 4752).
   Ken's request: row 1 in code (his "row 2") now reads Claude limits
   (column 0), 10G (1-2), NAS (3-4), korg + klams (5). Positions only.
 - **042** (shipped). Agents card v2 (korg proposal 4734, slice 7 of program 4699). The
